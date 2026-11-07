@@ -1,0 +1,7 @@
+menu "WRO S3 - red y panel web"
+
+    config WRO_WIFI_HOSTNAME
+        string "Nombre de host del robot"
+        default "wro-robot"
+
+endmenu

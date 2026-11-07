@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WRO Robot - LiDAR</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #171e26; --border: #263240; --text: #e6edf3; --muted: #8b98a5;
+    --accent: #3fb950; --warn: #d29922; --error: #f85149; --red: #ff4d4d; --green: #2ee06d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6f8; --panel: #ffffff; --border: #d0d7de; --text: #1f2328; --muted: #59636e;
+      --accent: #1a7f37; --warn: #9a6700; --error: #cf222e; --red: #d1242f; --green: #1a9f4b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  header h1 { font-size: 18px; margin: 0 12px 0 0; }
+  select, button { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  button { cursor: pointer; font-weight: 700; }
+  #go { background: #1a9e4b; color: #fff; border-color: transparent; padding: 8px 20px; }
+  #go.stop { background: #c0392b; }
+  .status { margin-left: auto; color: var(--muted); }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--error); }
+  #hero { padding: 14px 16px 0; }
+  #msg { font-size: 30px; font-weight: 700; line-height: 1.15; }
+  #sub { color: var(--muted); margin-top: 2px; }
+  #dist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px 16px 0; }
+  .d { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; text-align: center; }
+  .d .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .d .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .d.near .v { color: var(--error); } .d.mid .v { color: var(--warn); }
+  main { display: grid; gap: 16px; padding: 16px; grid-template-columns: minmax(0, 1fr) 320px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  #radar { width: min(100%, 80vh); height: auto; aspect-ratio: 1 / 1; display: block; margin: 0 auto; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  #camwrap { position: relative; width: min(100%, 640px); aspect-ratio: 4 / 3; margin: 0 auto; background: #000; border-radius: 8px; overflow: hidden; }
+  #camwrap img, #camwrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+  #camlist { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .chip { border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cal p { margin: 0 0 8px; color: var(--muted); }
+  .cal button { margin: 0 8px 8px 0; }
+  #calstat { margin-top: 6px; font-weight: 600; }
+  #calstat small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .lights { display: flex; gap: 28px; justify-content: center; margin: 8px 0 12px; }
+  .motor { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 600; color: inherit; padding: 4px; }
+  .lamp { width: 46px; height: 46px; border-radius: 50%; background: #3a3f47; border: 2px solid #777; }
+  .motor.on .lamp { background: #f1c40f; border-color: #f1c40f; box-shadow: 0 0 18px #f1c40f; }
+  .motor:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WRO Robot</h1>
+  <button id="go">INICIAR</button>
+  <label>Nivel
+    <select id="lvl"><option value="0">0 (inicio)</option></select>
+  </label>
+  <label>Vista
+    <select id="view"><option value="radar">Radar</option><option value="map" selected>Mapa (norte arriba)</option></select>
+  </label>
+  <button id="clr">Borrar mapa</button>
+  <label>Rango (m)
+    <select id="range">
+      <option value="1000">1</option>
+      <option value="2000">2</option>
+      <option value="3000" selected>3</option>
+      <option value="6000">6</option>
+      <option value="12000">12</option>
+    </select>
+  </label>
+  <span id="status" class="status">Conectando...</span>
+</header>
+
+<section id="hero">
+  <div id="msg">...</div>
+  <div id="sub"></div>
+</section>
+<section id="dist">
+  <div class="d" id="dL"><div class="v">-</div><div class="k">Izquierda</div></div>
+  <div class="d" id="dF"><div class="v">-</div><div class="k">Frente</div></div>
+  <div class="d" id="dR"><div class="v">-</div><div class="k">Derecha</div></div>
+</section>
+
+<main>
+  <section class="panel">
+    <h2 id="vtitle">Mapa</h2>
+    <canvas id="radar" width="760" height="760"></canvas>
+  </section>
+  <section class="panel">
+    <h2>Cámara <span id="camfps" style="font-weight:400;text-transform:none"></span></h2>
+    <div id="camperf" style="color:var(--muted);margin:-4px 0 8px;font-variant-numeric:tabular-nums"></div>
+    <div id="camwrap"><img id="cam" alt="cámara"><canvas id="camov" width="640" height="480"></canvas></div>
+    <div id="camlist"><span class="chip" style="color:var(--muted)">Sin detecciones</span></div>
+  </section>
+  <aside class="panel">
+    <h2>Estado</h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sSpeed">0</div><div class="k">Velocidad (cm/s)</div></div>
+      <div class="stat"><div class="v" id="sYawRate">0</div><div class="k">Giro (grados/s)</div></div>
+      <div class="stat"><div class="v" id="sYaw">0</div><div class="k">Rumbo (grados)</div></div>
+      <div class="stat"><div class="v" id="sImu">0</div><div class="k">Giro del IMU, sin sesgo (grados/s)</div></div>
+      <div class="stat"><div class="v" id="sGb">0</div><div class="k">Sesgo aprendido (grados/s)</div></div>
+      <div class="stat"><div class="v" id="sRot">0</div><div class="k">LiDAR vueltas/s</div></div>
+      <div class="stat"><div class="v" id="sAge">-</div><div class="k">Edad del barrido (ms)</div></div>
+      <div class="stat"><div class="v" id="sEncL">0</div><div class="k">Encoder izq (m)</div></div>
+      <div class="stat"><div class="v" id="sEncR">0</div><div class="k">Encoder der (m)</div></div>
+      <div class="stat"><div class="v" id="sH">0</div><div class="k">Altura (cm, desde el inicio)</div></div>
+      <div class="stat"><div class="v" id="sPit">0</div><div class="k">Inclinación (grados)</div></div>
+      <div class="stat"><div class="v" id="sLv">0</div><div class="k">Nivel (cada 30 cm)</div></div>
+      <div class="stat"><div class="v" id="sCam">0</div><div class="k">Letreros vistos</div></div>
+      <div class="stat"><div class="v" id="sTab">0</div><div class="k">Tablas de cámara</div></div>
+    </div>
+    <h2 style="margin-top:16px">Calibrar el frente del LiDAR</h2>
+    <div class="cal">
+      <p>1. Con el robot quieto, pon una caja o pared a 20-60 cm justo al frente, sin nada más cerca.</p>
+      <button id="cf">Calibrar frente</button>
+      <p>2. Pasa la caja al lado derecho del robot (a 20-60 cm).</p>
+      <button id="cr">Comprobar derecha</button>
+      <p>3. Inclinación: con el robot quieto y plano, levanta el morro unos 15° (con la mano) y pulsa. Sirve para saber cuál es el frente del IMU.</p>
+      <button id="cp">Calibrar inclinación</button>
+      <div id="pitstat" style="margin-top:6px;font-weight:600">-</div>
+      <div id="calstat">-</div>
+    </div>
+    <h2 style="margin-top:16px">Prueba de motores</h2>
+    <div class="cal">
+      <p>Solo con el robot parado y las ruedas levantadas. Toca una luz para girar ese motor 1 s, o pulsa Probar: M1 y luego M2.</p>
+      <div class="lights">
+        <button class="motor" id="m1"><span class="lamp"></span><span>M1 (izquierda)</span></button>
+        <button class="motor" id="m2"><span class="lamp"></span><span>M2 (derecha)</span></button>
+      </div>
+      <button id="mseq">Probar</button>
+    </div>
+    <h2 style="margin-top:16px">Obstáculos más cercanos</h2>
+    <table>
+      <thead><tr><th>Ángulo</th><th>Distancia</th></tr></thead>
+      <tbody id="near"><tr><td colspan="2" style="color:var(--muted)">Sin datos</td></tr></tbody>
+    </table>
+  </aside>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var canvas = $("radar"), ctx = canvas.getContext("2d");
+  var PHASE = ["En espera", "Corriendo", "Media vuelta", "Terminando", "Buscando parqueo", "Parqueando", "Terminado", "FALLA", "Saliendo del cajón"];
+  var samples = [];           // {a: grados (0 = frente, + derecha), d: mm, t: ms}
+  var cam = [], S = null, lastRev = -1, rate = { t: 0, rev: 0, v: 0 }, running = false;
+
+  // ---- Mapa: cuadricula de ocupacion en el marco del mundo (norte arriba), construida con el rumbo del giroscopio ----
+  var G = 300, CELL = 2;                                  // 300 x 300 celdas de 2 cm = 6 x 6 m alrededor del origen (el campo mide 3 x 3 m)
+  var grid = new Int8Array(G * G), mapDirty = true, trail = [], epoch = -1;
+  var levels = [], liveLv = 0, viewLv = -1;               // levels[n] = {grid, trail} de los niveles ya terminados; viewLv -1 = el actual
+  var off = document.createElement("canvas"); off.width = off.height = G;
+  var offx = off.getContext("2d"), offimg = offx.createImageData(G, G);
+  var pose = { h: 0, e: 0, n: 0 }, curW = [];            // pose y puntos del ultimo barrido, en el mundo
+  function clearMap() { grid.fill(0); trail = []; levels = []; liveLv = 0; viewLv = -1; fillLevels(0); mapDirty = true; }
+  function fillLevels(n) {
+    var sel = $("lvl"), cur = sel.value, html = "";
+    for (var i = 0; i <= n; i++) html += '<option value="' + i + '">' + i + (i === 0 ? " (inicio)" : "") + (i === n ? " (actual)" : "") + "</option>";
+    sel.innerHTML = html; sel.value = viewLv < 0 ? n : Math.min(viewLv, n);
+  }
+  $("lvl").onchange = function () { var v = parseInt(this.value, 10); viewLv = v === liveLv ? -1 : v; mapDirty = true; };
+  function toCell(e, n) { return [Math.floor(e / CELL) + G / 2, G / 2 - 1 - Math.floor(n / CELL)]; }
+  function worldPt(p, a, d) {                            // a: grados desde el frente (+ derecha); d: cm
+    var th = p.h * Math.PI / 180, ar = a * Math.PI / 180, xr = d * Math.sin(ar), yr = d * Math.cos(ar);
+    return [p.e + yr * Math.sin(th) + xr * Math.cos(th), p.n + yr * Math.cos(th) - xr * Math.sin(th)];
+  }
+  function integrate(p, pts) {
+    curW = [];
+    for (var i = 0; i < pts.length; i++) {
+      var w = worldPt(p, pts[i][0], pts[i][1]); curW.push(w);
+      var steps = Math.ceil(pts[i][1] / (CELL * 0.6));
+      for (var s = 0; s < steps; s++) {                  // espacio libre a lo largo del rayo
+        var f = s / steps, c = toCell(p.e + (w[0] - p.e) * f, p.n + (w[1] - p.n) * f);
+        if (c[0] < 0 || c[1] < 0 || c[0] >= G || c[1] >= G) break;
+        var k = c[1] * G + c[0]; if (grid[k] > -12) grid[k] -= 1;
+      }
+      var ec = toCell(w[0], w[1]);
+      if (ec[0] >= 0 && ec[1] >= 0 && ec[0] < G && ec[1] < G) { var q = ec[1] * G + ec[0]; grid[q] = Math.min(60, grid[q] + 5); }
+    }
+    mapDirty = true;
+  }
+  function renderGrid(grid) {
+    var d = offimg.data;
+    for (var i = 0; i < G * G; i++) {
+      var v = grid[i], o = i * 4;
+      if (v > 8) { d[o] = 214; d[o + 1] = 232; d[o + 2] = 255; d[o + 3] = 255; }          // ocupado
+      else if (v < -3) { d[o] = 24; d[o + 1] = 36; d[o + 2] = 49; d[o + 3] = 255; }       // libre
+      else { d[o + 3] = 0; }                                                            // desconocido
+    }
+    offx.putImageData(offimg, 0, 0); mapDirty = false;
+  }
+
+  function post(u) { fetch(u, { method: "POST" }).catch(function () {}); }
+  $("clr").onclick = function () { clearMap(); };
+  $("go").onclick = function () { post(running ? "/api/stop" : "/api/start"); };   // el mismo boton inicia y para
+  $("cf").onclick = function () { post("/api/cal_front"); };
+  $("cr").onclick = function () { post("/api/cal_right"); };
+  $("cp").onclick = function () { post("/api/cal_pitch"); };
+  $("m1").onclick = function () { post("/api/motor1"); };
+  $("m2").onclick = function () { post("/api/motor2"); };
+  $("mseq").onclick = function () { post("/api/motor_seq"); };
+  var CAL = ["Sin calibrar en esta sesión.", "Frente calibrado: el objeto quedó en 0°.", "Derecha correcta: el sentido del giro es el bueno.",
+    "Sentido invertido y corregido (el frente se conserva).", "No hay un objeto entre 8 y 120 cm: acércalo y repite.",
+    "El objeto no estaba a la derecha: ponlo en el lado derecho del robot y repite."];
+
+  function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function setDist(id, cm) {
+    var e = $(id), v = e.firstChild;
+    var free = cm >= 1000;
+    v.textContent = free ? "libre" : cm + " cm";
+    e.className = "d" + (!free && cm < 25 ? " near" : !free && cm < 50 ? " mid" : "");
+  }
+
+  function poll() {
+    fetch("/api/state").then(function (r) { return r.json(); }).then(function (s) {
+      var now = performance.now();
+      S = s; cam = s.cam || [];
+      if (s.rev !== lastRev) {                       // barrido nuevo del LiDAR
+        if (lastRev >= 0 && rate.t) {
+          var dt = (now - rate.t) / 1000;
+          if (dt > 0.5) { rate.v = (s.rev - rate.rev) / dt; rate.t = now; rate.rev = s.rev; }
+        } else { rate.t = now; rate.rev = s.rev; }
+        lastRev = s.rev;
+        if (s.mep !== epoch) { epoch = s.mep; clearMap(); }           // se fijo el norte: el mapa anterior ya no vale
+        if (s.lv !== liveLv) {                                         // la altura cambio mas de 30 cm: medida nueva
+          levels[liveLv] = { grid: grid, trail: trail };
+          liveLv = s.lv; grid = new Int8Array(G * G); trail = []; viewLv = -1; fillLevels(liveLv); mapDirty = true;
+        }
+        pose = { h: s.mh, e: s.me, n: s.mn };
+        if (s.link) {
+          integrate(pose, s.pts || []);
+          var tl = trail[trail.length - 1];
+          if (!tl || Math.abs(tl[0] - pose.e) + Math.abs(tl[1] - pose.n) > 1.5) { trail.push([pose.e, pose.n]); if (trail.length > 1500) trail.shift(); }
+        }
+        var p = s.pts || [];
+        for (var i = 0; i < p.length; i++) samples.push({ a: p[i][0], d: p[i][1] * 10, t: now });
+      }
+      running = !!(s.armed || /Calibrando/.test(s.msg));
+      $("go").textContent = running ? "PARAR" : "INICIAR"; $("go").disabled = false; $("go").className = running ? "stop" : "";
+      $("status").textContent = s.link ? "Conectado" : "Sin enlace con el P4";
+      $("status").className = "status " + (s.link ? "ok" : "err");
+      $("msg").textContent = s.msg;
+      $("sub").textContent = PHASE[s.phase] + "  |  vueltas " + s.laps + "  |  esquinas " + s.corners +
+        "  |  sentido " + (s.dir > 0 ? "horario" : s.dir < 0 ? "antihorario" : "?") + "  |  " + s.elapsed.toFixed(0) + " s" +
+        "  |  altura " + (s.hh >= 0 ? "+" : "") + s.hh.toFixed(0) + " cm  |  inclinación " + s.pit.toFixed(1) + "°  |  nivel " + s.lv;
+      setDist("dL", s.left); setDist("dF", s.front); setDist("dR", s.right);
+      $("sSpeed").textContent = s.speed.toFixed(1); $("sYawRate").textContent = s.yawrate.toFixed(0);
+      $("sYaw").textContent = s.yaw.toFixed(0); $("sImu").textContent = (s.imu - s.gb).toFixed(2); $("sGb").textContent = s.gb.toFixed(2);
+      $("sRot").textContent = rate.v.toFixed(1); $("sAge").textContent = s.age < 0 ? "-" : s.age;
+      $("sEncL").textContent = s.encl.toFixed(2); $("sEncR").textContent = s.encr.toFixed(2);
+      $("m1").classList.toggle("on", !!(s.mt & 1)); $("m2").classList.toggle("on", !!(s.mt & 2));
+      ["m1", "m2", "mseq"].forEach(function (id) { $(id).disabled = !!running; });
+      $("calstat").innerHTML = CAL[s.calmsg] + "<small>Sentido " + (s.calsign < 0 ? "invertido (-1)" : "normal (+1)") + " | desfase " + s.caloff.toFixed(1) + "°</small>";
+      $("pitstat").textContent = s.pcal ? "Eje del IMU aprendido. Inclinación ahora: " + s.pit.toFixed(1) + "° (morro arriba = positivo)" : "Eje del IMU sin calibrar (se supone X hacia el frente). Inclinación ahora: " + s.pit.toFixed(1) + "°";
+      $("sH").textContent = (s.hh >= 0 ? "+" : "") + s.hh.toFixed(0); $("sPit").textContent = s.pit.toFixed(1); $("sLv").textContent = s.lv;
+      $("camperf").textContent = "visión " + s.cf.toFixed(0) + " cuadros/s | detector " + s.cv.toFixed(1) + " ms | espera del sensor " + s.cb.toFixed(1) + " ms | JPEG " + s.cj.toFixed(1) + " ms";
+      $("sCam").textContent = cam.length; $("sTab").textContent = s.tables;
+      var cur = (s.pts || []).slice().sort(function (a, b) { return a[1] - b[1]; }).slice(0, 8);
+      $("near").innerHTML = cur.length ? cur.map(function (p) {
+        return "<tr><td>" + p[0].toFixed(0) + "°</td><td>" + p[1] + " cm</td></tr>"; }).join("") :
+        "<tr><td colspan=2 style='color:var(--muted)'>Sin datos</td></tr>";
+    }).catch(function () {
+      $("status").textContent = "Sin conexión"; $("status").className = "status err";
+    });
+  }
+
+  function pos(cx, cy, R, maxMm, a, mm) {          // 0 grados = arriba, positivo a la derecha
+    var rad = (a - 90) * Math.PI / 180, r = mm / maxMm * R;
+    return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+  }
+
+  function label(t, x, y, color, size, align) {
+    ctx.font = "700 " + size + "px system-ui, sans-serif";
+    ctx.textAlign = align || "center";
+    ctx.lineWidth = 4; ctx.strokeStyle = css("--bg"); ctx.strokeText(t, x, y);
+    ctx.fillStyle = color; ctx.fillText(t, x, y);
+  }
+
+  function drawMap(now) {
+    var W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 28;
+    var maxMm = parseInt($("range").value, 10), k = R / (maxMm / 10);          // pixeles por cm
+    var bg = css("--bg"), border = css("--border"), muted = css("--muted"), accent = css("--accent");
+    ctx.globalAlpha = 1; ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    var old = viewLv >= 0 ? levels[viewLv] : null, vg = old ? old.grid : grid, vt = old ? old.trail : trail;
+    if (mapDirty) renderGrid(vg);
+    ctx.imageSmoothingEnabled = false;
+    var span = G * CELL * k;                                                    // el mundo se centra en el robot
+    ctx.drawImage(off, cx + (-G / 2 * CELL - pose.e) * k, cy - (G / 2 * CELL - pose.n) * k, span, span);
+    ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = muted; ctx.textAlign = "left";
+    for (var q = 1; q <= 4; q++) {                                              // anillos de distancia al robot
+      ctx.beginPath(); ctx.arc(cx, cy, R * q / 4, 0, Math.PI * 2); ctx.stroke();
+      var m = maxMm * q / 4 / 1000; ctx.fillText(m < 1 ? (m * 100).toFixed(0) + " cm" : m.toFixed(m % 1 ? 1 : 0) + " m", cx + 5, cy - R * q / 4 + 14);
+    }
+    if (vt.length > 1) {                                                     // recorrido
+      ctx.strokeStyle = "#ffb300"; ctx.lineWidth = 2; ctx.beginPath();
+      for (var t = 0; t < vt.length; t++) { var x = cx + (vt[t][0] - pose.e) * k, y = cy - (vt[t][1] - pose.n) * k; t ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    }
+    ctx.fillStyle = accent;                                                     // barrido actual
+    for (var i = 0; !old && i < curW.length; i++) ctx.fillRect(cx + (curW[i][0] - pose.e) * k - 1.5, cy - (curW[i][1] - pose.n) * k - 1.5, 3, 3);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(pose.h * Math.PI / 180);      // robot con su rumbo
+    ctx.fillStyle = "rgba(63,185,80,0.10)"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -Math.PI / 2 - 34 * Math.PI / 180, -Math.PI / 2 + 34 * Math.PI / 180); ctx.closePath(); ctx.fill();
+    var w = Math.max(10, 13 * k), h = Math.max(14, 17 * k);
+    ctx.fillStyle = css("--text"); ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.moveTo(0, -h / 2 - 14); ctx.lineTo(-9, -h / 2 - 1); ctx.lineTo(9, -h / 2 - 1); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.textAlign = "center"; ctx.font = "700 16px system-ui, sans-serif"; ctx.fillStyle = muted;       // norte fijo
+    ctx.fillText("N", cx, 20); ctx.fillText("S", cx, H - 8); ctx.fillText("E", W - 12, cy + 5); ctx.fillText("O", 12, cy + 5);
+    ctx.fillStyle = css("--error"); ctx.beginPath(); ctx.moveTo(cx, 26); ctx.lineTo(cx - 7, 40); ctx.lineTo(cx + 7, 40); ctx.closePath(); ctx.fill();
+    ctx.textAlign = "left"; ctx.font = "700 15px system-ui, sans-serif"; ctx.fillStyle = css("--text");
+    ctx.fillText("Rumbo " + ((pose.h + 360) % 360).toFixed(0) + "°   E " + pose.e.toFixed(0) + " cm   N " + pose.n.toFixed(0) + " cm", 12, H - 30);
+    if (!S || !S.link) { ctx.textAlign = "center"; ctx.fillStyle = css("--error"); ctx.font = "700 20px system-ui, sans-serif"; ctx.fillText(S ? "Sin enlace con el P4" : "Conectando...", cx, cy + R * 0.5); }
+  }
+
+  function draw(now) {
+    $("vtitle").textContent = $("view").value === "map" ? "Mapa (norte arriba, rumbo del giroscopio)" : "Radar (el frente del robot arriba)";
+    if ($("view").value === "map") { drawMap(now); return; }
+    var W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 28;
+    var maxMm = parseInt($("range").value, 10);
+    var bg = css("--bg"), border = css("--border"), muted = css("--muted"), accent = css("--accent");
+    ctx.globalAlpha = 1; ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = border; ctx.lineWidth = 1; ctx.textAlign = "left";
+    for (var k = 1; k <= 4; k++) {                  // anillos rotulados
+      var r = R * k / 4;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = "13px system-ui, sans-serif"; ctx.fillStyle = muted;
+      var m = maxMm * k / 4 / 1000;
+      ctx.fillText((m < 1 ? (m * 100).toFixed(0) + " cm" : m.toFixed(m % 1 ? 1 : 0) + " m"), cx + 5, cy - r + 14);
+    }
+    ctx.beginPath(); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.stroke();
+
+    var FOV = 34, a0 = (-90 - FOV) * Math.PI / 180, a1 = (-90 + FOV) * Math.PI / 180;     // cono de la camara (+-34 grados)
+    ctx.fillStyle = "rgba(63,185,80,0.08)"; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(63,185,80,0.35)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * Math.cos(a0), cy + R * Math.sin(a0)); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * Math.cos(a1), cy + R * Math.sin(a1)); ctx.stroke();
+    var TAGS = [[0, "FRENTE"], [45, "45°"], [90, "DER"], [135, "135°"], [180, "ATRÁS"], [-135, "-135°"], [-90, "IZQ"], [-45, "-45°"]];
+    ctx.font = "700 14px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = muted;
+    for (var q = 0; q < TAGS.length; q++) {
+      var ang = (TAGS[q][0] - 90) * Math.PI / 180;
+      ctx.fillText(TAGS[q][1], cx + (R + 17) * Math.cos(ang), cy + (R + 17) * Math.sin(ang) + 5);
+      ctx.strokeStyle = border; ctx.beginPath(); ctx.moveTo(cx + R * 0.93 * Math.cos(ang), cy + R * 0.93 * Math.sin(ang)); ctx.lineTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang)); ctx.stroke();
+    }
+    var cut = now - 1000;                           // los puntos se desvanecen en 1 s
+    samples = samples.filter(function (s) { return s.t > cut; });
+    if (samples.length > 6000) samples = samples.slice(-6000);
+    ctx.fillStyle = accent;
+    for (var i = 0; i < samples.length; i++) {
+      var s = samples[i]; if (s.d > maxMm) continue;
+      var p = pos(cx, cy, R, maxMm, s.a, s.d);
+      ctx.globalAlpha = Math.max(0.1, 1 - (now - s.t) / 1000);
+      ctx.fillRect(p[0] - 2, p[1] - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    if (S && S.link) {                              // distancias grandes: frente, izquierda y derecha
+      var dirs = [[0, S.front], [-90, S.left], [90, S.right]];
+      for (var j = 0; j < dirs.length; j++) {
+        var cm = dirs[j][1], free = cm >= 1000, mm = free ? maxMm : cm * 10;
+        if (mm > maxMm) { mm = maxMm; }
+        var e = pos(cx, cy, R, maxMm, dirs[j][0], mm);
+        var col = free ? muted : cm < 25 ? css("--error") : cm < 50 ? css("--warn") : accent;
+        ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(free ? [4, 6] : []);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(e[0], e[1]); ctx.stroke(); ctx.setLineDash([]);
+        var t = free ? "libre" : cm + " cm";            // la etiqueta va fuera del extremo de la linea
+        if (j === 0) label(t, e[0] + 10, Math.min(e[1] - 8, cy - 18), col, 17, "left");
+        else if (j === 1) label(t, Math.min(e[0] - 10, cx - 30), cy - 10, col, 17, "right");
+        else label(t, Math.max(e[0] + 10, cx + 30), cy - 10, col, 17, "left");
+      }
+      for (var c = 0; c < cam.length; c++) {        // letreros: [rumbo, cm, color]
+        var o = cam[c], q = pos(cx, cy, R, maxMm, o[0], o[1] * 10);
+        var cc = o[2] === 1 ? css("--red") : o[2] === 2 ? css("--green") : "#c850ff";
+        ctx.fillStyle = cc; ctx.beginPath(); ctx.arc(q[0], q[1], 9, 0, Math.PI * 2); ctx.fill();
+        label(o[1] + " cm", q[0], q[1] - 14, cc, 14);
+      }
+    }
+    var w = 13 / 100 * R / (maxMm / 1000), h = 17 / 100 * R / (maxMm / 1000);   // chasis 13 x 17 cm
+    ctx.fillStyle = css("--text"); ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
+    ctx.fillStyle = accent; ctx.fillRect(cx - w / 2, cy - h / 2, w, Math.max(2, h * 0.18));
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.moveTo(cx, cy - h / 2 - 12); ctx.lineTo(cx - 8, cy - h / 2 - 1); ctx.lineTo(cx + 8, cy - h / 2 - 1); ctx.closePath(); ctx.fill();
+    if (!S || !S.link) label(S ? "Sin enlace con el P4" : "Conectando...", cx, cy + R * 0.5, css("--error"), 20);
+  }
+
+  // ---- Camara: JPEG cada ~250 ms y encima lo que detecta la vision (barra por letrero, lineas naranja/azul) ----
+  var camImg = $("cam"), ov = $("camov"), octx = ov.getContext("2d"), camT = 0, camN = 0, camSince = performance.now();
+  var COLORS = { 1: ["ROJO", "#ff3b3b"], 2: ["VERDE", "#27e36a"], 3: ["PARQUEO", "#d84bff"] };
+  function drawVision() {
+    octx.clearRect(0, 0, 640, 480);
+    var v = S && S.vis; if (!v) return;
+    var k = 640 / 160, chips = [];
+    for (var i = 0; i < v.o.length; i++) {
+      var o = v.o[i], c = COLORS[o[0]] || ["?", "#fff"], x = o[1] * k, w = Math.max(8, o[2] * k);
+      octx.fillStyle = c[1] + "55"; octx.fillRect(x - w / 2, 0, w, 480);
+      octx.strokeStyle = c[1]; octx.lineWidth = 3; octx.strokeRect(x - w / 2, 2, w, 476);
+      var t = c[0] + " " + (o[3] / 10).toFixed(0) + " cm";
+      octx.font = "700 22px system-ui, sans-serif"; octx.textAlign = "center";
+      octx.lineWidth = 5; octx.strokeStyle = "#000"; octx.strokeText(t, x, 30); octx.fillStyle = c[1]; octx.fillText(t, x, 30);
+      chips.push('<span class="chip" style="color:' + c[1] + '">' + c[0] + " " + (o[3] / 10).toFixed(0) + " cm</span>");
+    }
+    var lines = [[v.or, "#ff9800", "LINEA NARANJA"], [v.bl, "#2f9bff", "LINEA AZUL"]];
+    for (var j = 0; j < 2; j++) if (lines[j][0] > 0) {
+      var y = lines[j][0] * k; octx.strokeStyle = lines[j][1]; octx.lineWidth = 4;
+      octx.beginPath(); octx.moveTo(0, y); octx.lineTo(640, y); octx.stroke();
+      octx.font = "700 20px system-ui, sans-serif"; octx.textAlign = "left"; octx.fillStyle = lines[j][1]; octx.fillText(lines[j][2], 8, y - 8);
+      chips.push('<span class="chip" style="color:' + lines[j][1] + '">' + lines[j][2] + "</span>");
+    }
+    $("camlist").innerHTML = chips.length ? chips.join("") : '<span class="chip" style="color:var(--muted)">Sin detecciones</span>';
+  }
+  function loadCam() { camImg.src = "/cam.jpg?" + Date.now(); }
+  camImg.onload = function () {
+    camN++; var now = performance.now();
+    if (now - camSince > 2000) { $("camfps").textContent = "(" + (camN * 1000 / (now - camSince)).toFixed(1) + " fps)"; camN = 0; camSince = now; }
+    drawVision(); setTimeout(loadCam, 120);
+  };
+  camImg.onerror = function () { setTimeout(loadCam, 1000); };
+  loadCam();
+
+  function frame(now) { draw(now); requestAnimationFrame(frame); }
+  setInterval(poll, 200); poll(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

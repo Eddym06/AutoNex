@@ -1,0 +1,19 @@
+# Tick de FreeRTOS a 1 kHz: el bucle de control usa vTaskDelay(1) = 1 ms.
+CONFIG_FREERTOS_HZ=1000
+
+# La rejilla del planificador de parqueo (~900 KB) va a la PSRAM del P4.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
+# Consola por el USB-Serial-JTAG (COM del PC): deja libre el UART0 (GPIO37/38) para el LiDAR.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Tu P4 es revision v1.x (no v3.x): el binario debe aceptarla (requiere IDF 5.5 o mas nuevo).
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_100=y
+
+# Diagnostico del USB host: compilar los logs de depuracion (HCD, HUB, ENUM, USBH, PHY).
+
+# Un hub USB detectado en el puerto host: habilitar hubs para llegar al S3 que cuelga de el.
+CONFIG_USB_HOST_HUBS_SUPPORTED=y
+CONFIG_USB_HOST_HUB_MULTI_LEVEL=y

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WRO Simulador</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1622;--panel:#18222f;--line:#2a3a50;--ink:#e8eef7;--mute:#9fb0c6;--accent:#5aa9ff;--good:#6fe3a0;--bad:#ff8c8c;--warn:#ffc86b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#121b28;position:sticky;top:0;z-index:5}
+h1{font-size:17px;margin:0 8px 0 0;white-space:nowrap}
+button,select,input,textarea{background:#223249;color:var(--ink);border:1px solid #3b5170;border-radius:7px;padding:6px 9px;font:inherit}
+button{cursor:pointer}button:hover{background:#2c4466}button.primary{background:#1f5fae;border-color:#3b85de}
+button:disabled{opacity:.5;cursor:default}
+label{color:var(--mute);font-size:12px;display:inline-flex;gap:5px;align-items:center}
+input[type=number]{width:70px}input[type=range]{padding:0;width:110px}
+main{display:grid;grid-template-columns:minmax(300px,1.35fr) minmax(280px,1fr);gap:12px;padding:12px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.panel h2{font-size:13px;margin:0 0 8px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+canvas{display:block;width:100%;height:auto;background:#0b121c;border-radius:8px}
+#world{aspect-ratio:1;max-height:82vh;width:auto;max-width:100%;margin:0 auto;cursor:crosshair}
+.side{display:grid;gap:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-variant-numeric:tabular-nums}
+.kv b{color:var(--mute);font-weight:500}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;background:#243a57;font-size:12px}
+.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+details{margin:6px 12px}details summary{cursor:pointer;color:var(--mute)}
+textarea{width:100%;min-height:150px;font:12px ui-monospace,Consolas,monospace;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#log{max-height:150px;overflow:auto;font:12px ui-monospace,Consolas,monospace;color:var(--mute)}
+.legend span{margin-right:12px;font-size:12px;color:var(--mute)}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+@media(max-width:900px){main{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>WRO · Future Engineers · Simulador <small id="build" style="font-weight:400;opacity:.65;font-size:.55em">compilación __BUILD__</small></h1>
+  <button id="play" class="primary">▶ Simular</button>
+  <button id="restart">Reiniciar</button>
+  <label>Velocidad <select id="speed"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></label>
+  <label>Pista <select id="preset"></select></label>
+  <label>Sentido <select id="direction"><option value="ccw">antihorario</option><option value="cw">horario</option></select></label>
+  <label>Semilla <input id="seed" type="number" value="1" min="1"></label>
+  <label>Letreros <input id="signCount" type="number" value="6" min="0" max="14"></label>
+  <label title="Cajón de parqueo en la sección de arranque (reglamento 2026: 20 cm de ancho, 1,5 × el largo del robot)"><input type="checkbox" id="withLot">Cajón de parqueo</label>
+  <label title="El robot arranca dentro del cajón: sale solo, hace las vueltas y vuelve a aparcar"><input type="checkbox" id="startInLot">Arrancar dentro</label>
+  <label title="Demostración: empieza en el carril con las 3 vueltas ya dadas, busca el cajón y aparca"><input type="checkbox" id="startOnTrack">Empezar en pista (aparcar)</label>
+  <button id="random">Pista aleatoria</button>
+  <button id="ioBtn">Plano ⇄ JSON</button>
+  <span id="status" class="tag">listo</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Pista (vista superior)</h2>
+    <canvas id="world" width="760" height="760"></canvas>
+    <div class="row legend" style="margin-top:8px">
+      <label><input type="checkbox" id="showLidar" checked>LiDAR</label>
+      <label><input type="checkbox" id="showPlan" checked>ruta y corredor</label>
+      <label><input type="checkbox" id="showTrace" checked>trayectoria</label>
+      <label><input type="checkbox" id="showCurtain">cortinas (rojo/verde)</label>
+      <label title="Linea de carrera que calcula el robot tras la primera vuelta: verde = rapido, naranja = velocidad base, rojo = lento. La punta amarilla es donde cree estar el robot sobre ella"><input type="checkbox" id="showRace" checked>linea de carrera</label>
+      <label title="Pose que estima el robot: contorno amarillo = odometria corregida con el LiDAR; cruz magenta = solo encoders y giroscopio"><input type="checkbox" id="showPose" checked>pose estimada</label>
+      <span><i class="dot" style="background:#ee2737"></i>rojo → derecha</span>
+      <span><i class="dot" style="background:#44d62c"></i>verde → izquierda</span>
+      <span>clic en un asiento = añadir / cambiar / quitar letrero</span>
+    </div>
+  </section>
+  <section class="side">
+    <div class="panel two">
+      <div><h2>Cámara S3 (160×120)</h2><canvas id="camera" width="160" height="120" style="image-rendering:pixelated"></canvas><div id="cameraInfo" style="font-size:12px;color:var(--mute);margin-top:4px"></div></div>
+      <div><h2>Mapa local del P4</h2><canvas id="local" width="300" height="300"></canvas></div>
+    </div>
+    <div class="panel two">
+      <div><h2>Controlador</h2><div class="kv" id="telemetry"></div></div>
+      <div><h2>Juez (reglamento WRO)</h2><div class="kv" id="judge"></div><div id="violations" class="bad" style="margin-top:6px;font-size:12px"></div></div>
+    </div>
+    <div class="panel"><h2>Registro</h2><div id="log"></div></div>
+  </section>
+</main>
+<details open><summary>Reglas y configuración (todo lo que cambia con la sede o la iluminación)</summary>
+  <div class="panel two" style="margin-top:8px">
+    <div>
+      <div class="row">
+        <label>Rojo pasa por <select id="redSide"><option value="1">la derecha</option><option value="-1">la izquierda</option><option value="0">cualquiera</option></select></label>
+        <label>Verde pasa por <select id="greenSide"><option value="-1">la izquierda</option><option value="1">la derecha</option><option value="0">cualquiera</option></select></label>
+        <label><input type="checkbox" id="judgeFollows" checked>el juez usa la misma regla</label>
+      </div>
+      <p style="color:var(--mute);font-size:12px;margin:6px 0">Cambia el lado de cada color sin recompilar: se escribe en la configuración del S3 (cámara) y del P4 (planificador) y se reinicia la ronda.</p>
+      <h2 style="margin-top:10px">Controlador P4 (clave valor)</h2>
+      <textarea id="ctrlText" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:6px"><button id="applyCtrl">Aplicar y reiniciar</button><button id="defaultsCtrl">Valores por defecto</button></div>
+    </div>
+    <div>
+      <h2>Visión S3 (clave valor)</h2>
+      <textarea id="visionText" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:6px"><button id="applyVision">Aplicar y reiniciar</button><button id="defaultsVision">Valores por defecto</button></div>
+      <h2 style="margin-top:10px">Realismo de los sensores</h2>
+      <div class="row">
+        <label>Velocidad <input id="rSpeed" type="number" value="20" min="8" max="60" step="1"> cm/s</label>
+        <label>Ruido LiDAR ×<input id="rLidarNoise" type="number" value="1" min="0" max="4" step="0.5"></label>
+        <label>Ruido cámara ×<input id="rCamNoise" type="number" value="1" min="0" max="4" step="0.5"></label>
+        <label>Sesgo giroscopio °/s <input id="rGyroBias" type="number" value="" placeholder="aleatorio" step="0.1"></label>
+        <label>Ganancia de velocidad <input id="rSpeedGain" type="number" value="0.94" min="0.6" max="1.3" step="0.02"></label>
+        <label>Desajuste de motores % <input id="rTrim" type="number" value="3" min="0" max="15" step="1"></label>
+        <label>Luz ×<input id="rLight" type="number" value="1" min="0.4" max="1.8" step="0.1"></label>
+        <label>Latencia cámara ms <input id="rLatency" type="number" value="45" min="0" max="300" step="5"></label>
+        <label>Tramas con error % <input id="rBitErr" type="number" value="0" min="0" max="30" step="1"></label>
+      </div>
+    </div>
+  </div>
+</details>
+<details id="seqBox" style="display:none"><summary></summary><div class="panel" style="margin-top:8px"></div></details>
+<div id="io" class="panel" style="display:none;position:fixed;inset:0;margin:auto;z-index:20;width:min(620px,94vw);height:fit-content;max-height:88vh;overflow:auto">
+  <h2>Plano en texto (JSON)</h2>
+  <textarea id="ioText" spellcheck="false"></textarea>
+  <div class="row" style="margin-top:6px"><button id="ioApply" class="primary">Aplicar</button><button id="ioCopy">Copiar</button><button id="ioClose">Cerrar</button><span id="ioStatus" style="color:var(--mute)"></span></div>
+</div>
+<script>
+/*__SCRIPTS__*/
+</script>
+</body>
+</html>

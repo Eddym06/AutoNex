@@ -1,0 +1,207 @@
+menu "WRO - pines y hardware del P4"
+
+    config WRO_LIDAR_UART_NUM
+        int "UART del LiDAR (numero)"
+        default 1
+        range 0 2
+        help
+            UART del P4 que recibe el TX del WitMotion D6.
+
+    config WRO_LIDAR_RX_GPIO
+        int "GPIO RX del P4 (se conecta al TX del LiDAR). -1 = sin LiDAR"
+        default 22
+        help
+            Verificado con el robot: el LiDAR llega por GPIO22. GPIO37/38 (TXD/RXD de la placa) son del enlace con el S3. Con WRO_PIN_SCAN se buscan pines con datos.
+
+    config WRO_LIDAR_ANGLE_SIGN
+        int "Sentido del angulo del LiDAR (1 o -1)"
+        default 1
+        help
+            Positivo: el angulo crece en el sentido de giro del LiDAR. Verificar con el robot
+            (un objeto a la derecha debe dar angulo positivo).
+
+    config WRO_LIDAR_ANGLE_OFFSET_DEG
+        int "Desfase del angulo del LiDAR (grados, 0 = el frente del D6 mira al frente del robot)"
+        default 0
+
+    config WRO_MOTOR_IN1_GPIO
+        int "L298N IN1 (motor trasero, adelante) - PWM 1 kHz; -1 sin configurar"
+        default -1
+
+    config WRO_MOTOR_IN2_GPIO
+        int "L298N IN2 (rueda izquierda, atras) - PWM 1 kHz"
+        default -1
+
+    config WRO_MOTOR_IN3_GPIO
+        int "L298N IN3 (rueda derecha, adelante) - PWM 1 kHz"
+        default 32
+
+    config WRO_MOTOR_IN4_GPIO
+        int "L298N IN4 (rueda derecha, atras) - PWM 1 kHz"
+        default 33
+        help
+            Cableado real: IN4 en el GPIO33. Evitar GPIO24/25: son el USB-JTAG por defecto del P4 (puerto de flasheo y logs).
+
+    config WRO_BATT_MV
+        int "Voltaje de la bateria con carga completa (mV). 3S = 12600"
+        default 12600
+        help
+            Bateria 3S: 11,1 V nominales, 12,6 V totalmente cargada. El limite usa un modelo
+            aproximado de la caida del puente; comprobar el comportamiento bajo carga.
+
+    config WRO_MOTOR_VMAX_MV
+        int "Voltaje maximo del motor (mV)"
+        default 12000
+
+    config WRO_MOTOR_DROP_MV
+        int "Caida de voltaje del L298N a plena carga (mV). Con 16 V de entrada, ~2000"
+        default 2000
+
+    config WRO_MOTOR_INVERT_LEFT
+        bool "Invertir el sentido de la rueda izquierda"
+        default n
+
+    config WRO_MOTOR_INVERT_RIGHT
+        bool "Invertir el sentido de la rueda derecha"
+        default n
+
+    config WRO_MOTOR_MAX_CM_S
+        int "Velocidad de la rueda con el PWM en su tope de 12 V (cm/s, por medir)"
+        default 40
+
+    config WRO_TRACK_MM
+        int "Separacion entre ruedas motrices (mm)"
+        default 115
+
+    config WRO_MOTORS_ENABLED
+        bool "Mover los motores (desactivado: el P4 calcula pero los motores quedan parados)"
+        default n
+        help
+            Los motores solo se mueven despues de pulsar el boton de inicio.
+
+    config WRO_ACKERMANN_HW_CONFIGURED
+        bool "Habilitar pines del nuevo chasis Ackermann tras verificar cableado y calibracion"
+        default n
+        help
+            Bloqueo independiente de sdkconfig antiguo. Dejar desactivado hasta verificar los
+            pines, la direccion y el encoder del nuevo vehiculo.
+
+    config WRO_ENC_LEFT_GPIO
+        int "GPIO del encoder de la rueda izquierda (-1 = sin encoder)"
+        default -1
+
+    config WRO_ENC_RIGHT_GPIO
+        int "GPIO del encoder de la rueda derecha (-1 = sin encoder)"
+        default -1
+
+    config WRO_AXLE_ENCODER_A_GPIO
+        int "GPIO canal A del encoder del motor (-1 = sin configurar)"
+        default -1
+
+    config WRO_AXLE_ENCODER_B_GPIO
+        int "GPIO canal B del encoder del motor (-1 = sin configurar)"
+        default -1
+
+    config WRO_AXLE_ENCODER_COUNTS_PER_REV
+        int "Cuentas x4 por vuelta del eje de las ruedas (confirmar en el motor real)"
+        range 1 1000000
+        default 440
+        help
+            Valor inicial 11 pulsos por vuelta del motor x 4 flancos x 10 de reduccion,
+            suponiendo conexion 1:1 del eje de salida a las ruedas. Verificar fisicamente.
+
+    config WRO_AXLE_ENCODER_INVERT
+        bool "Invertir signo del encoder del eje"
+        default n
+
+    config WRO_AXLE_ENCODER_CALIBRATED
+        bool "Usar odometria del encoder tras confirmar escala, signo y diametro"
+        default n
+
+    config WRO_SERVO_GPIO
+        int "GPIO del servo de direccion (-1 = sin configurar)"
+        default -1
+
+    config WRO_SERVO_LEFT_US
+        int "Pulso en microsegundos para el limite izquierdo medido (0 = sin calibrar)"
+        default 0
+
+    config WRO_SERVO_CENTER_US
+        int "Pulso en microsegundos con ruedas rectas (0 = sin calibrar)"
+        default 0
+
+    config WRO_SERVO_RIGHT_US
+        int "Pulso en microsegundos para el limite derecho medido (0 = sin calibrar)"
+        default 0
+
+    config WRO_SERVO_LEFT_DEG
+        int "Angulo efectivo maximo a la izquierda (grados, 0 = sin medir)"
+        default 0
+
+    config WRO_SERVO_RIGHT_DEG
+        int "Angulo efectivo maximo a la derecha (grados, 0 = sin medir)"
+        default 0
+
+    config WRO_WHEEL_RADIUS_MM
+        int "Radio de la rueda (mm) para convertir el encoder en grados"
+        default 34
+        help
+            Rueda de 68 mm de diametro (dato del equipo).
+
+    config WRO_START_GPIO
+        int "GPIO del boton de arranque (-1 = sin boton; 5 = boton fisico)"
+        default -1
+
+    config WRO_IMU_SDA_GPIO
+        int "MPU-6050: SDA (I2C)"
+        default 53
+
+    config WRO_IMU_SCL_GPIO
+        int "MPU-6050: SCL (I2C)"
+        default 48
+
+    config WRO_IMU_INT_GPIO
+        int "MPU-6050: INT (no usado por el firmware, solo referencia)"
+        default 47
+
+    config WRO_IMU_ADDR
+        hex "MPU-6050: direccion I2C (0x68 con AD0 a GND, 0x69 con AD0 a 3V3)"
+        default 0x68
+
+    config WRO_IMU_SIGN
+        int "MPU-6050: signo del giro (-1 si el eje Z mira hacia arriba, para dar horario positivo)"
+        default -1
+
+    config WRO_WEB_START_ENABLED
+        bool "Permitir INICIAR desde la pagina web"
+        default y
+
+    config WRO_LINK_DEADMAN_S
+        int "Parada automatica si, iniciado desde la pagina web, dejan de llegar latidos del S3 (segundos, 0 = desactivado)"
+        default 3
+        help
+            No aplica cuando se inicia con el boton fisico.
+
+    config WRO_PIN_SCAN
+        bool "Diagnostico: al arrancar, buscar que GPIO recibe datos (para hallar el TX del LiDAR)"
+        default n
+
+    config WRO_CAM_BAUD
+        int "Baudios del enlace con el S3 (debe coincidir con WRO_LINK_BAUD del S3)"
+        default 921600
+
+    config WRO_CAM_USB
+        bool "Camara del S3 por USB (el P4 es el host CDC); si no, por UART"
+        default n
+        help
+            Si se desactiva, el S3 se lee por UART en WRO_CAM_UART_RX_GPIO.
+
+    config WRO_CAM_UART_RX_GPIO
+        int "GPIO del P4 donde llega el TX del S3 (pin RXD de la placa)"
+        default 38
+
+    config WRO_CAM_UART_TX_GPIO
+        int "GPIO del P4 que va al RX del S3 (pin TXD de la placa)"
+        default 37
+
+endmenu

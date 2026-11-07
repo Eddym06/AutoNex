@@ -1,0 +1,47 @@
+menu "WRO Vision"
+config WRO_PARKING_MODE
+    bool "Enable experimental magenta parking guidance"
+    default n
+    help
+        Outputs visual guidance only; P4 must confirm stopping with sensors.
+config WRO_LINK_TX_GPIO
+    int "UART1 TX GPIO to ESP32-P4"
+    range 0 48
+    default 1
+    help
+        Binary detection-table link at 230400 baud, 8N1. Connect this TX
+        to the P4 UART RX and share ground. Verify the selected GPIO is exposed
+        and free on the exact camera-board revision before wiring.
+config WRO_LINK_RX_GPIO
+    int "UART1 RX GPIO from ESP32-P4 (-1 disables)"
+    range -1 48
+    default -1
+    help
+        When set, the P4 can retune the vision configuration over the same link
+        (binary frames from vision_config_encode, or the text commands of
+        vision_config_cmd.h). Leave at -1 if the link is one-way. The console
+        UART always accepts the same commands.
+config WRO_LINK_ON_CONSOLE_UART
+    bool "Send the table on the console UART0 (USB-UART bridge to the P4)"
+    default y
+    help
+        The camera board's USB-UART bridge (CH340) is wired to UART0. With this
+        enabled the detection table goes out UART0 at WRO_LINK_BAUD, so one USB
+        cable to the P4 carries the table (S3 to P4) and the configuration
+        commands (P4 to S3). Logs are limited to errors so they cannot corrupt
+        frames. The serial monitor must then use WRO_LINK_BAUD. Disable it to
+        use UART1 on WRO_LINK_TX_GPIO as before.
+config WRO_LINK_BAUD
+    int "Baud rate of the console-UART link"
+    range 115200 2000000
+    default 921600
+    depends on WRO_LINK_ON_CONSOLE_UART
+config WRO_LOCK_AUTO_AFTER_FRAMES
+    int "Default: freeze exposure/gain/white balance after N frames (0 = never)"
+    range 0 100000
+    default 0
+    help
+        0 keeps the sensor's automatic controls running, which is how the camera
+        behaved before this option existed. The saved vision configuration
+        (camera.lock_after_frames) overrides this value.
+endmenu

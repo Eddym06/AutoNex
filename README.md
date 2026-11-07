@@ -6,6 +6,11 @@
 
 **12-móvil** — vehículo autónomo de dirección tipo Ackermann
 
+> **Integración en curso:** el firmware y el simulador aún no están validados
+> para el nuevo chasis. La tracción está bloqueada por defecto y la odometría
+> del encoder y el parqueo requieren calibración y adaptación. Consulta
+> [ACKERMANN.md](ACKERMANN.md) antes de usar el vehículo.
+
 ![WRO](https://img.shields.io/badge/WRO-2026-0A7B3E?style=flat-square)
 ![Categoría](https://img.shields.io/badge/Categor%C3%ADa-Future%20Engineers-1F6FEB?style=flat-square)
 ![Plataforma](https://img.shields.io/badge/Plataforma-ESP32--P4-E7352C?style=flat-square)
@@ -80,7 +85,7 @@ Los pilares pueden tocarse o moverse, pero hacerlo cuesta puntos. Pasar por el l
 
 ## 2. El vehículo: 12-móvil
 
-**12-móvil** es nuestro vehículo de competencia. El nombre resume la arquitectura: un chasis compacto de dirección Ackermann, con la inteligencia repartida entre dos nodos de cómputo ESP32-P4 y la percepción dividida entre un LiDAR 360° y una cámara.
+**12-móvil** es nuestro vehículo de competencia: un chasis de dirección Ackermann con tracción trasera, un ESP32-P4 principal y un ESP32-S3 para visión, además de LiDAR e IMU.
 
 ### Filosofía de diseño
 
@@ -108,10 +113,10 @@ Los pilares pueden tocarse o moverse, pero hacerlo cuesta puntos. Pasar por el l
 ```mermaid
 flowchart TB
     subgraph PER["Percepción"]
-        LIDAR["LiDAR D500<br/>360° · 12 m · 10 Hz"]
-        CAM["ESP32-P4-CAM<br/>Cámara MIPI 2 MP"]
-        IMU["MPU-6500<br/>IMU 6-DOF"]
-        ENC["Encoders Hall<br/>JGB37-520"]
+        LIDAR["LiDAR WitMotion<br/>D6 o D500 por confirmar"]
+        CAM["ESP32-S3 CAM<br/>OV3660"]
+        IMU["MPU-6050<br/>IMU 6-DOF"]
+        ENC["Encoder Hall A/B<br/>JGB37-520"]
     end
 
     subgraph CORE["Cómputo"]
@@ -130,8 +135,8 @@ flowchart TB
     end
 
     LIDAR -->|UART 230400| MAIN
-    CAM -->|UART / SPI| MAIN
-    IMU -->|I2C / SPI| MAIN
+    CAM -->|UART o USB| MAIN
+    IMU -->|I2C| MAIN
     ENC -->|GPIO · cuadratura| MAIN
 
     MAIN -->|PWM 50 Hz| SERVO
@@ -154,18 +159,18 @@ flowchart LR
     C --> E["Localización<br/>pose en la pista"]
     D --> E
     E --> F["Planificación<br/>trayectoria · lado del pilar<br/>conteo de vueltas"]
-    F --> G["Control<br/>Stanley / Pure Pursuit + PID"]
+    F --> G["Control<br/>dirección y velocidad"]
     G --> H["Actuación<br/>ángulo de servo · PWM motor"]
     H --> A
 ```
 
 ### Subsistemas
 
-**Percepción geométrica — LiDAR D500.** Escaneo de 360° con alcance de 12 m a 10 Hz sobre UART a 230400 bps. Se usa para detectar los muros del circuito, estimar el ancho del carril y localizar los pilares como obstáculos cilíndricos. Los pilares son geometría idéntica en ambos colores, así que el LiDAR los detecta pero no los clasifica.
+**Percepción geométrica — LiDAR WitMotion.** Detecta muros y obstáculos; el modelo exacto (D6 o D500), el montaje y el protocolo deben confirmarse antes de validar el driver.
 
-**Percepción visual — ESP32-P4-CAM.** Placa compacta basada en ESP32-P4 con cámara MIPI de 2 MP. Su tarea es la **clasificación cromática** de los pilares (segmentación en espacio HSV, robusta a cambios de iluminación) y la detección de la línea de meta y de la zona de estacionamiento. El ESP32-P4 incluye ISP y encoder H.264 por hardware, lo que permite trabajar a resolución reducida con buen framerate.
+**Percepción visual — ESP32-S3 CAM con OV3660.** Captura imágenes y clasifica colores mediante HSV. La configuración y los resultados deben calibrarse con la cámara y la iluminación reales.
 
-**Localización — MPU-6500 + encoders.** El MPU-6500 aporta velocidad angular y aceleración lineal a alta frecuencia; los encoders Hall del JGB37-520 aportan desplazamiento longitudinal. La fusión corrige la deriva del giroscopio con la información de las ruedas y permite estimar el giro acumulado para el conteo de vueltas.
+**Localización — MPU-6050 + encoder.** El giroscopio aporta rumbo y el encoder del eje común aporta desplazamiento longitudinal. Los parámetros del encoder y las medidas de rueda siguen pendientes de validación física.
 
 **Control de dirección — MG90S.** Servo de engranajes metálicos que posiciona la dirección delantera. El ángulo de consigna se calcula con geometría de Ackermann a partir de la curvatura deseada. La tracción es trasera y proporcional, mediante un puente H controlado por PWM.
 
@@ -180,21 +185,22 @@ flowchart LR
 | # | Componente | Modelo | Función | Interfaz |
 |---|---|---|---|---|
 | 1 | Controlador principal | **ESP32-P4 DevKit** | Fusión de sensores, planificación, control, telemetría | — |
-| 2 | Nodo de visión | **ESP32-P4-CAM** | Captura y procesamiento de imagen | MIPI-CSI · UART/SPI |
-| 3 | Sensor de distancia | **LDROBOT D500** | Escaneo 360°, 0.03–12 m, 5000 Hz, 10 Hz | UART 230400 |
-| 4 | Unidad inercial | **MPU-6500** | Giroscopio + acelerómetro de 3 ejes | I2C / SPI |
+| 2 | Nodo de visión | **ESP32-S3 CAM · OV3660** | Captura y procesamiento de imagen | UART o USB |
+| 3 | Sensor de distancia | **WitMotion D6 o D500** | Escaneo del entorno; variante por confirmar | UART |
+| 4 | Unidad inercial | **MPU-6050** | Giroscopio + acelerómetro de 3 ejes | I2C |
 | 5 | Motor de tracción | **JGB37-520 + encoder Hall** | Tracción trasera, caja reductora metálica | PWM + cuadratura |
 | 6 | Servo de dirección | **MG90S (engranajes metálicos)** | Ángulo de dirección Ackermann | PWM 50 Hz |
 | 7 | Batería | **LiPo 3S · 11.1 V** | Alimentación del sistema | — |
+| 8 | Puente H | **L298N** | Control del motor trasero | PWM |
 
 ### Detalle técnico
 
 | Componente | Especificaciones relevantes |
 |---|---|
 | **ESP32-P4** | Dual-core RISC-V @ 400 MHz · 768 KB SRAM · hasta 32 MB PSRAM · MIPI-CSI/DSI · ISP y encoder H.264 1080p · USB 2.0 · **sin radio integrada** |
-| **D500** | DTOF · 360° · 0.03–12 m · 5 000 mediciones/s · 10 Hz · resolución angular ~1° · UART 230400 · clase láser 1 |
-| **MPU-6500** | 6 ejes (3 giroscopio + 3 acelerómetro) · 16 bits · hasta 4 kHz · I2C hasta 400 kHz / SPI hasta 1 MHz |
-| **JGB37-520** | 12 V DC · reductor metálico · encoder Hall de cuadratura · eje D de 6 mm · variante de 333 rpm |
+| **LiDAR** | WitMotion D6 o D500; confirmar modelo, protocolo y posición |
+| **MPU-6050** | Giroscopio y acelerómetro por I2C; orientación por confirmar |
+| **JGB37-520** | 12 V DC · 600 rpm · encoder Hall A/B · eje trasero común |
 | **MG90S** | Servo micro de engranajes metálicos · ~2.2 kg·cm a 4.8 V · control por PWM |
 | **LiPo 3S** | 11.1 V nominal · 12.6 V máximo · requiere BEC para el riel de 5 V |
 
@@ -202,8 +208,7 @@ flowchart LR
 
 El diseño eléctrico aún no está cerrado. Falta especificar y documentar:
 
-- **Driver de motor (puente H).** No incluido en la lista de componentes. Se requiere para controlar el JGB37-520 en ambos sentidos con PWM. Candidatos: TB6612FNG, DRV8871 o BTS7960 según corriente de arranque.
-- **Regulador de 5 V (BEC).** Debe soportar el pico del servo más el LiDAR y el cómputo.
+- **Puente H L298N y regulador de 5 V.** Confirmar cableado, corriente disponible y comportamiento bajo carga.
 - **Protección de batería.** Monitoreo de voltaje por celda y corte por baja tensión.
 - **Chasis y tren delantero.** Geometría de Ackermann, relación de transmisión y montaje del servo.
 
@@ -218,7 +223,7 @@ Estos puntos se irán resolviendo en `docs/` y en el BOM conforme avance el proy
 | Capa | Tecnología |
 |---|---|
 | Firmware | **ESP-IDF** (C/C++) sobre ESP32-P4 |
-| Visión | Procesamiento de imagen en el nodo ESP32-P4-CAM |
+| Visión | Procesamiento de imagen en el nodo ESP32-S3 CAM |
 | Control | Lazo en tiempo real sobre FreeRTOS |
 | Herramientas | Git, CMake, `idf.py` |
 | Documentación | Markdown + Mermaid en este repositorio |
@@ -267,11 +272,13 @@ Las decisiones técnicas, sus alternativas y la justificación de cada elección
 
 ## 6. Puesta en marcha
 
-> **Estado:** el repositorio está en fase de arranque. Las instrucciones siguientes describen el entorno previsto; se actualizarán cuando el firmware esté publicado.
+> **Estado:** código integrado sin compilar ni probar en este chasis. Los pines,
+> la geometría y la calibración siguen pendientes. No habilitar la tracción hasta
+> verificar el montaje y las limitaciones documentadas en [ACKERMANN.md](ACKERMANN.md).
 
 ### Requisitos
 
-- **ESP-IDF v5.3** o superior
+- **ESP-IDF 5.5 o posterior** para el P4 de revisión v1.x indicado en la configuración actual; confirmar la revisión de la placa.
 - Python 3.10+
 - Toolchain RISC-V para ESP32-P4
 - Drivers USB-C (el ESP32-P4 usa USB 2.0 nativo)
@@ -284,20 +291,20 @@ git clone https://github.com/Eddym06/AutoNex.git
 cd AutoNex
 
 # Instalar ESP-IDF (Linux/macOS)
-git clone -b v5.3 --recursive https://github.com/espressif/esp-idf.git
+git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf && ./install.sh esp32p4 && . export.sh
 ```
 
 ```powershell
 # Instalar ESP-IDF (Windows)
-git clone -b v5.3 --recursive https://github.com/espressif/esp-idf.git
+git clone -b v5.5 --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf ; .\install.bat esp32p4 ; .\export.ps1
 ```
 
 ### Compilar y flashear
 
 ```bash
-cd firmware/main
+cd "LIDAR System/p4_firmware"
 idf.py set-target esp32p4
 idf.py menuconfig        # configuración de pines y sensores
 idf.py build
@@ -318,24 +325,18 @@ idf.py -p <PUERTO> flash monitor
 
 ```text
 AutoNex/
-├── README.md              # este documento
-├── docs/                  # bitácora de ingeniería y decisiones de diseño
-│   ├── 01-requisitos.md
-│   ├── 02-arquitectura.md
-│   ├── 03-hardware.md
-│   └── 04-pruebas.md
-├── firmware/
-│   ├── main/              # nodo principal: fusión, planificación, control
-│   └── vision/            # nodo de visión: captura y clasificación
-├── hardware/
-│   ├── cad/               # modelos 3D del chasis
-│   ├── pcb/               # esquemáticos y placa
-│   └── bom/               # lista de materiales y costos
-├── tools/                 # scripts de calibración y análisis
-└── .github/               # plantillas y automatizaciones
+├── README.md              # descripción del equipo y arquitectura
+├── ACKERMANN.md           # adaptación y datos pendientes
+├── LIDAR System/          # percepción, navegación y firmware del P4
+├── Vision System/         # procesamiento de cámara ESP32-S3
+├── S3 Robot/              # aplicación del S3 y panel local
+├── shared/                # protocolos y configuración compartidos
+├── simulator/             # simulador y herramientas de análisis
+└── Motor Control/         # componentes y diseños históricos de encoder
 ```
 
-Las carpetas marcadas corresponden a la estructura objetivo. Se irán creando conforme avance el desarrollo; este README se mantiene sincronizado con el estado real del repositorio.
+La documentación de cada subsistema contiene detalles adicionales; las medidas y
+resultados históricos no deben considerarse una validación del nuevo chasis.
 
 ---
 
@@ -377,7 +378,7 @@ Por eso este repositorio se construye **en paralelo al vehículo**, no al final.
 |---|---|---|
 | Torque del MG90S insuficiente para la dirección | Pérdida de precisión en curva | Reducir masa del eje delantero, geometría de baja fricción, evaluar servo de mayor torque |
 | Peso por encima de 1.5 kg | Descalificación en revisión técnica | Presupuesto de masa por subsistema y pesaje en cada iteración |
-| Deriva del giroscopio del MPU-6500 | Error acumulado en el conteo de vueltas | Fusión con encoders + corrección por detección de la línea de meta |
+| Deriva del giroscopio del MPU-6050 | Error acumulado en la orientación | Calibración en reposo y corrección con localización LiDAR; validar en pista |
 | LiDAR a 10 Hz con el vehículo en movimiento | Detección tardía de pilares | Limitar velocidad, predicción de trayectoria y ventana de anticipación |
 | El LiDAR no distingue color | Imposible decidir el lado del pilar | Clasificación cromática obligatoria por cámara |
 | Caída de tensión al arrancar motores | Reinicio del cómputo en plena ronda | Riel de lógica separado con BEC y capacitores de desacople |

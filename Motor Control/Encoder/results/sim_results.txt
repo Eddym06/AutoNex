@@ -1,0 +1,105 @@
+Simulador de encoder: disco 30 ranuras (60 flancos), rueda R=32.5 mm, paso nominal 3.403 mm/flanco
+Disco 'tipico': sigma=0.08 mm, sesgo=0.04 mm, excentricidad=0.06 mm, ripple x1.0, retardo sensor 20/10 us, jitter 3 us
+
+=== Crucero a 0.05 m/s (error en movimiento) ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max   [mm]
+0 Solo conteo de flancos (centrado)          |   1.115   0.140   2.490   3.552
+1 Algoritmo original (MRUA + Ci)             |   0.534   0.176   1.420   1.884
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.835  -0.024   2.230   3.300
+3 Nuevo, calibracion cruda (sin filtro)      |   0.654  -0.221   1.340   1.563
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.262   0.080   0.580   0.752
+5 Idem 4 pero sin termino de aceleracion     |   0.263   0.080   0.580   0.728
+6 Idem 4, fase desconocida (auto-alinea)     |   0.432   0.056   1.690   3.300
+7 Limite: geometria real del disco conocida  |   0.018  -0.002   0.060   0.194
+
+=== Crucero a 0.30 m/s (error en movimiento) ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max   [mm]
+0 Solo conteo de flancos (centrado)          |   1.141   0.073   2.560   3.493
+1 Algoritmo original (MRUA + Ci)             |   0.586   0.108   1.420   1.836
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.864  -0.079   2.290   3.046
+3 Nuevo, calibracion cruda (sin filtro)      |   0.715  -0.084   1.490   1.671
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.282  -0.015   0.630   0.822
+5 Idem 4 pero sin termino de aceleracion     |   0.282  -0.015   0.630   0.767
+6 Idem 4, fase desconocida (auto-alinea)     |   0.282  -0.015   0.630   0.822
+7 Limite: geometria real del disco conocida  |   0.020  -0.005   0.060   0.235
+
+=== Crucero a 0.65 m/s (error en movimiento) ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max   [mm]
+0 Solo conteo de flancos (centrado)          |   1.139  -0.094   2.610   3.639
+1 Algoritmo original (MRUA + Ci)             |   0.571  -0.059   1.570   2.080
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.807  -0.185   2.190   3.639
+3 Nuevo, calibracion cruda (sin filtro)      |   0.664   0.240   1.430   1.551
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.238  -0.011   0.530   0.649
+5 Idem 4 pero sin termino de aceleracion     |   0.239  -0.011   0.530   0.620
+6 Idem 4, fase desconocida (auto-alinea)     |   0.238  -0.011   0.530   0.649
+7 Limite: geometria real del disco conocida  |   0.024  -0.011   0.080   0.269
+
+=== Arranque-parada con aceleraciones de 1-5 m/s^2 (movimiento + reposo) ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max |  RMSrep  maxrep  final*   [mm]
+0 Solo conteo de flancos (centrado)          |   1.115   0.181   2.490   3.268 |   1.035   2.589   2.015
+1 Algoritmo original (MRUA + Ci)             |   0.949   0.429   2.810   4.532 |   1.921   3.289   3.289
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.906  -0.002   2.490   4.181 |   1.159   3.571   3.571
+3 Nuevo, calibracion cruda (sin filtro)      |   0.777  -0.037   1.930   4.194 |   0.873   2.520   2.520
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.403  -0.020   1.660   4.085 |   0.688   1.721   1.721
+5 Idem 4 pero sin termino de aceleracion     |   0.572  -0.017   1.950   4.349 |   1.018   2.498   1.941
+6 Idem 4, fase desconocida (auto-alinea)     |   0.432  -0.016   1.700   4.085 |   0.688   1.721   1.721
+7 Limite: geometria real del disco conocida  |   0.315  -0.009   1.530   4.243 |   0.623   1.617   1.617
+   * final = peor error absoluto al terminar la mision
+
+=== Frenado brusco (15 m/s^2) en puntos aleatorios ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max |  RMSrep  maxrep  final*   [mm]
+0 Solo conteo de flancos (centrado)          |   1.111   0.030   2.480   3.379 |   1.134   2.927   2.927
+1 Algoritmo original (MRUA + Ci)             |   1.190   0.518   3.100   4.613 |   2.094   3.724   3.724
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.923  -0.039   2.410   4.111 |   1.185   3.642   3.642
+3 Nuevo, calibracion cruda (sin filtro)      |   0.912   0.035   2.620   3.375 |   1.385   3.089   3.089
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.662   0.006   2.060   2.873 |   1.168   2.796   2.796
+5 Idem 4 pero sin termino de aceleracion     |   0.632  -0.026   2.010   4.411 |   1.068   2.276   2.276
+6 Idem 4, fase desconocida (auto-alinea)     |   0.766  -0.015   2.150   3.240 |   1.168   2.796   2.796
+7 Limite: geometria real del disco conocida  |   0.599   0.005   1.990   2.736 |   1.105   2.628   2.628
+
+=== Avance-reversa-avance (direccion conocida) ===  (discos: 20, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max |  RMSrep  maxrep  final*   [mm]
+0 Solo conteo de flancos (centrado)          |   2.303  -1.248   5.290   6.709 |   1.922   5.078   2.382
+1 Algoritmo original (MRUA + Ci)             |   (no aplica)
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.922  -0.121   2.540   3.706 |   1.238   2.855   1.904
+3 Nuevo, calibracion cruda (sin filtro)      |   0.757   0.128   1.620   4.328 |   0.753   1.245   1.161
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.315  -0.097   1.320   4.060 |   0.228   0.575   0.575
+5 Idem 4 pero sin termino de aceleracion     |   0.589  -0.090   2.020   3.270 |   1.116   2.050   2.031
+6 Idem 4, fase desconocida (auto-alinea)     |   0.375  -0.103   1.570   4.060 |   0.228   0.575   0.575
+7 Limite: geometria real del disco conocida  |   0.235  -0.002   1.310   4.109 |   0.132   0.503   0.457
+
+=== Recorrido largo (100 m), sin fallas ===  (discos: 3, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max |  RMSrep  maxrep  final*   [mm]
+0 Solo conteo de flancos (centrado)          |   1.070   0.092   2.260   2.783 |   0.572   0.758   0.758
+1 Algoritmo original (MRUA + Ci)             |   0.441   0.130   1.030   4.076 |   1.483   2.025   2.025
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.771  -0.056   2.000   2.934 |   1.104   1.647   1.647
+3 Nuevo, calibracion cruda (sin filtro)      |   0.695   0.154   1.440   2.028 |   0.382   0.486   0.486
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.259   0.014   0.540   2.033 |   0.317   0.494   0.494
+5 Idem 4 pero sin termino de aceleracion     |   0.262   0.014   0.540   2.562 |   0.821   1.230   1.230
+6 Idem 4, fase desconocida (auto-alinea)     |   0.261   0.014   0.540   2.508 |   0.317   0.494   0.494
+7 Limite: geometria real del disco conocida  |   0.025  -0.008   0.070   2.037 |   0.062   0.094   0.094
+
+=== Recorrido largo con 2 glitches/s y 0.05% de flancos perdidos ===  (discos: 3, calibraciones fallidas: 0)
+estimador                                    |     RMS   media     p99     max |  RMSrep  maxrep  final*   [mm]
+0 Solo conteo de flancos (centrado)          | 1928.814 1688.742  20.010 3389.465 | 3312.528 3396.272 3396.272
+1 Algoritmo original (MRUA + Ci)             | 1928.210 1685.807  20.010 29043.015 | 3320.172 3404.339 3404.339
+2 Nuevo, sin calibrar (tabla uniforme)       |   0.721  -0.065   2.000   5.462 |   1.654   2.069   2.069
+3 Nuevo, calibracion cruda (sin filtro)      |   0.791  -0.127   1.510   6.800 |   0.206   0.297   0.297
+4 NUEVO POR DEFECTO (calib. + filtro 1-3)    |   0.252  -0.019   0.640   5.629 |   0.132   0.206   0.206
+5 Idem 4 pero sin termino de aceleracion     |   0.254  -0.019   0.640   5.629 |   0.858   1.473   1.473
+6 Idem 4, fase desconocida (auto-alinea)     |   0.253  -0.019   0.640   5.629 |   0.132   0.206   0.206
+7 Limite: geometria real del disco conocida  |   0.079  -0.010   0.070   5.594 |   0.133   0.164   0.164
+
+=== Sensibilidad a la calidad de impresion (misión arranque-parada, RMS/max en mm) ===
+sigma del flanco (mm en disco)   | conteo centrado            | original                   | nuevo por defecto (4)
+sigma=0.02 mm (borde 20 um)    |   0.978 /   2.066        |   0.768 /   3.547        |   0.343 /   3.349
+sigma=0.05 mm (borde 50 um)    |   1.040 /   2.695        |   0.760 /   4.122        |   0.346 /   3.435
+sigma=0.10 mm (borde 100 um)    |   1.212 /   4.809        |   0.933 /   4.939        |   0.422 /   3.663
+sigma=0.20 mm (borde 200 um)    |   1.516 /   5.420        |   1.354 /   5.178        |   0.714 /   6.005
+
+=== Alineacion automatica tabla<->disco (huella de intervalos), 100 discos por caso ===
+  v=0.10 m/s, acel=1.0 m/s^2: fase correcta 100/100, falsa 0, sin cerrar 0, flancos hasta cerrar: media 24, max 25
+  v=0.30 m/s, acel=2.0 m/s^2: fase correcta 100/100, falsa 0, sin cerrar 0, flancos hasta cerrar: media 28, max 28
+  v=0.65 m/s, acel=2.0 m/s^2: fase correcta 100/100, falsa 0, sin cerrar 0, flancos hasta cerrar: media 32, max 32
+  disco de buena calidad (sigma 0.03 mm):
+  v=0.30 m/s, acel=2.0 m/s^2: fase correcta 100/100, falsa 0, sin cerrar 0, flancos hasta cerrar: media 28, max 29

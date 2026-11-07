@@ -1,0 +1,5 @@
+dependencies:
+  idf: ">=5.3.0"
+  # Host USB: el ESP32-S3 CAM va por su puente CH340 al USB del P4.
+  espressif/usb_host_cdc_acm: "2.3.0"
+  espressif/usb_host_ch34x_vcp: "2.2.1"

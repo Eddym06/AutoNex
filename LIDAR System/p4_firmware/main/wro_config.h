@@ -1,0 +1,36 @@
+#ifndef WRO_CONFIG_H
+#define WRO_CONFIG_H
+
+#include "sdkconfig.h"
+
+#ifndef CONFIG_WRO_ACKERMANN_HW_CONFIGURED
+#define CONFIG_WRO_ACKERMANN_HW_CONFIGURED 0
+#endif
+#ifndef CONFIG_WRO_AXLE_ENCODER_CALIBRATED
+#define CONFIG_WRO_AXLE_ENCODER_CALIBRATED 0
+#endif
+#ifndef CONFIG_WRO_AXLE_ENCODER_INVERT
+#define CONFIG_WRO_AXLE_ENCODER_INVERT 0
+#endif
+
+/* Kconfig no define las opciones bool en "n": se completan con 0 para usarlas como valores. */
+#ifndef CONFIG_WRO_MOTORS_ENABLED
+#define CONFIG_WRO_MOTORS_ENABLED 0
+#endif
+#ifndef CONFIG_WRO_MOTOR_INVERT_LEFT
+#define CONFIG_WRO_MOTOR_INVERT_LEFT 0
+#endif
+#ifndef CONFIG_WRO_MOTOR_INVERT_RIGHT
+#define CONFIG_WRO_MOTOR_INVERT_RIGHT 0
+#endif
+#ifndef CONFIG_WRO_CAM_USB
+#define CONFIG_WRO_CAM_USB 0
+#endif
+#ifndef CONFIG_WRO_WEB_START_ENABLED
+#define CONFIG_WRO_WEB_START_ENABLED 0
+#endif
+#ifndef CONFIG_WRO_PIN_SCAN
+#define CONFIG_WRO_PIN_SCAN 0
+#endif
+
+#endif

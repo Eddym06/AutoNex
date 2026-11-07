@@ -1,0 +1,1 @@
+{"v":2,"inner":[50,50],"direction":"ccw","seed":1,"start":{"along":13.368494170717895,"lateral":-3.1614205171354115,"yawErrorDeg":1.6026481557637453},"signs":[{"color":"red","x":120,"z":30,"rot":-0.0241},{"color":"red","x":10,"z":100,"rot":-0.0008}],"parking":{"section":0,"along":5.08,"robotLength":17},"startInLot":true}

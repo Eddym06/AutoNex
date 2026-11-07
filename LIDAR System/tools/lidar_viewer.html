@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LIDAR Viewer</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #171e26;
+    --border: #263240;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --accent: #3fb950;
+    --warn: #d29922;
+    --error: #f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --muted: #59636e;
+      --accent: #1a7f37;
+      --warn: #9a6700;
+      --error: #cf222e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1419;
+    --panel: #171e26;
+    --border: #263240;
+    --text: #e6edf3;
+    --muted: #8b98a5;
+    --accent: #3fb950;
+    --warn: #d29922;
+    --error: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0 16px 0 0; }
+  select, input, button {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+  button:disabled { opacity: .5; cursor: default; }
+  label { color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  .status { margin-left: auto; color: var(--muted); }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--error); }
+  main {
+    display: grid; gap: 16px; padding: 16px;
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
+  }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  #radar { width: 100%; aspect-ratio: 1 / 1; display: block; max-height: 80vh; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+  .stat .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  .stat.warn .v { color: var(--warn); }
+  .stat.err .v { color: var(--error); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .raw {
+    margin-top: 12px; font: 12px/1.5 ui-monospace, Consolas, monospace;
+    color: var(--muted); word-break: break-all; max-height: 120px; overflow: auto;
+  }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .unsupported { color: var(--error); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LIDAR Viewer</h1>
+  <label>Baudios
+    <select id="baud">
+      <option value="230400" selected>230400</option>
+      <option value="115200">115200</option>
+      <option value="921600">921600</option>
+    </select>
+  </label>
+  <label>Rango (m)
+    <select id="range">
+      <option value="3000">3</option>
+      <option value="6000">6</option>
+      <option value="12000" selected>12</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="ignoreCrc"> Ignorar checksum</label>
+  <button id="connect" class="primary">Conectar puerto</button>
+  <button id="disconnect" disabled>Desconectar</button>
+  <span id="status" class="status">Desconectado</span>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Radar</h2>
+    <p id="unsupported" class="unsupported" hidden>
+      Este navegador no soporta Web Serial. Usa Chrome o Edge (escritorio).
+    </p>
+    <p class="hint">Conecta el CP2102 y pulsa <b>Conectar puerto</b>. Elige el puerto COM del módulo en la ventana del navegador.</p>
+    <canvas id="radar" width="700" height="700"></canvas>
+  </section>
+
+  <aside class="panel">
+    <h2>Estado</h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="sPkts">0</div><div class="k">Paquetes OK</div></div>
+      <div class="stat" id="sCrcBox"><div class="v" id="sCrc">0</div><div class="k">Errores checksum</div></div>
+      <div class="stat"><div class="v" id="sPts">0</div><div class="k">Puntos / s</div></div>
+      <div class="stat"><div class="v" id="sRot">0</div><div class="k">Vueltas / s</div></div>
+      <div class="stat"><div class="v" id="sBytes">0</div><div class="k">Bytes recibidos</div></div>
+      <div class="stat"><div class="v" id="sDesync">0</div><div class="k">Resincronizaciones</div></div>
+    </div>
+
+    <h2 style="margin-top:16px">Últimos puntos</h2>
+    <table>
+      <thead><tr><th>Ángulo</th><th>Dist (mm)</th><th>Int.</th></tr></thead>
+      <tbody id="pointsBody"><tr><td colspan="3" style="color:var(--muted)">Sin datos</td></tr></tbody>
+    </table>
+
+    <div class="raw" id="raw"></div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  // ====== Protocolo COIN-D6 / WitMotion D6 (AA 55, checksum XOR 16 bits) ======
+  // Fuente: github.com/1-rafael-1/explorer-robot (coin-d6/src/decoder.rs)
+  // Verificado contra una captura real: paquete de 85 bytes, LSN=25, checksum OK.
+  const HEADER_0 = 0xAA;
+  const HEADER_1 = 0x55;
+  const PREAMBLE = 10;   // AA 55 CT LSN FSA(2) LSA(2) CS(2)
+
+  // ====== Elementos ======
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("radar");
+  const ctx = canvas.getContext("2d");
+  const statusEl = $("status");
+  const btnConnect = $("connect");
+  const btnDisconnect = $("disconnect");
+
+  // ====== Estado ======
+  let port = null;
+  let reader = null;
+  let keepReading = false;
+  let buffer = new Uint8Array(0);
+  let stats = { pkts: 0, crc: 0, pts: 0, bytes: 0, desync: 0, rot: 0 };
+  let rateWin = { t: performance.now(), pkts: 0, pts: 0, rot: 0 };
+  let rates = { pps: 0, pts: 0, rot: 0 };
+  let samples = []; // {a: grados, d: mm, i: intensidad, t: ms}
+  let lastPoints = [];
+  let lastRaw = null;
+
+  // ====== Utilidades ======
+  // Checksum de 16 bits XOR: 0x55AA, CT|LSN<<8, FSA, LSA y por cada muestra Si_L ^ (Si_H<<8|Si_2nd).
+  // Los dos bytes CS (offset 8 y 9) se excluyen y se comparan en little-endian.
+  function checksumOk(p, lsn) {
+    let cs = 0x55AA;
+    cs ^= p[2] | (p[3] << 8);
+    cs ^= p[4] | (p[5] << 8);
+    cs ^= p[6] | (p[7] << 8);
+    for (let i = 0; i < lsn; i++) {
+      const b = PREAMBLE + 3 * i;
+      cs ^= p[b];
+      cs ^= (p[b + 2] << 8) | p[b + 1];
+    }
+    return cs === (p[8] | (p[9] << 8));
+  }
+
+  function setStatus(text, cls = "") {
+    statusEl.textContent = text;
+    statusEl.className = "status " + cls;
+  }
+
+  function hex(bytes) {
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(" ");
+  }
+
+  // ====== Procesamiento de un paquete válido ======
+  function processPacket(p, lsn) {
+    const isRingStart = (p[2] & 1) === 1;
+    const fsa = p[4] | (p[5] << 8);
+    const lsa = p[6] | (p[7] << 8);
+    // Ángulo: valor >> 1, luego / 64 para obtener grados
+    const fsaDeg = (fsa >> 1) / 64;
+    let lsaDeg = (lsa >> 1) / 64;
+    if (lsaDeg < fsaDeg) lsaDeg += 360; // el paquete cruza 0°
+    const step = lsn > 1 ? (lsaDeg - fsaDeg) / (lsn - 1) : 0;
+
+    // Una vuelta completa empieza con ring-start
+    if (isRingStart) stats.rot++;
+
+    const now = performance.now();
+    const pts = [];
+    for (let i = 0; i < lsn; i++) {
+      const b = PREAMBLE + 3 * i;
+      const siL = p[b];
+      const si2 = p[b + 1];
+      const siH = p[b + 2];
+      const dist = siH * 64 + (si2 >> 2);
+      const inten = (si2 & 3) * 64 + (siL >> 2);
+      stats.pts++;
+      if (dist === 0) continue; // 0 = sin retorno válido
+      const a = (fsaDeg + i * step) % 360;
+      pts.push({ a, d: dist, i: inten, t: now });
+    }
+    samples.push(...pts);
+    lastPoints = pts;
+    stats.pkts++;
+  }
+
+  // ====== Parser de flujo: busca AA 55, lee LSN y valida checksum ======
+  function parse(chunk) {
+    // concatenar buffer restante + chunk nuevo
+    const merged = new Uint8Array(buffer.length + chunk.length);
+    merged.set(buffer, 0);
+    merged.set(chunk, buffer.length);
+    buffer = merged;
+
+    let i = 0;
+    while (buffer.length - i >= PREAMBLE) {
+      if (buffer[i] !== HEADER_0 || buffer[i + 1] !== HEADER_1) {
+        i++;
+        stats.desync++;
+        continue;
+      }
+      const lsn = buffer[i + 3];
+      const pktLen = PREAMBLE + 3 * lsn;
+      if (buffer.length - i < pktLen) break; // esperar más bytes
+
+      const p = buffer.subarray(i, i + pktLen);
+      lastRaw = p;
+      if (checksumOk(p, lsn) || $("ignoreCrc").checked) {
+        processPacket(p, lsn);
+      } else {
+        stats.crc++;
+        stats.desync++;
+        i++; // resincronizar buscando la siguiente cabecera
+        continue;
+      }
+      i += pktLen;
+    }
+    buffer = buffer.slice(i);
+    if (buffer.length > 4096) buffer = buffer.slice(-1024);
+  }
+
+  // ====== Lectura del puerto ======
+  async function readLoop() {
+    try {
+      while (keepReading && port.readable) {
+        reader = port.readable.getReader();
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+              stats.bytes += value.length;
+              parse(value);
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      }
+    } catch (err) {
+      if (keepReading) setStatus("Error de lectura: " + err.message, "err");
+    }
+  }
+
+  async function connect() {
+    if (!("serial" in navigator)) {
+      $("unsupported").hidden = false;
+      return;
+    }
+    try {
+      port = await navigator.serial.requestPort();
+      const baudRate = parseInt($("baud").value, 10);
+      await port.open({ baudRate, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" });
+      keepReading = true;
+      btnConnect.disabled = true;
+      btnDisconnect.disabled = false;
+      setStatus(`Conectado a ${baudRate} baudios`, "ok");
+      stats = { pkts: 0, crc: 0, pts: 0, bytes: 0, desync: 0, rot: 0 };
+      buffer = new Uint8Array(0);
+      readLoop();
+    } catch (err) {
+      setStatus("No se pudo abrir el puerto: " + err.message, "err");
+    }
+  }
+
+  async function disconnect() {
+    keepReading = false;
+    try { if (reader) await reader.cancel(); } catch (_) {}
+    try { if (port) await port.close(); } catch (_) {}
+    port = null;
+    btnConnect.disabled = false;
+    btnDisconnect.disabled = true;
+    setStatus("Desconectado");
+  }
+
+  // ====== Dibujo del radar ======
+  function drawRadar(now) {
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const R = Math.min(W, H) / 2 - 24;
+    const maxMm = parseInt($("range").value, 10);
+
+    const css = getComputedStyle(document.documentElement);
+    const bg = css.getPropertyValue("--bg").trim();
+    const border = css.getPropertyValue("--border").trim();
+    const muted = css.getPropertyValue("--muted").trim();
+    const accent = css.getPropertyValue("--accent").trim();
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Anillos de distancia
+    ctx.strokeStyle = border;
+    ctx.fillStyle = muted;
+    ctx.lineWidth = 1;
+    ctx.font = "12px system-ui, sans-serif";
+    const rings = 4;
+    for (let k = 1; k <= rings; k++) {
+      const r = (R * k) / rings;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      const m = ((maxMm * k) / rings / 1000).toFixed(1);
+      ctx.fillText(m + " m", cx + 4, cy - r + 12);
+    }
+    // Ejes
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R);
+    ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy);
+    ctx.stroke();
+
+    // Puntos (se desvanecen en ~1 s)
+    const cut = now - 1000;
+    samples = samples.filter((s) => s.t > cut);
+    if (samples.length > 6000) samples = samples.slice(-6000);
+    for (const s of samples) {
+      if (s.d > maxMm) continue;
+      const age = (now - s.t) / 1000;
+      const alpha = Math.max(0.1, 1 - age);
+      const rad = (s.a - 90) * Math.PI / 180; // 0° arriba
+      const r = (s.d / maxMm) * R;
+      const x = cx + r * Math.cos(rad);
+      const y = cy + r * Math.sin(rad);
+      ctx.fillStyle = accent;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+
+    // Centro (LIDAR)
+    ctx.fillStyle = muted;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ====== Actualización de la interfaz ======
+  function updateUI(now) {
+    const dt = (now - rateWin.t) / 1000;
+    if (dt >= 1) {
+      rates.pps = Math.round((stats.pkts - rateWin.pkts) / dt);
+      rates.pts = Math.round((stats.pts - rateWin.pts) / dt);
+      rates.rot = ((stats.rot - rateWin.rot) / dt).toFixed(2);
+      rateWin = { t: now, pkts: stats.pkts, pts: stats.pts, rot: stats.rot };
+    }
+    $("sPkts").textContent = stats.pkts.toLocaleString();
+    $("sCrc").textContent = stats.crc.toLocaleString();
+    $("sPts").textContent = rates.pts.toLocaleString();
+    $("sRot").textContent = rates.rot;
+    $("sBytes").textContent = stats.bytes.toLocaleString();
+    $("sDesync").textContent = stats.desync.toLocaleString();
+
+    const crcBox = $("sCrcBox");
+    crcBox.className = "stat " + (stats.crc > 0 && stats.crc >= stats.pkts ? "err" : stats.crc > 0 ? "warn" : "");
+
+    if (lastPoints.length) {
+      $("pointsBody").innerHTML = lastPoints.map((p) =>
+        `<tr><td>${p.a.toFixed(2)}°</td><td>${p.d}</td><td>${p.i}</td></tr>`).join("");
+    }
+    if (lastRaw) {
+      $("raw").textContent = "Último paquete: " + hex(lastRaw);
+    }
+  }
+
+  function frame(now) {
+    drawRadar(now);
+    updateUI(now);
+    requestAnimationFrame(frame);
+  }
+
+  // ====== Inicio ======
+  btnConnect.addEventListener("click", connect);
+  btnDisconnect.addEventListener("click", disconnect);
+  if (!("serial" in navigator)) {
+    $("unsupported").hidden = false;
+    btnConnect.disabled = true;
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

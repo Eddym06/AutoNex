@@ -1,0 +1,13 @@
+{
+    "idf.currentSetup": "C:\\Espressif\\frameworks\\esp-idf-v5.3.1",
+    "idf.buildPath": "${workspaceFolder}/build",
+    "idf.adapterTargetName": "esp32s3",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "terminal.integrated.profiles.windows": {
+        "ESP-IDF (Vision System)": {
+            "path": "powershell.exe",
+            "args": ["-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ". '${workspaceFolder}/tools/activate.ps1'"]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "ESP-IDF (Vision System)"
+}
