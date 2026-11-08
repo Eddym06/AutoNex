@@ -118,11 +118,20 @@ planificar y el robot se queda parado el resto de la ronda), y la meta de salida
 **Entrar es más caro que salir**, y no por simetría mal resuelta: la salida termina en un
 área abierta (1 pasada), pero la entrada tiene que acabar en un hueco de 39 × 20 cm con el
 coche de 26 — holgura 13 cm a lo largo, que es un aparcamiento "apretado" (como entre dos
-coches). Medido: **7–8 pasadas**, 15–17 s. Se implementó una primitiva de entrada en una S
-de dos arcos (`park_ackermann_entry_s`) que **no encuentra solución en este cajón**:
-retroceder con el volante al máximo desde el carril hace que la esquina trasera enganche
-el tope a los 6,5 cm. Bajar de 8 exige un planificador que siga una trayectoria larga en
-vez de decidir arco a arco; está pendiente.
+coches).
+
+Para la entrada hay una **maniobra dedicada de tres tramos** (`park_ackermann_entry_maneuver`):
+*colocarse con un arco de avance → entrar girando con un arco largo de reversa → enderezar*.
+Se buscan las tres longitudes con la geometría real y solo se acepta si termina centrada y
+paralela; el plan sale con **2 cambios de sentido** (medido, p. ej. `AAAA…RRRR…A`). Se
+intenta en cada repaso mientras el coche siga en el carril; desde dentro del cajón manda el
+A* (intentarla ahí no converge: la ronda acababa a los 180 s con parqueo parcial).
+
+Aun así, **las repasadas ejecutadas son 4–8** (antes 7–8): las que quedan son la alineación
+final dentro del cajón, donde el coche ya no puede hacer arcos largos y el A* trabaja con
+arcos de 3,5 cm. La primera intentona con una S de dos arcos
+(`park_ackermann_entry_s`) no cabe en este cajón: retroceder a volante lleno desde el carril
+engancha la esquina trasera con el tope a los 6,5 cm.
 
 ## Depurar un plano: `tools/depurar.py`
 

@@ -22,10 +22,11 @@ typedef struct {
 /* Replanificación en poses discretas; nunca produce giro en el sitio. */
 park_ackermann_result_t park_ackermann_plan(const park_params_t *params, const park_ackermann_config_t *cfg,
                                             const park_pose_t *start, park_goal_t goal);
-/* Entrada en una pasada: una S de dos arcos (reversa larga + avance de enderezado) hasta quedar
- * centrada y paralela dentro del cajon. Falsa si no existe con esta geometria. */
-bool park_ackermann_entry_s(const park_params_t *params, const park_ackermann_config_t *cfg,
-                            const park_pose_t *start, park_ackermann_result_t *out);
+/* Maniobra de entrada en una pasada: tres tramos con el volante al maximo (colocarse, entrar
+ * girando y enderezar), dos cambios de sentido, hasta quedar centrada y paralela dentro del
+ * cajon. Falsa si no existe con esta geometria: el llamador sigue con el A*. */
+bool park_ackermann_entry_maneuver(const park_params_t *params, const park_ackermann_config_t *cfg,
+                                   const park_pose_t *start, park_ackermann_result_t *out);
 bool park_ackermann_arc_free(const park_params_t *params, const park_ackermann_config_t *cfg,
                             const park_pose_t *start, int direction, int steering);
 #endif

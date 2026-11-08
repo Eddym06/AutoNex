@@ -181,50 +181,83 @@ static void arc_step(float wheelbase, float steer_deg, park_pose_t *s, float ds)
     s->theta_deg = wrap(s->theta_deg + ds * k / RAD);
 }
 
-bool park_ackermann_entry_s(const park_params_t *p, const park_ackermann_config_t *cfg,
-                            const park_pose_t *start, park_ackermann_result_t *out)
+/* Vuelca un tramo de longitud `len` en arcos del ejecutor. */
+static bool push_segment(park_ackermann_result_t *out, float len, float step_cm, int dir, int steer)
+{
+    unsigned n = (unsigned)ceilf(len / step_cm);
+    if (n == 0) n = 1;
+    if (out->count + n > PARK_ACK_MAX_STEPS) return false;
+    for (unsigned i = 0; i < n; ++i) {
+        out->directions[out->count] = (int8_t)dir;
+        out->steering[out->count] = (int8_t)steer;
+        ++out->count;
+    }
+    return true;
+}
+
+/* Maniobra de entrada en una pasada: tres tramos con el volante al maximo.
+ *   1) avance (o reversa) para colocarse en la pose de arranque,
+ *   2) el arco largo que entra y gira el coche hacia el cajon,
+ *   3) el arco que endereza.
+ * Es lo que hace una persona al aparcar en paralelo y son DOS cambios de sentido. El A* de arcos
+ * cortos no lo encuentra: castiga el rumbo grande en la heuristica y, al retroceder desde el
+ * carril, su primer arco engancha el tope trasero a los 6,5 cm, asi que solo sabe entrar casi
+ * paralelo a mordiscos (7-8 pasadas medidas).
+ * Se buscan las tres longitudes con la geometria real (esquinas contra pared y topes) y se acepta
+ * solo si termina centrada, dentro y paralela. Si no hay, el llamador sigue con el A*. */
+bool park_ackermann_entry_maneuver(const park_params_t *p, const park_ackermann_config_t *cfg,
+                                   const park_pose_t *start, park_ackermann_result_t *out)
 {
     if (!p || !cfg || !start || !out || !(cfg->wheelbase_cm > 0) || !(cfg->steer_max_deg > 0)) return false;
     const float w_center = p->lot_width_cm * 0.5f;
     const float u_center = -(p->robot_length_cm * 0.5f - p->rear_overhang_cm);
-    const float max_d = 2.4f * p->robot_length_cm;          /* no gastar mas que eso */
-    const float step = 0.5f;
-    for (int srev = 0; srev < 2; ++srev) {
-        const float st1 = (srev ? -1.0f : 1.0f) * cfg->steer_max_deg, st2 = -st1;
-        park_pose_t a = *start;
-        for (float d1 = step; d1 <= max_d; d1 += step) {
-            arc_step(cfg->wheelbase_cm, st1, &a, -step);
-            if (!park_pose_free(p, &a)) break;              /* mas largo tampoco cabe */
-            if (d1 < 2.0f) continue;
-            park_pose_t b = a;
-            for (float d2 = step; d2 <= max_d; d2 += step) {
-                arc_step(cfg->wheelbase_cm, st2, &b, +step);
-                if (!park_pose_free(p, &b)) break;
-                if (d2 < 2.0f) continue;
-                if (fabsf(wrap(b.theta_deg)) > 6.0f) continue;
-                if (fabsf(b.u_cm - u_center) > 6.0f) continue;
-                if (fabsf(b.w_cm - w_center) > 2.5f) continue;
-                if (!goal_reached(p, &b, PARK_GOAL_IN)) continue;
-                /* Se devuelve como arcos del ejecutor, sin pasar de PARK_ACK_MAX_STEPS. */
-                const unsigned n1 = (unsigned)ceilf(d1 / cfg->step_cm);
-                const unsigned n2 = (unsigned)ceilf(d2 / cfg->step_cm);
-                if (n1 + n2 == 0 || n1 + n2 > PARK_ACK_MAX_STEPS) return false;
-                out->count = 0;
-                for (unsigned i = 0; i < n1; ++i) {
-                    out->directions[out->count] = -1; out->steering[out->count] = (int8_t)(srev ? -1 : 1);
-                    ++out->count;
+    const float max_d = 2.0f * p->robot_length_cm;
+    const float coarse = 1.0f;                       /* rejilla de busqueda */
+    const float s = cfg->steer_max_deg;
+    float best_total = 1.0e9f;
+    float bd[3] = {0, 0, 0};
+    int bdir[3] = {0, 0, 0}, bst[3] = {0, 0, 0};
+    bool found = false;
+    /* Dos ordenes (avance-reversa-avance y su inverso) por dos signos de volante en el tramo
+     * central; el primero y el tercero van con el signo contrario entre si (para enderezar). */
+    for (int order = 0; order < 2; ++order) {
+        for (int sign = 0; sign < 2; ++sign) {
+            const int d1 = order ? -1 : +1, d2 = -d1, d3 = d1;
+            const int st1 = sign ? -1 : +1, st2 = -st1, st3 = st1;
+            park_pose_t a = *start;
+            for (float l1 = coarse; l1 <= max_d; l1 += coarse) {
+                arc_step(cfg->wheelbase_cm, st1 * s, &a, d1 * coarse);
+                if (!park_pose_free(p, &a)) break;
+                park_pose_t b = a;
+                for (float l2 = coarse; l2 <= max_d; l2 += coarse) {
+                    arc_step(cfg->wheelbase_cm, st2 * s, &b, d2 * coarse);
+                    if (!park_pose_free(p, &b)) break;
+                    park_pose_t c = b;
+                    for (float l3 = coarse; l3 <= max_d; l3 += coarse) {
+                        arc_step(cfg->wheelbase_cm, st3 * s, &c, d3 * coarse);
+                        if (!park_pose_free(p, &c)) break;
+                        if (l1 + l2 + l3 >= best_total) continue;
+                        if (fabsf(wrap(c.theta_deg)) > 5.0f) continue;
+                        if (fabsf(c.u_cm - u_center) > 6.0f) continue;
+                        if (fabsf(c.w_cm - w_center) > 2.5f) continue;
+                        if (!goal_reached(p, &c, PARK_GOAL_IN)) continue;
+                        best_total = l1 + l2 + l3;
+                        bd[0] = l1; bd[1] = l2; bd[2] = l3;
+                        bdir[0] = d1; bdir[1] = d2; bdir[2] = d3;
+                        bst[0] = st1; bst[1] = st2; bst[2] = st3;
+                        found = true;
+                    }
                 }
-                for (unsigned i = 0; i < n2; ++i) {
-                    out->directions[out->count] = +1; out->steering[out->count] = (int8_t)(srev ? 1 : -1);
-                    ++out->count;
-                }
-                out->found = true; out->at_goal = false;
-                out->direction = out->directions[0];
-                out->steer_deg = out->steering[0] * cfg->steer_max_deg;
-                return true;
             }
         }
     }
-    return false;
+    if (!found) return false;
+    out->count = 0;
+    for (int i = 0; i < 3; ++i)
+        if (!push_segment(out, bd[i], cfg->step_cm, bdir[i], bst[i])) return false;
+    out->found = true; out->at_goal = false;
+    out->direction = out->directions[0];
+    out->steer_deg = out->steering[0] * cfg->steer_max_deg;
+    return true;
 }
 

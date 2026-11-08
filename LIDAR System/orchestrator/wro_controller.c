@@ -1281,14 +1281,18 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             /* (Un paso de 5 cm probado con el volante a 40 se probo y sale peor: el chasis de
              * 22 cm ni siquiera sale del cajon. El arco corto es lo que deja afinar.) */
             if (c->park_arc_index >= c->park_arc_count) {
-                /* Al entrar, primero la maniobra de una pasada: una S de dos arcos largos desde
-                 * el carril (reversa que mete la cola + avance que endereza). Es lo que hace una
-                 * persona y sale en un solo cambio de sentido; el A* de arcos cortos necesita 7-8
-                 * pasadas. Solo se intenta desde el carril: ya dentro manda el A*. */
+                /* Al entrar, primero la maniobra de tres tramos (colocarse, entrar girando,
+                 * enderezar): dos cambios de sentido, como aparca una persona. Se intenta en CADA
+                 * repaso mientras el coche siga en el carril: si solo se intentara la primera vez,
+                 * una correccion a mitad de maniobra cae en el A* de arcos cortos y vuelve el
+                 * tanteo (medido: 8 pasadas). Ya dentro del cajon manda el A*. */
                 park_ackermann_result_t a = {0};
                 bool s_plan = false;
-                if (!exiting && c->park_arc_count == 0 && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
-                    s_plan = park_ackermann_entry_s(params, &(park_ackermann_config_t)
+                /* Solo desde el carril (aun fuera del cajon): la maniobra supone que el coche llega
+                 * casi paralelo. Intentarla desde dentro, a 30-40 grados, produce maniobras que no
+                 * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
+                if (!exiting && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
+                    s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
                         {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
                         &c->park_pose, &a);
                 if (!s_plan) {
