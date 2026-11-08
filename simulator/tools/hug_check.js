@@ -34,5 +34,5 @@ const cfg = (flag('--cfg', 'hug_enabled 1') || '').split(';').join('\n');
     if (l && l.n) console.log(`vuelta ${L}: ${l.t.toFixed(1)} s, ${l.d.toFixed(0)} cm, hug activo ${(100 * l.act / l.n).toFixed(0)} % del tiempo, desplazamiento medio ${(l.off / l.n).toFixed(1)} cm`);
   }
   for (const v of r.violations) console.log('infraccion: ' + JSON.stringify(v));
-  console.log(`fin: ${r.endReason}, ${r.points} puntos, ${r.sections} secciones, ${r.violations.length} infracciones, contactos ${r.contacts.sign + r.contacts.wall}, ${r.elapsed.toFixed(1)} s, parqueo ${r.parking}; desplazamiento maximo ${maxOff.toFixed(1)} cm`);
+  console.log(`fin: ${r.endReason}, ${r.points} puntos, ${r.sections} secciones, ${r.violations.length} infracciones, contactos ${r.contacts.sign + r.contacts.wall}, ${(r.elapsed == null ? sim.t : r.elapsed).toFixed(1)} s, parqueo ${r.parking}; desplazamiento maximo ${maxOff.toFixed(1)} cm`);
 })();

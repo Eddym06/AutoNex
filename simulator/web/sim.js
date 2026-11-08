@@ -39,6 +39,7 @@
       const encRng = WRO.rng(o.seed * 7919 + 101);       // propio: no altera las secuencias del LiDAR, la camara ni el giroscopio
       const enc = Object.assign({}, S.DEFAULT_ENCODER, o.encoder || {});
       const dia = (o.robot && o.robot.wheelDiameterL) || R.DEFAULT_ROBOT.wheelDiameterL;
+      this.nominalWheelDiameter = dia;
       const robotCfg = Object.assign({}, o.robot);
       if (o.robot == null || (o.robot.wheelDiameterL == null && o.robot.wheelDiameterR == null)) {
         robotCfg.wheelDiameterL = dia * (1 + encRng.range(-1, 1) * enc.diameterErrorPct / 100);
@@ -47,6 +48,8 @@
       this.robot = new R.Robot(robotCfg);
       this.robot.rng = encRng;
       this.encoders = new S.Encoders(o.encoder, encRng);
+      if (this.robot.cfg.drive === 'bicycle' && this.encoders.cfg.enabled && !core.hasAxleEncoder())
+        throw new Error('WASM antiguo: recompila para usar el encoder Ackermann');
       this.judge = new J.Judge(this.field, Object.assign({ wheelbase: this.robot.cfg.wheelbase }, o.judge));
       this.reset();
     }
@@ -81,11 +84,18 @@
                     'park_demo_dir ' + (this.field.lot && this.field.startOnTrack ? (this.field.direction === 'cw' ? 1 : -1) : 0) + '\n';
       /* Despues de la configuracion del usuario: el cuadro de texto de la interfaz guarda el volcado
        * de los valores por defecto (`start_in_lot false`) y taparia lo que la pista dice. */
-      /* El parqueo y el pivote del controlador se basan en girar en el sitio.
-       * El encoder simulado sigue siendo doble: no presentarlo como el JGB real. */
+      /* El parqueo y el pivote del controlador se basan en girar en el sitio. */
       const ackermann = this.robot.cfg.drive === 'bicycle'
-        ? '\npivot_enabled 0\nsidestep_enabled 0\npeek_enabled 0\nparking_enabled 0\nstart_in_lot 0\nodometry_enabled 0\n' : '';
-      r = core.ctrlConfig((o.ctrlConfig || '') + '\n' + venue + ackermann);
+        ? '\npivot_enabled 0\nsidestep_enabled 0\npeek_enabled 0\npark_ackermann 1\npark_margin_cm 1\n' : '';
+      const rb = this.robot.cfg;
+      const geometry = [
+        'planner.wheelbase_cm ' + rb.wheelbase, 'planner.chassis_width_cm ' + rb.bodyWidth,
+        'planner.chassis_length_cm ' + rb.bodyLength, 'planner.chassis_rear_cm ' + rb.rearOverhang,
+        'planner.lidar_forward_cm ' + this.lidar.cfg.mountForward,
+        'planner.camera_forward_cm ' + this.camCfg.mountForward,
+        'odom.wheel_diameter_cm ' + this.nominalWheelDiameter
+      ].join('\n');
+      r = core.ctrlConfig((o.ctrlConfig || '') + '\n' + venue + ackermann + '\n' + geometry);
       if (!r.ok) throw new Error('configuracion del controlador: ' + r.error);
       core.ctrlInit();
       core.cameraFocal(this.camCfg.focal);
@@ -121,7 +131,8 @@
     handle(e) {
       const core = this.core;
       if (e.type === 'scan') {
-        const cmd = core.scan(e.payload.points, e.payload.tEnd * 1e6);
+        let cmd = core.scan(e.payload.points, e.payload.tEnd * 1e6);
+        cmd = core.watchdog(this.t * 1e6) || cmd;
         this.stats.scans++;
         this.lastCommandTime = this.t;
         this.cmd = cmd;
@@ -135,7 +146,8 @@
       } else if (e.type === 'cmd') {
         this.robot.cmd = { steer: e.payload.steer, speed: e.payload.speed, yawRate: e.payload.yawRate };
       } else if (e.type === 'enc') {
-        core.encoders(e.payload.t * 1e6, e.payload.left, e.payload.right);
+        if (this.robot.cfg.drive === 'bicycle') core.axleEncoder(e.payload.t * 1e6, e.payload.axle);
+        else core.encoders(e.payload.t * 1e6, e.payload.left, e.payload.right);
       } else if (e.type === 'frame') {
         const ok = core.cameraFeed(e.payload.wire, this.t * 1e6);
         if (ok) this.stats.frames++; else this.stats.framesRejected++;
@@ -183,8 +195,9 @@
         while (this.nextEncoder <= t1) {
           this.nextEncoder += 1 / this.encoders.cfg.hz;
           if (this.encoders.rng() < this.encoders.cfg.dropRate) continue;
-          const s = this.encoders.sample(this.robot);
-          this.schedule(t1 + this.encoders.cfg.latencyMs / 1000, 'enc', { left: s.left, right: s.right, t: t1 });
+          const s = this.robot.cfg.drive === 'bicycle'
+            ? { axle: this.encoders.sampleAxle(this.robot) } : this.encoders.sample(this.robot);
+          this.schedule(t1 + this.encoders.cfg.latencyMs / 1000, 'enc', Object.assign({ t: t1 }, s));
         }
       }
       const rev = this.lidar.advance(t1, poseAt, this.renderLidarBoxes());
@@ -196,9 +209,13 @@
         this.nextCapture += 1 / o.cameraFps;
       }
       /* Perro guardian del P4: sin escaneos recientes, la orden pasa a parar. */
-      if (this.started && this.cmd && t1 - this.lastCommandTime > 0.3) {
+      if (this.started && this.cmd) {
         const stop = core.watchdog(t1 * 1e6);
-        if (stop) { this.cmd = stop; this.robot.cmd = { steer: 0, speed: 0 }; }
+        if (stop) {
+          this.cmd = stop;
+          this.queue = this.queue.filter(e => e.type !== 'cmd');
+          this.robot.cmd = { steer: 0, speed: 0 };
+        }
       }
       const body = this.robot.body();
       this.judge.update(t1, { x: now.x, z: now.z, yaw: now.yaw, v: this.robot.v }, body, events, !!(this.cmd && this.cmd.done));

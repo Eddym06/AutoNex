@@ -12,18 +12,16 @@
   const G = WRO.geometry || require('./geometry.js').geometry;
   const DEG = Math.PI / 180;
 
-  /* Chasis del equipo: 17 x 13 cm; el eje motriz queda a 7 cm del extremo trasero y la
-   * rueda libre a 6 cm delante del eje. La via (distancia entre las ruedas motrices) y
-   * los motores son supuestos hasta medirlos. */
+  /* Perfil provisional para el 12-móvil; no son medidas oficiales ni reales.
+   * Todos los valores se reemplazarán después de medir el vehículo montado. */
   const DEFAULT_ROBOT = {
-    /* Geometria provisional del chasis anterior; sustituir al medir el nuevo. */
-    drive: 'bicycle', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7,
-    trackWidth: 11.5, wheelTauS: 0.09, wheelDeadband: 2.5, wheelMismatch: 0.03, maxWheelSpeed: 60,
-    maxSteerDeg: 38, steerRateDegS: 420, steerTauS: 0.045, steerTrimDeg: 0.8,
+    drive: 'bicycle', wheelbase: 14, bodyWidth: 14, bodyLength: 22, rearOverhang: 4,
+    trackWidth: 12, wheelTauS: 0.09, wheelDeadband: 2.5, wheelMismatch: 0.03, maxWheelSpeed: 60,
+    maxSteerDeg: 30, steerRateDegS: 420, steerTauS: 0.045, steerTrimDeg: 0.8,
     speedTauS: 0.16, maxAccel: 180, speedGain: 0.94, pushSigns: true,
     /* Ruedas reales (los encoders miden el giro de la rueda, no el avance del suelo): diametro de cada una,
      * patinaje esporadico (rafagas en que una rueda gira de mas) y lo poco que gira una rueda contra un obstaculo. */
-    wheelDiameterL: 5.5, wheelDiameterR: 5.5, wheelSlipPerMin: 1.0, wheelSlipFactor: 1.3, wheelSlipS: 0.25, contactSlip: 0.15
+    wheelDiameterL: 6.6, wheelDiameterR: 6.6, wheelSlipPerMin: 1.0, wheelSlipFactor: 1.3, wheelSlipS: 0.25, contactSlip: 0.15
   };
 
   class Robot {

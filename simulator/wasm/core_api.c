@@ -9,12 +9,14 @@
  * core_*_ptr) y llama a las funciones. Todos los reales son float de 32 bits. */
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "camera_table_receiver.h"
 #include "sensor_table_protocol.h"
 #include "vision.h"
 #include "vision_table.h"
 #include "wro_controller.h"
+#include "p4_runtime.h"
 
 #define EXPORT(name) __attribute__((export_name(name)))
 
@@ -109,7 +111,16 @@ static float g_cmd_out[CMD_FIELDS];
 static float g_race_out[2 + 3 * RACE_MAX_STATIONS + 3 * RACE_MAX_SIGNS];
 
 static uint8_t g_map_cells[LOCAL_MAP_SIZE * LOCAL_MAP_SIZE];
-static float g_debug_out[8 + 3 * LOCAL_DEBUG_ROUTE_POINTS * 2 + LOCAL_MAP_MAX_CAMERA_OBJECTS * 4];
+static float g_debug_out[9 + 3 * LOCAL_DEBUG_ROUTE_POINTS * 2 + LOCAL_MAP_MAX_CAMERA_OBJECTS * 4];
+
+/* Una version detecta cambios de significado; los tamaños detectan cambios de capacidad. */
+EXPORT("core_abi_version") int core_abi_version(void) { return 2; }
+EXPORT("core_cmd_fields") int core_cmd_fields(void) { return CMD_FIELDS; }
+EXPORT("core_vision_fields") int core_vision_fields(void) { return (int)(sizeof(g_vision_out) / sizeof(g_vision_out[0])); }
+EXPORT("core_debug_fields") int core_debug_fields(void) { return (int)(sizeof(g_debug_out) / sizeof(g_debug_out[0])); }
+EXPORT("core_debug_route_points") int core_debug_route_points(void) { return LOCAL_DEBUG_ROUTE_POINTS; }
+EXPORT("core_debug_camera_objects") int core_debug_camera_objects(void) { return LOCAL_MAP_MAX_CAMERA_OBJECTS; }
+EXPORT("core_max_points") int core_max_points(void) { return LOCAL_MAP_MAX_POINTS; }
 
 EXPORT("core_points_ptr") float *core_points_ptr(void) { return g_points_in; }
 EXPORT("core_cmd_ptr") float *core_cmd_ptr(void) { return g_cmd_out; }
@@ -149,9 +160,15 @@ EXPORT("core_ctrl_encoders") void core_ctrl_encoders(double t_us, float left_deg
 {
     wro_controller_encoders(&g_ctrl, (uint64_t)t_us, left_deg, right_deg);
 }
+EXPORT("core_ctrl_axle_encoder") void core_ctrl_axle_encoder(double t_us, float axle_deg)
+{
+    wro_controller_axle_encoder(&g_ctrl, (uint64_t)t_us, axle_deg);
+}
 
 EXPORT("core_ctrl_imu") void core_ctrl_imu(double t_us, float gyro_dps, float mag_deg)
 {
+    if (!isfinite(t_us) || t_us <= 0 || !isfinite(gyro_dps) ||
+        (g_ctrl.last_imu_us && t_us <= (double)g_ctrl.last_imu_us)) return;
     wro_controller_imu(&g_ctrl, (uint64_t)t_us, gyro_dps, mag_deg);
 }
 EXPORT("core_ctrl_start") int core_ctrl_start(double t_us)
@@ -186,8 +203,8 @@ static void export_debug(void)
     o[0] = d->lane_cm; o[1] = d->reference_deg; o[2] = d->pass_cm; o[3] = d->cost;
     o[4] = (float)d->route_count; o[5] = (float)d->probe_count; o[6] = (float)d->curtain_cells;
     o[7] = (float)g_ctrl.map.colored_count;
-    o[3] = (float)d->plan_count;
-    float *p = o + 8;
+    o[8] = (float)d->plan_count;
+    float *p = o + 9;
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->route[i][0]; *p++ = d->route[i][1]; }
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->probe[i][0]; *p++ = d->probe[i][1]; }
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->plan[i][0]; *p++ = d->plan[i][1]; }
@@ -233,7 +250,7 @@ static void export_command(void)
     for (int k = 0; k < 8; ++k) o[72 + k] = g_ctrl.planner_state.ref_v_cm[3 * k];
     o[80] = g_ctrl.race_grip; o[81] = (float)g_ctrl.odom.slip_count;
     o[82] = g_ctrl.hug_active ? 1.0f : 0.0f; o[83] = g_ctrl.hug_cmd_cm; o[84] = g_ctrl.hug_target_cm; o[85] = g_ctrl.hug_hold_s;
-    if (g_ctrl.race.valid && g_race_out[0] != (float)g_ctrl.race.n) {
+    if (g_ctrl.race.valid) {
         g_race_out[0] = (float)g_ctrl.race.n;
         for (int i = 0; i < g_ctrl.race.n; ++i) {
             g_race_out[1 + 3 * i] = g_ctrl.race.x[i]; g_race_out[2 + 3 * i] = g_ctrl.race.z[i]; g_race_out[3 + 3 * i] = g_ctrl.race.v[i];
@@ -268,7 +285,7 @@ EXPORT("core_arc_clear") int core_arc_clear(float steer_deg, float distance_cm)
 }
 EXPORT("core_ctrl_watchdog") int core_ctrl_watchdog(double now_us)
 {
-    const bool stopped = wro_controller_watchdog(&g_ctrl, (uint64_t)now_us, &g_cmd);
+    const bool stopped = p4_runtime_guard(&g_ctrl, (uint64_t)now_us, &g_cmd);
     if (stopped) export_command();
     return stopped ? 1 : 0;
 }

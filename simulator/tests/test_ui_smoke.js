@@ -15,6 +15,7 @@ function element(id) {
   if (id === 'signCount') el.value = '6';
   if (id === 'direction') el.value = 'ccw';
   if (id === 'preset') el.value = 'random';
+  if (id === 'startInLot' || id === 'startOnTrack') el.checked = false;
   for (const n of ['redSide']) if (id === n) el.value = '1';
   if (id === 'greenSide') el.value = '-1';
   if (id === 'rSpeed') el.value = '20';
@@ -25,7 +26,8 @@ function element(id) {
   return el;
 }
 const cache = {};
-const document = { getElementById: id => cache[id] || (cache[id] = element(id)), execCommand: () => true };
+const idSet = new Set(ids);
+const document = { getElementById: id => idSet.has(id) ? (cache[id] || (cache[id] = element(id))) : null, execCommand: () => true };
 let frames = 0, pending = null;
 const sandbox = { window: null, document, console, atob: s => Buffer.from(s, 'base64').toString('binary'), performance: { now: () => Date.now() },
   requestAnimationFrame: f => { pending = f; }, ImageData: class { constructor(d, w, h) { this.data = d; this.width = w; this.height = h; } },
@@ -56,8 +58,7 @@ for (const f of ['geometry', 'rng', 'field', 'sensors', 'robot', 'judge', 'core'
   assert(sim.cmd && sim.cmd.arena && sim.cmd.arena.valid, 'el localizador no adquirio pose');
   assert(cache.telemetry.innerHTML.includes('Odometría (encoders)') && cache.telemetry.innerHTML.includes('Pose en el campo (LiDAR)'), 'faltan las filas de odometria y pose');
   assert(/error [0-9.]+ cm/.test(cache.telemetry.innerHTML), 'sin el error contra la verdad');
-  /* Terminada la primera vuelta el robot calcula su linea de carrera: el panel la describe y el mapa la dibuja. */
-  sim.run(40);
+  /* El panel debe mostrar la linea aunque la mision aun no la haya calculado. */
   for (let i = 0; i < 6; i++) { const f = pending; pending = null; assert(f, 'se detuvo el bucle de dibujo'); f(5000 + i * 33); }
   assert(cache.telemetry.innerHTML.includes('Línea de carrera'), 'falta la fila de la linea de carrera');
   if (sim.cmd.race && sim.cmd.race.valid) {

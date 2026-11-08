@@ -11,6 +11,8 @@
   const COLORS = { red: '#ee2737', green: '#44d62c', magenta: '#ff00ff', orange: '#ff6600', blue: '#0033ff' };
 
   let core = null, sim = null, field = null, playing = false, last = 0, hoverSeat = null, overlays = true;
+  let simBudget = 0, speedWindowStart = 0, speedWindowSim = 0, actualSpeed = 0;
+  let generatedNotice = '';
 
   /* ---------------------------------------------------------------- arranque */
   async function boot() {
@@ -32,12 +34,16 @@
   function newField() {
     const dir = $('direction').value, preset = $('preset').value;
     const lot = $('withLot').checked, inLot = lot && $('startInLot').checked, onTrack = lot && !inLot && $('startOnTrack').checked;
-    if (preset === 'random') field = F.randomLayout(Number($('seed').value) || 1, { direction: dir, signs: Number($('signCount').value), parking: lot, startInLot: inLot, startOnTrack: onTrack });
+    const robotLength = WRO.robot.DEFAULT_ROBOT.bodyLength;
+    if (preset === 'random') field = F.randomLayout(Number($('seed').value) || 1, { direction: dir, signs: Number($('signCount').value), parking: lot, startInLot: inLot, startOnTrack: onTrack, robotLength, feasible: true, allowGates: false });
     else {
       const base = F.preset(preset);
       field = F.create({ signs: base.signs.map(s => ({ color: s.color, x: s.seat.x, z: s.seat.z })), direction: dir,
-                        parking: lot ? { section: 0, along: 0, robotLength: 17 } : null, startInLot: inLot, startOnTrack: onTrack });
+                        parking: lot ? { section: 0, along: 0, robotLength } : null, startInLot: inLot, startOnTrack: onTrack });
     }
+    const requested = Number($('signCount').value);
+    generatedNotice = preset === 'random' && field.signs.length < requested
+      ? `El filtro generó ${field.signs.length} de ${requested} letreros solicitados; no garantiza una trayectoria.` : '';
     startSim();
   }
   function startSim() {
@@ -53,11 +59,11 @@
         field, seed: Number($('seed').value) || 1, ctrlConfig: lines, visionConfig: vision,
         lidar: { sigmaNearCm: 0.5 * noise, sigmaFarCm: 2 * noise, angleJitterDeg: 0.15 * noise, dropout: noise > 0 ? 0.015 : 0 },
         camera: { noiseSigma: 3.5 * camNoise, gain: num('rLight'), latencyMs: num('rLatency'), bitErrorRate: num('rBitErr') / 100 },
-        imu: { biasDps: gyro }, robot: { speedGain: num('rSpeedGain'), wheelMismatch: num('rTrim') / 100 }, judge: { passSide }
+        imu: { biasDps: gyro }, robot: { speedGain: num('rSpeedGain'), steerTrimDeg: num('rTrim') }, judge: { passSide }
       });
       setStatus('listo', '');
     } catch (e) { setStatus('error: ' + e.message, 'bad'); sim = null; }
-    playing = false; $('play').textContent = '▶ Simular';
+    playing = false; simBudget = 0; speedWindowStart = 0; actualSpeed = 0; $('play').textContent = '▶ Simular';
     draw();
   }
 
@@ -66,9 +72,15 @@
     const dt = Math.min(0.1, (now - last) / 1000 || 0);
     last = now;
     if (playing && sim && !sim.finished) {
-      let budget = dt * Number($('speed').value);
+      const speed = Number($('speed').value);
+      simBudget = Math.min(simBudget + dt * speed, Math.max(0.5, speed * 0.25));
       const t0 = performance.now();
-      while (budget > 0 && !sim.finished && performance.now() - t0 < 26) { sim.tick(); budget -= sim.dt; }
+      while (simBudget >= sim.dt && !sim.finished && performance.now() - t0 < 26) { sim.tick(); simBudget -= sim.dt; }
+      if (!speedWindowStart) { speedWindowStart = now; speedWindowSim = sim.t; }
+      if (now - speedWindowStart >= 1000) {
+        actualSpeed = (sim.t - speedWindowSim) / ((now - speedWindowStart) / 1000);
+        speedWindowStart = now; speedWindowSim = sim.t;
+      }
     }
     if (sim && sim.finished && playing) {
       playing = false; $('play').textContent = '▶ Simular';
@@ -135,7 +147,7 @@
       g.fillStyle = 'rgba(0,170,210,.9)';
       for (const q of sim.snapshot.scan) {
         if (!q.valid) continue;
-        const a = q.angle * DEG, [wx, wz] = robotToWorld(p, Math.sin(a) * q.distance, 12 + Math.cos(a) * q.distance);
+        const a = q.angle * DEG, [wx, wz] = robotToWorld(p, sim.lidar.cfg.mountLateral + Math.sin(a) * q.distance, sim.lidar.cfg.mountForward + Math.cos(a) * q.distance);
         g.fillRect(T.px(wx) - 1, T.py(wz) - 1, 2, 2);
       }
     }
@@ -295,10 +307,10 @@
       ['Termina por', r.endReason, r.endReason === 'finished' ? 'good' : r.endReason === 'running' ? '' : 'bad']
     ]);
     const warn = F.checkLayout(field, { bodyWidth: sim.robot.cfg.bodyWidth }).map(w => '⚠ ' + w.text);
-    $('violations').textContent = r.violations.map(v => `${v.t.toFixed(1)} s: ${v.text}`).concat(warn).join(' · ');
+    $('violations').textContent = r.violations.map(v => `${v.t.toFixed(1)} s: ${v.text}`).concat(warn, generatedNotice ? [generatedNotice] : []).join(' · ');
     $('log').innerHTML = sim.log.events.slice(-10).map(e => `${e.t.toFixed(1)} s · ${e.text}`).join('<br>');
     if (sim.finished) setStatus('terminada: ' + r.endReason + ' · ' + r.points + ' puntos', r.endReason === 'finished' ? 'good' : 'bad');
-    else if (playing) setStatus('simulando ' + sim.t.toFixed(1) + ' s', '');
+    else if (playing) setStatus('simulando ' + sim.t.toFixed(1) + ' s · ' + actualSpeed.toFixed(2) + '× real', '');
   }
 
   function drawSequences() {
@@ -322,17 +334,19 @@
     return best;
   }
   function cycleSeat(seat) {
+    generatedNotice = '';
     const i = field.signs.findIndex(s => Math.hypot(s.seat.x - seat.x, s.seat.z - seat.z) < 1);
-    const list = field.signs.map(s => ({ color: s.color, x: s.seat.x, z: s.seat.z }));
+    const list = field.signs.map(s => ({ color: s.color, x: s.x, z: s.z, rot: s.rot, seatX: s.seat.x, seatZ: s.seat.z }));
     if (i < 0) list.push({ color: 'red', x: seat.x, z: seat.z });
     else if (list[i].color === 'red') list[i].color = 'green';
     else list.splice(i, 1);
-    field = F.create({ signs: list, direction: field.direction, seatModel: field.seatModel,
-                      parking: field.parking, startInLot: field.startInLot, startOnTrack: field.startOnTrack });
+    field = F.create({ signs: list, direction: field.direction, inner: field.inner, wallT: field.wallT, seatModel: field.seatModel,
+                      robotBody: field.robotBody, seed: field.seed, start: field.start, parking: field.parking,
+                      startInLot: field.startInLot, startOnTrack: field.startOnTrack });
     $('preset').value = 'random'; startSim();
   }
   function bind() {
-    $('play').onclick = () => { if (!sim) return startSim(); if (sim.finished) startSim(); playing = !playing; $('play').textContent = playing ? '⏸ Pausar' : '▶ Simular'; };
+    $('play').onclick = () => { if (!sim) return startSim(); if (sim.finished) startSim(); playing = !playing; simBudget = 0; speedWindowStart = 0; actualSpeed = 0; $('play').textContent = playing ? '⏸ Pausar' : '▶ Simular'; };
     $('restart').onclick = startSim;
     $('preset').onchange = newField; $('direction').onchange = newField;
     $('withLot').onchange = () => { if (!$('withLot').checked) { $('startInLot').checked = false; $('startOnTrack').checked = false; } newField(); };

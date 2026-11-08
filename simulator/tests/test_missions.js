@@ -9,7 +9,9 @@ const bytes = fs.readFileSync(path.join(web, 'wro_core.wasm'));
 
 async function run(name, options, seconds, check) {
   const core = await WRO.core.load(bytes);
-  const sim = new WRO.sim.Simulation(core, options);
+  /* Casos históricos del chasis diferencial; Ackermann requiere sus propios escenarios. */
+  const legacyRobot = { drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7, trackWidth: 11.5, wheelDiameterL: 5.5, wheelDiameterR: 5.5 };
+  const sim = new WRO.sim.Simulation(core, Object.assign({}, options, { robot: Object.assign(legacyRobot, options.robot || {}) }));
   const t0 = Date.now();
   const r = sim.run(seconds);
   try { check(r, sim); } catch (e) {

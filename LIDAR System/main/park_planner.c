@@ -116,6 +116,11 @@ static bool pose_collides(const park_params_t *p, float u, float w, float theta_
            hits_rect(c, half, half + t, 0.0f, p->lot_width_cm, p->margin_cm);       /* tope delantero */
 }
 
+bool park_pose_free(const park_params_t *p, const park_pose_t *pose)
+{
+    return p && pose && !pose_collides(p, pose->u_cm, pose->w_cm, pose->theta_deg);
+}
+
 static float rect_boundary_distance(float u, float w, float x0, float x1, float y0, float y1)
 {
     const float dx = fmaxf(fmaxf(x0 - u, 0.0f), u - x1), dy = fmaxf(fmaxf(y0 - w, 0.0f), w - y1);

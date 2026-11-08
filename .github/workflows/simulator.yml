@@ -1,0 +1,37 @@
+name: Simulator checks
+on:
+  push:
+  pull_request:
+
+jobs:
+  cpu-checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify checked-in WASM manifest
+        run: python simulator/wasm/manifest.py
+      - name: Build WASM from sources
+        shell: pwsh
+        run: ./simulator/wasm/build.ps1 -Download
+      - name: Verify rebuilt manifest and assemble HTML
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          python simulator/wasm/manifest.py
+          python simulator/build_simulator.py
+      - name: Run targeted simulator tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          node simulator/tests/test_sim_basics.js
+          node simulator/tests/test_axle_encoder.js
+          node simulator/tests/test_ui_smoke.js
+          node simulator/tests/test_parking_exit.js

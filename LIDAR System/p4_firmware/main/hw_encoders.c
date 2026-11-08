@@ -3,6 +3,7 @@
 #include "driver/pulse_cnt.h"
 #include "esp_log.h"
 #include "wro_config.h"
+#include "axle_encoder.h"
 
 #define AXLE_COUNT_LIMIT 30000
 #define PI_F 3.14159265358979f
@@ -49,8 +50,9 @@ static bool axle_degrees(float *degrees)
 {
     int count;
     if (!s_ready || pcnt_unit_get_count(s_unit, &count) != ESP_OK) return false;
-    const float sign = CONFIG_WRO_AXLE_ENCODER_INVERT ? -1.0f : 1.0f;
-    *degrees = sign * (float)count * 360.0f / CONFIG_WRO_AXLE_ENCODER_COUNTS_PER_REV;
+    *degrees = axle_encoder_degrees(count, CONFIG_WRO_AXLE_ENCODER_COUNTS_PER_REV,
+                                    CONFIG_WRO_MOTOR_GEAR_TEETH, CONFIG_WRO_DIFF_GEAR_TEETH,
+                                    CONFIG_WRO_AXLE_ENCODER_INVERT ? -1 : 1);
     return true;
 }
 

@@ -47,17 +47,24 @@ void p4_runtime_step(p4_runtime_t *rt)
     /* Comprobar antes de enviar una orden nueva: un escaneo reciente no hace
      * seguro conducir con el giroscopio desconectado o sin muestras validas. */
     const uint64_t now = h->now_us(h->ctx);
-    const bool active = rt->controller.phase != WRO_PHASE_IDLE && rt->controller.phase != WRO_PHASE_DONE;
-    const uint64_t imu_us = rt->controller.last_imu_us;
-    const bool gyro_stale = active && (!imu_us || imu_us > now || now - imu_us > rt->controller.cfg.sensor_timeout_us);
     wro_command_t stop = rt->last;
-    if (gyro_stale || wro_controller_watchdog(&rt->controller, now, &stop)) {
-        stop.speed_cm_s = 0.0f;
-        stop.steer_deg = 0.0f;
-        stop.yaw_rate_dps = 0.0f;
+    if (p4_runtime_guard(&rt->controller, now, &stop)) {
         rt->last = stop;
         h->drive(h->ctx, 0.0f, 0.0f, 0.0f);
     } else if (scan_received) {
         h->drive(h->ctx, rt->last.steer_deg, rt->last.speed_cm_s, rt->last.yaw_rate_dps);
     }
+}
+
+bool p4_runtime_guard(wro_controller_t *c, uint64_t now, wro_command_t *command)
+{
+    if (!c || !command) return false;
+    const bool active = c->phase != WRO_PHASE_IDLE && c->phase != WRO_PHASE_DONE;
+    const uint64_t imu_us = c->last_imu_us;
+    const bool gyro_stale = active && (!imu_us || imu_us > now || now - imu_us > c->cfg.sensor_timeout_us);
+    if (!gyro_stale && !wro_controller_watchdog(c, now, command)) return false;
+    command->speed_cm_s = 0.0f;
+    command->steer_deg = 0.0f;
+    command->yaw_rate_dps = 0.0f;
+    return true;
 }

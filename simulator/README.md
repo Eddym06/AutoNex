@@ -1,8 +1,13 @@
 # Simulador WRO Future Engineers
 
 > El modelo predeterminado se cambió a bicicleta para el nuevo chasis Ackermann.
-> La geometría, el encoder y el parqueo aún no están adaptados ni validados;
+> Las medidas ficticias elegidas se detallan en [PERFIL_PROVISIONAL.md](PERFIL_PROVISIONAL.md).
+> La geometría y el encoder son provisionales, y el parqueo es experimental;
 > las cifras y pruebas históricas descritas abajo corresponden al chasis anterior.
+> Tras cualquier cambio en el C hay que reconstruir el WASM: la generación del
+> HTML comprueba ahora un manifiesto de hashes y rechaza uno ausente o antiguo.
+> El binario incluido fue reconstruido; el manifiesto verifica las fuentes.
+> La entrada al cajón y la misión completa Ackermann siguen sin validación.
 
 Simula una ronda completa de la pista WRO 2024 con sensores realistas y **ejecuta el C real del firmware** (visión del S3 no incluida: la cámara virtual produce imágenes RGB565 que pasan por el mismo `vision.c`; el planificador y el controlador del P4 corren compilados a WebAssembly). No hay reimplementación en JavaScript de la lógica, y el robot **no ve la verdad del mundo**: solo lo que miden sus sensores simulados.
 
@@ -12,7 +17,11 @@ Simula una ronda completa de la pista WRO 2024 con sensores realistas y **ejecut
 python simulator\build_simulator.py      # genera simulator\build\simulador.html (un solo archivo)
 ```
 
-Abre `simulador.html` en el navegador. Casillas **Cajón de parqueo**, **Arrancar dentro** (el robot sale solo del cajón, hace las vueltas y vuelve a aparcar) y **Empezar en pista (aparcar)**: una demostración que arranca en el carril con las tres vueltas dadas, busca el cajón y aparca (~35 s). Controles: **Simular / Reiniciar**, velocidad de reproducción (0,25×–8×), **Pista** (preajustes), **Sentido**, **Pista aleatoria** (semilla y número de letreros), **Plano ⇄ JSON** (importar/exportar el diseño), capas visibles (LiDAR, ruta y corredor, trayectoria, cortinas), lado de paso de rojo y verde (con la opción de que el juez use la misma regla), parámetros del controlador y de la visión con *Aplicar y reiniciar* / *Valores por defecto*, y los de realismo: velocidad, ruido de LiDAR y cámara, sesgo del giroscopio, ganancia de velocidad, desvío del servo, luz, latencia de cámara y porcentaje de tramas con error.
+Abre `simulador.html` en el navegador después de reconstruir el WASM. La salida
+del cajón y el parqueo Ackermann son experimentales y aún no están validados
+con sensores ni mediante rondas completas. Controles:
+**Simular / Reiniciar**, velocidad de reproducción, pista, sentido, semilla,
+plano JSON, capas visibles, lados de paso y parámetros de controlador y sensores.
 
 > La interfaz se probó con un DOM simulado (`test_ui_smoke.js`), **no visualmente en un navegador**. Si algo se ve mal, es lo primero que conviene revisar.
 
@@ -119,3 +128,14 @@ node simulator\tools\arena_check.js 100 3       # error de la pose del localizad
 `simulator/build_simulator.py` toma `web/index.template.html`, mete dentro (en línea) todos los `.js` de `web/` y el firmware `wro_core.wasm` en base64, y escribe **un solo archivo** `build/simulador.html` que funciona sin servidor ni red. Sobrescribe el anterior cada vez. Pone en el título una marca de compilación (`fecha · fw hash`); el hash es el del `.wasm`, así que cambia solo si cambia el firmware. `Vision System/tools/simulate.ps1` lo ejecuta como último paso (después de pasar todas las pruebas); también puede lanzarse a mano con `python simulator\build_simulator.py`.
 
 El `.wasm` en sí **no** lo genera ese paso: se compila con `simulator\wasm\build.ps1` (o `simulate.ps1 -Wasm`) a partir del C de `LIDAR System/main` y `Vision System/main`. Cambiar el firmware exige recompilar el wasm y después regenerar el html.
+# Estado de la adaptación
+
+El perfil activo es Ackermann con tracción trasera y encoder de eje, con medidas
+provisionales. El texto histórico inferior incluye ejemplos y resultados del
+carrito diferencial anterior. La salida del cajón se probó aisladamente; la
+entrada y la carrera completas aún no están validadas. La salida diferencial
+histórica no funciona con la configuración actual. Las colisiones y el empuje
+son aproximaciones, no un modelo físico calibrado.
+
+La interfaz genera pistas con un filtro geométrico conservador: puede colocar
+menos letreros de los solicitados y no garantiza que exista una trayectoria.

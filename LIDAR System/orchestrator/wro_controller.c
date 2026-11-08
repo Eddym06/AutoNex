@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "config_fields.h"
+#include "park_ackermann.h"
 
 #define DEG_TO_RAD 0.01745329251994329577f
 #define RAD_TO_DEG 57.29577951308232f
@@ -281,7 +282,7 @@ static const cf_field_t FIELDS[] = {
     CF("pivot_enabled", CF_BOOL, pivot_enabled), CF("pivot_after_s", CF_F32, pivot_after_s),
     CF("pivot_rot_dps", CF_F32, pivot_rot_dps), CF("pivot_margin_cm", CF_F32, pivot_margin_cm), CF("corner_max_heading_deg", CF_F32, corner_max_heading_deg),
     CF("motion_comp", CF_BOOL, motion_comp), CF("latency_s", CF_F32, latency_s),
-    CF("parking_enabled", CF_BOOL, parking_enabled), CF("start_in_lot", CF_BOOL, start_in_lot),
+    CF("parking_enabled", CF_BOOL, parking_enabled), CF("park_ackermann", CF_BOOL, park_ackermann), CF("start_in_lot", CF_BOOL, start_in_lot),
     CF("park_speed_cm_s", CF_F32, park_speed_cm_s), CF("park_rot_dps", CF_F32, park_rot_dps),
     CF("park_margin_cm", CF_F32, park_margin_cm), CF("park_lot_length_cm", CF_F32, park_lot_length_cm),
     CF("park_lane_w_cm", CF_F32, park_lane_w_cm), CF("park_search_speed_cm_s", CF_F32, park_search_speed_cm_s),
@@ -1130,6 +1131,7 @@ static float compensate_motion(const wro_controller_t *c, const local_planner_co
 
 
 /* -------------------------------------------------------------------- parqueo */
+static park_params_t g_ack_park_params;
 
 static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
 {
@@ -1142,6 +1144,11 @@ static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
 /* El campo de costes es unico (ocupa casi 1 MB): se reconstruye al cambiar de meta. */
 static bool park_prepare(wro_controller_t *c, park_goal_t goal)
 {
+    if (c->cfg.park_ackermann) {
+        park_params_from_cfg(c, &g_ack_park_params);
+        c->park_field_goal = (int)goal + 1;
+        return true;
+    }
     if (c->park_field_goal == (int)goal + 1 && park_field_ready()) return true;
     park_params_t p;
     park_params_from_cfg(c, &p);
@@ -1215,7 +1222,7 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
         return;
     }
     const int mirror = park_mirror(c);
-    const park_loc_t loc = {.params = park_field_params(), .lidar_forward_cm = pl->lidar_forward_cm, .mirror = mirror};
+    const park_loc_t loc = {.params = c->cfg.park_ackermann ? &g_ack_park_params : park_field_params(), .lidar_forward_cm = pl->lidar_forward_cm, .mirror = mirror};
     park_pose_t prior = c->park_pose;
     prior.theta_deg = -(float)mirror * imu_wrap_deg(c->yaw.yaw_deg - c->park_course_deg);
     const float th = prior.theta_deg * DEG_TO_RAD;
@@ -1233,7 +1240,59 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
     }
     if (c->park_lost > 8) {            /* sin pared ni topes a la vista: parado, no a ciegas */
         c->park_prev = PARK_MOVE_NONE;
+        c->park_arc_remaining_cm = 0.0f;
+        c->park_arc_count = c->park_arc_index = 0;
         if (c->park_lost > 120 && !exiting) c->phase = WRO_PHASE_DONE;
+        return;
+    }
+    if (c->cfg.park_ackermann) {
+        const park_params_t *params = &g_ack_park_params;
+        if (!park_pose_free(params, &c->park_pose)) { c->park_arc_remaining_cm = 0.0f; c->park_arc_count = 0; return; }
+        c->park_arc_remaining_cm -= fabsf(c->scan_ds_cm);
+        /* Tolerancia provisional para el cuantizado de la odometria. */
+        if (c->park_arc_remaining_cm <= 0.3f) {
+            const park_ackermann_config_t acfg = {pl->wheelbase_cm, pl->steer_hard_deg, 3.5f, c->park_arc_direction};
+            if (c->park_arc_index >= c->park_arc_count) {
+                const park_ackermann_result_t a = park_ackermann_plan(params, &acfg, &c->park_pose,
+                                                                  exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+                if (!a.found) { c->park_goal_hits = 0; return; }
+                if (a.at_goal) {
+                if (++c->park_goal_hits >= 3) {
+                    c->phase = exiting ? WRO_PHASE_RUN : WRO_PHASE_DONE;
+                    c->parked = !exiting;
+                    if (exiting) { c->course_deg = c->park_course_deg; c->aligned = true; c->travel_cm = 0.0f; }
+                    c->park_field_goal = 0;
+                }
+                    return;
+                }
+                c->park_goal_hits = 0;
+                c->park_arc_count = a.count; c->park_arc_index = 0;
+                memcpy(c->park_arc_directions, a.directions, a.count * sizeof(a.directions[0]));
+                memcpy(c->park_arc_steering, a.steering, a.count * sizeof(a.steering[0]));
+            }
+            c->park_arc_direction = c->park_arc_directions[c->park_arc_index];
+            c->park_arc_steer_deg = -(float)mirror * c->park_arc_steering[c->park_arc_index] * acfg.steer_max_deg;
+            if (!park_ackermann_arc_free(params, &acfg, &c->park_pose, c->park_arc_direction,
+                                         c->park_arc_steering[c->park_arc_index])) {
+                c->park_arc_count = c->park_arc_index = 0;
+                return;
+            }
+            ++c->park_arc_index;
+            c->park_arc_remaining_cm = acfg.step_cm;
+        }
+        float arc_speed = c->cfg.park_speed_cm_s;
+        /* Frenar progresivamente antes de terminar el arco limita el recorrido
+         * adicional causado por la inercia; valores aun por calibrar en chasis. */
+        if (arc_speed > 4.0f) arc_speed = 4.0f;
+        if (arc_speed > fmaxf(1.0f, 1.5f * c->park_arc_remaining_cm))
+            arc_speed = fmaxf(1.0f, 1.5f * c->park_arc_remaining_cm);
+        if (dt > 0.0f && c->park_arc_remaining_cm / dt < arc_speed)
+            arc_speed = c->park_arc_remaining_cm / dt;
+        out->speed_cm_s = c->park_arc_direction * arc_speed;
+        out->steer_deg = c->park_arc_steer_deg;
+        out->yaw_rate_dps = out->speed_cm_s * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+        out->explicit_yaw_rate = false;
+        out->action = c->park_arc_direction > 0 ? LOCAL_ACTION_FORWARD : LOCAL_ACTION_REVERSE;
         return;
     }
     const park_decision_t d = park_field_decide(&c->park_pose, c->park_prev);
@@ -1277,7 +1336,7 @@ static bool park_search_step(wro_controller_t *c, const local_lidar_point_t *poi
     if (c->scan_ds_cm > 0.0f) c->park_search_cm += c->scan_ds_cm;
     if (!park_prepare(c, PARK_GOAL_IN)) { c->phase = WRO_PHASE_FINISH; return false; }
     const int mirror = park_mirror(c);
-    const park_loc_t loc = {.params = park_field_params(), .lidar_forward_cm = pl->lidar_forward_cm, .mirror = mirror};
+    const park_loc_t loc = {.params = c->cfg.park_ackermann ? &g_ack_park_params : park_field_params(), .lidar_forward_cm = pl->lidar_forward_cm, .mirror = mirror};
     /* Solo con el morro casi paralelo a la pared: de lado, un tope lejano se confunde con otro. */
     const float yaw_to_wall = imu_wrap_deg(c->yaw.yaw_deg - c->course_deg);
     if (fabsf(yaw_to_wall) > 30.0f) return false;

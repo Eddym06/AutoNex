@@ -27,7 +27,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   /* Carril de 100 cm: las caras interiores de los muros estan a +-150 y +-50. */
   const south = f.walls.find(w => w.z < -140), inner = f.walls.find(w => Math.abs(w.z + 50) < 2 && w.w > 90);
   near(south.z + south.d / 2, -150, 1e-9, 'cara interior del muro exterior');
-  near(inner.z - inner.d / 2, -50 - 0, 2.1, 'cara del muro interior');
+  near(inner.z - inner.d / 2, -50, 1e-9, 'cara del muro interior');
   assert.equal(F.sectionAt(f, 0, -100), 0); assert.equal(F.sectionAt(f, 100, -100), 1);
   assert.equal(F.sectionAt(f, 100, 0), 2); assert.equal(F.sectionAt(f, 0, 0), -1);
   /* Seis asientos por recta, cuatro rectas. */
@@ -37,6 +37,11 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   /* Plano en texto: ida y vuelta identica, y rechaza en vez de corregir. */
   const r = F.randomLayout(7, { direction: 'cw', signs: 6 });
   assert.equal(F.toJSON(F.parse(F.toJSON(r))), F.toJSON(r));
+  const custom = F.create({ wallT: 3, seatModel: { seatAlong: [0.25, 0.75], seatLateral: [-0.1, 0.1] }, robotBody: { length: 22, rear: 5 } });
+  const customCopy = F.parse(F.toJSON(custom));
+  assert.equal(customCopy.wallT, 3);
+  assert.deepEqual(customCopy.seatModel, custom.seatModel);
+  assert.deepEqual(customCopy.robotBody, custom.robotBody);
   assert.throws(() => F.parse('{"signs":[{"color":"red","x":0,"z":0}]}'), /muro interior/);
   assert.throws(() => F.parse('{"signs":[{"color":"blue","x":0,"z":-100}]}'), /color/);
   assert.throws(() => F.parse('nada'), /JSON/);
@@ -82,11 +87,21 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   /* El mismo par con otro color es pasable. */
   assert.equal(F.checkLayout(F.create({ signs: [{ color: 'green', x: 80, z: -10 }, { color: 'green', x: 120, z: 30 }], direction: 'ccw' })).length, 0);
   /* Saliendo del cajon, un letrero pegado a la salida que exige el lado interior no se puede alcanzar. */
-  const lot = F.create({ signs: [{ color: 'green', x: 30, z: -100 }], direction: 'ccw', parking: { section: 0, along: 5, robotLength: 17 }, startInLot: true });
+  const lot = F.create({ signs: [{ color: 'green', x: 30, z: -100 }], direction: 'ccw', parking: { section: 0, along: 5, robotLength: 17 }, robotBody: { length: 17, rear: 7 }, startInLot: true });
   assert(F.checkLayout(lot).some(x => x.from === 'salida del cajon'));
+  /* La entrada es el primer extremo en el sentido de marcha, en ambas orientaciones. */
+  for (const direction of ['ccw', 'cw']) for (const index of [0, 2, 4, 6]) {
+    const f = F.create({ direction }), info = F.straightInfo(f, index), t = F.travelVector(index, direction);
+    const right = [t[1], -t[0]], axisX = info.axis === 'x';
+    const entry = (axisX ? t[0] : t[1]) > 0 ? info.lo : info.hi;
+    const x = (axisX ? entry + 5 * t[0] : info.center) + right[0] * 30;
+    const z = (axisX ? info.center : entry + 5 * t[1]) + right[1] * 30;
+    const test = F.create({ direction, signs: [{ color: 'red', x, z }] });
+    assert(F.checkLayout(test).some(w => w.section === index && w.from === 'entrada de la recta'), `${direction} recta ${index}`);
+  }
   /* El generador aleatorio nunca produce estos casos. */
   for (let seed = 1; seed <= 60; seed++) for (const direction of ['ccw', 'cw']) {
-    const L = F.randomLayout(seed, { direction, signs: 7, parking: seed % 2 === 0, startInLot: seed % 2 === 0 });
+    const L = F.randomLayout(seed, { direction, signs: 7, parking: seed % 2 === 0, startInLot: seed % 2 === 0, feasible: true, allowGates: false });
     assert.equal(F.checkLayout(L).length, 0, 'aleatorio ' + seed + ' ' + direction);
   }
 }
@@ -142,7 +157,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   near(width, 118.6 * 5 / (depth * Math.cos(pitch) + 0), 3, 'ancho aparente del pilar');
   assert(isRed(px(80, 46)) || isRed(px(79, 46)), 'el pilar esta centrado');
   /* El suelo es blanco y las paredes negras; el cielo sobre el horizonte es el fondo. */
-  const floor = px(20, 110), bg = px(80, 3);
+  const floor = px(20, 110), bg = px(20, 3);
   assert(floor[0] > 180 && floor[1] > 180, 'suelo blanco'); assert(bg[0] < 140, 'fondo');
   /* Cambiar la luz cambia el brillo (exposicion), no la forma. */
   const dark = S.renderCamera(field, field.walls.concat(field.signs), { x: 0, z: -100, yaw: 0 }, cam, WRO.rng(3), { light: 0.5 });
@@ -152,7 +167,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
 /* --- robot -------------------------------------------------------------- */
 {
   /* Traccion diferencial: dos ruedas motrices atras y una libre delante; el eje motriz es la pose. */
-  const r = new R.Robot({ speedGain: 1, wheelMismatch: 0 });
+  const r = new R.Robot({ drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7, speedGain: 1, wheelMismatch: 0 });
   assert.equal(r.cfg.drive, 'differential');
   assert(r.cfg.bodyWidth === 13 && r.cfg.bodyLength === 17 && r.cfg.rearOverhang === 7 && r.cfg.wheelbase === 6);
   r.reset({ x: 0, z: 0, yaw: 0 });
@@ -169,7 +184,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   near(r.yaw * 180 / Math.PI, 90 * (1 - 0.09), 12, 'gira ~80 grados en un segundo sin desplazarse');
   near(Math.hypot(r.x, r.z), 0, 0.5, 'el eje motriz no se mueve al girar en el sitio');
   /* Un desajuste de motores desvia el avance recto (lo corrige el planificador, no la mecanica). */
-  const bad = new R.Robot({ speedGain: 1, wheelMismatch: 0.06 });
+  const bad = new R.Robot({ drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7, speedGain: 1, wheelMismatch: 0.06 });
   bad.reset({ x: 0, z: 0, yaw: 0 }); bad.cmd = { steer: 0, speed: 20 };
   for (let i = 0; i < 300; i++) bad.step(0.01, { solids: [], signs: [] });
   assert(Math.abs(bad.x) > 5, 'motores desiguales: el robot se desvia ' + bad.x);
@@ -228,6 +243,11 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   const j3 = new J.Judge(F.create({}), {}); j3.start(0);
   j3.update(180.1, { x: 0, z: -100, yaw: 0, v: 20 }, { x: 0, z: -100, w: 8, d: 12, rot: 0 }, [], false);
   assert.equal(j3.ended.reason, 'time');
+  /* El timeout de parada usa el tiempo, no el número de llamadas. */
+  const stalled = new J.Judge(F.create({}), { stallSeconds: 1 }); stalled.start(0);
+  const stopBody = { x: 0, z: -100, w: 8, d: 12, rot: 0 };
+  for (const t of [0.1, 0.35, 0.6, 0.85, 1.2]) stalled.update(t, { x: 0, z: -100, yaw: 0, v: 0 }, stopBody, [], false);
+  assert.equal(stalled.ended.reason, 'stalled');
 }
 
 /* --- reglamento 2026: puntuacion y parqueo ------------------------------- */
@@ -244,6 +264,8 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   assert.equal(j.parkingResult(body(90 + 25)), 'partial', 'torcido 25 grados: la rueda delantera queda a mas de 2 cm de la pared');
   assert.equal(j.parkingResult(body(90, lot.a0 - 20)), null, 'fuera del cajon');
   assert.equal(j.parkingResult(body(90, lot.a1 - 6)), 'partial', 'sobresale del cajon');
+  /* El chasis cubre el cajon y ninguna de sus esquinas esta dentro. */
+  assert.equal(j.parkingResult({ x: 0, z: cz, w: 40, d: 40, rot: 0 }), 'partial');
   /* Puntos: 24 secciones + 3 vueltas + 3 por parar + 10 letreros sin mover + 15 parqueo; +7 si arranco en el cajon. */
   assert.equal(j.report(body(90)).points, 24 + 3 + 3 + 10 + 15);
   const f2 = F.create({ parking: { section: 0, along: 0, robotLength: 17 }, startInLot: true });

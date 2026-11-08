@@ -55,5 +55,5 @@ const plan = flag('--plan', null);
     console.log(`vuelta ${L}: ${(l.t).toFixed(1)} s, ${l.d.toFixed(0)} cm recorridos, velocidad media ${(l.d / l.t).toFixed(1)} cm/s, maxima ${l.vmax.toFixed(1)}, linea activa ${(100 * l.act / l.n).toFixed(0)} % del tiempo`);
   }
   for (const v of r.violations) console.log('infraccion: ' + JSON.stringify(v));
-  console.log(`fin: ${r.endReason}, ${r.points} puntos, ${r.sections} secciones, ${r.violations.length} infracciones, contactos ${r.contacts.sign + r.contacts.wall}, ${r.elapsed.toFixed(1)} s, parqueo ${r.parking}`);
+  console.log(`fin: ${r.endReason}, ${r.points} puntos, ${r.sections} secciones, ${r.violations.length} infracciones, contactos ${r.contacts.sign + r.contacts.wall}, ${(r.elapsed == null ? sim.t : r.elapsed).toFixed(1)} s, parqueo ${r.parking}`);
 })();

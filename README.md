@@ -328,6 +328,9 @@ AutoNex/
 ├── README.md              # descripción del equipo y arquitectura
 ├── ACKERMANN.md           # adaptación y datos pendientes
 ├── LIDAR System/          # percepción, navegación y firmware del P4
+│   ├── orchestrator/      # ciclo de ejecución y controlador de misión
+│   ├── main/              # algoritmos de percepción y navegación
+│   └── p4_firmware/       # aplicación y drivers del P4
 ├── Vision System/         # procesamiento de cámara ESP32-S3
 ├── S3 Robot/              # aplicación del S3 y panel local
 ├── shared/                # protocolos y configuración compartidos

@@ -3,6 +3,9 @@
 Estado: **en desarrollo, sin compilar ni probar**. No se debe usar para mover
 el robot hasta completar y comprobar las tareas pendientes.
 
+Se ha elegido un [perfil provisional de simulación](simulator/PERFIL_PROVISIONAL.md)
+de 22 × 14 cm y batalla 14 cm. Son suposiciones editables, no medidas del robot.
+
 ## Hardware indicado por el equipo
 
 - Un motor trasero JGB37-520 de 12 V y 600 rpm, con encoder integrado A/B en
@@ -26,15 +29,18 @@ el robot hasta completar y comprobar las tareas pendientes.
   (11 pulsos por vuelta de motor por canal × 4 flancos × 10 de reducción).
   Se supone conexión 1:1 a las ruedas; confirmar la reducción exacta y los
   pulsos en la unidad real. La escala se cambia con
-  `WRO_AXLE_ENCODER_COUNTS_PER_REV`, los pines A/B con
+  `WRO_AXLE_ENCODER_COUNTS_PER_REV` (por vuelta del motorreductor), la pareja de
+  engranajes con `WRO_MOTOR_GEAR_TEETH` y `WRO_DIFF_GEAR_TEETH`, los pines A/B con
   `WRO_AXLE_ENCODER_A_GPIO` y `WRO_AXLE_ENCODER_B_GPIO`, y el signo con
   `WRO_AXLE_ENCODER_INVERT`. La odometría solo se activa con
   `WRO_AXLE_ENCODER_CALIBRATED`, tras confirmar escala, signo y diámetro.
   Sin esa confirmación usa velocidad ordenada × tiempo, no calibrada. Un
   encoder de eje común no permite detectar patinaje comparando ruedas.
-- Se desactivan pivote, desplazamiento lateral, giro de observación, arranque
-  en cajón y parqueo: el parqueo actual depende de girar sobre el eje, lo que
-  este vehículo no puede hacer. Falta un planificador de parqueo Ackermann.
+- Se desactivan pivote, desplazamiento lateral y giro de observación. Existe un
+  planificador Ackermann experimental para entrar y salir mediante arcos de
+  avance y reversa. La geometría ideal se comprobó con pruebas pequeñas; la
+  integración con sensores y su comportamiento real aún no están validados.
+  En el firmware físico, el parqueo sigue desactivado por defecto.
 - El simulador selecciona el modelo bicicleta y desactiva esas mismas opciones.
   Su geometría y su modelo de encoder aún son provisionales. El WASM versionado
   y los resultados históricos no validan esta adaptación.

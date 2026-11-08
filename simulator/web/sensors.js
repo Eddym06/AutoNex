@@ -14,7 +14,7 @@
    * resolucion, rango 5 a 1200 cm. El barrido es CONTINUO: cada rayo se mide en su
    * instante, con el robot ya movido, asi que un giro deforma las paredes. */
   const DEFAULT_LIDAR = {
-    mountForward: 3, mountLateral: 0, minCm: 5, maxCm: 1200, hz: 10, rays: 400, height: 6,
+    mountForward: 10, mountLateral: 0, minCm: 5, maxCm: 1200, hz: 10, rays: 400, height: 6,
     sigmaNearCm: 0.5, sigmaFarCm: 2.0, dropout: 0.015, grazeDropout: 0.5, angleJitterDeg: 0.15,
     selfMask: [[162, 180], [-180, -162]], flagBlind: true
   };
@@ -82,9 +82,9 @@
 
   /* ------------------------------------------------------------------ camara */
   const DEFAULT_CAMERA = {
-    width: 160, height: 120, focal: 118.6, mountForward: 9, mountLateral: 0, camHeight: 5, horizonRow: 30,
+    width: 160, height: 120, focal: 118.6, mountForward: 13, mountLateral: 0, camHeight: 5, horizonRow: 30,
     gain: 1.0, tint: [1, 1, 1], noiseSigma: 3.5, vignette: 0.12, exposureSeconds: 0.008,
-    background: [88, 92, 104], fps: 40, latencyMs: 45, latencyJitterMs: 8, bitErrorRate: 0
+    background: [88, 92, 104], latencyMs: 45, latencyJitterMs: 8, bitErrorRate: 0
   };
 
   function projectRow(cam, fwd, up) {
@@ -117,6 +117,8 @@
     const bg = cam.background;
     const wallRGB = colorOf('wall'), floorRGB = colorOf('floor');
     const lines = field.lines || [];
+    /* Una línea no cambia durante el cuadro: calcular sus ejes una sola vez. */
+    const lineAxes = lines.map(ln => ({ line: ln, axes: G.boxAxes(ln) }));
     const lineRGB = { orange: colorOf('orange'), blue: colorOf('blue') };
     const fwdVec = [s, co], rightVec = [co, -s];
 
@@ -137,8 +139,8 @@
         let r = floorRGB[0], g = floorRGB[1], b = floorRGB[2];
         if (lines.length) {
           const wx = cx + fwdVec[0] * fwd + rightVec[0] * lat, wz = cz + fwdVec[1] * fwd + rightVec[1] * lat;
-          for (const ln of lines) {
-            const ax = G.boxAxes(ln), dx = wx - ln.x, dz = wz - ln.z;
+          for (const item of lineAxes) {
+            const ln = item.line, ax = item.axes, dx = wx - ln.x, dz = wz - ln.z;
             if (Math.abs(dx * ax.right[0] + dz * ax.right[1]) <= ln.w / 2 &&
                 Math.abs(dx * ax.forward[0] + dz * ax.forward[1]) <= ln.d / 2) { [r, g, b] = lineRGB[ln.kind]; break; }
           }
@@ -242,16 +244,27 @@
   /* Encoders de las ruedas, como los entrega el encoder de cada rueda: angulo acumulado de cada motor en grados
    * enteros (resolucion configurable), a una frecuencia y con un retardo. El diametro real de cada rueda lo pone
    * el robot; aqui solo se anade lo que hace el sensor: cuantizar, ruido y perdida de muestras. */
-  const DEFAULT_ENCODER = { enabled: true, resolutionDeg: 1, noiseDeg: 0.15, hz: 50, latencyMs: 15, dropRate: 0.01,
+  const DEFAULT_ENCODER = { enabled: true, resolutionDeg: 1, motorOutputCountsPerRev: 440, motorGearTeeth: 1, diffGearTeeth: 1, noiseDeg: 0.15, hz: 50, latencyMs: 15, dropRate: 0.01,
                             diameterErrorPct: 1.5 };
   class Encoders {
     constructor(config, rng) {
       this.cfg = Object.assign({}, DEFAULT_ENCODER, config || {});
+      const c = this.cfg;
+      if (!(Number.isFinite(c.motorOutputCountsPerRev) && c.motorOutputCountsPerRev > 0 &&
+            Number.isFinite(c.motorGearTeeth) && c.motorGearTeeth > 0 &&
+            Number.isFinite(c.diffGearTeeth) && c.diffGearTeeth > 0 &&
+            Number.isFinite(c.resolutionDeg) && c.resolutionDeg > 0 && Number.isFinite(c.hz) && c.hz > 0))
+        throw new Error('Configuración del encoder inválida');
       this.rng = rng;
     }
     sample(robot) {
       const c = this.cfg, q = v => Math.round((v + this.rng.gauss() * c.noiseDeg) / c.resolutionDeg) * c.resolutionDeg;
       return { left: q(robot.encL), right: q(robot.encR) };
+    }
+    sampleAxle(robot) {
+      const c = this.cfg;
+      const resolution = 360 * c.motorGearTeeth / (c.motorOutputCountsPerRev * c.diffGearTeeth);
+      return Math.round(((robot.encL + robot.encR) * 0.5 + this.rng.gauss() * c.noiseDeg) / resolution) * resolution;
     }
   }
 

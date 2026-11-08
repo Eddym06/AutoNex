@@ -12,6 +12,7 @@
 #include "odometry.h"
 #include "park_localize.h"
 #include "park_planner.h"
+#include "park_ackermann.h"
 #include "race_line.h"
 
 /* Controlador de la mision del P4 (WRO Future Engineers, reto con obstaculos).
@@ -132,6 +133,7 @@ typedef struct {
     /* Parqueo en paralelo (el cajon esta en la seccion de arranque, junto a la pared exterior).
      * Se desactiva por defecto: el robot no puede saber si la pista tiene cajon. */
     bool parking_enabled;           /* al terminar las vueltas, buscar el cajon y aparcar */
+    bool park_ackermann;            /* maniobras con avance y reversa, sin pivote */
     bool start_in_lot;              /* arranca dentro del cajon: primero sale a la pista */
     float park_speed_cm_s;          /* avance/retroceso en las maniobras */
     float park_rot_dps;             /* giro en el sitio, maximo */
@@ -254,6 +256,10 @@ typedef struct {
     float park_course_deg;          /* rumbo del giroscopio que deja el morro paralelo a la pared */
     park_move_t park_prev;
     int park_lost, park_goal_hits;
+    float park_arc_remaining_cm, park_arc_steer_deg;
+    int park_arc_direction;
+    unsigned park_arc_index, park_arc_count;
+    int8_t park_arc_directions[PARK_ACK_MAX_STEPS], park_arc_steering[PARK_ACK_MAX_STEPS];
     bool park_init, parked;
     float park_search_cm;
     float net_cm, progress_best_cm, stuck_s, relax_from_cm;   /* avance neto (velocidad ordenada x tiempo) */

@@ -11,9 +11,40 @@
   const VISION_CLASSES = ['none', 'red', 'green', 'magenta', 'orange', 'blue'];
 
   async function load(source) {
+    if (typeof module !== 'undefined' && typeof __dirname !== 'undefined') {
+      const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
+      const repo = path.resolve(__dirname, '../..');
+      const manifestPath = path.join(__dirname, 'wro_core.manifest.json');
+      if (!fs.existsSync(manifestPath)) throw new Error('WASM sin manifiesto: recompila simulator/wasm/build.ps1');
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      const files = ['simulator/wasm/core_api.c', 'simulator/wasm/build.ps1', 'simulator/wasm/manifest.py', 'simulator/tools/bench/rebuild_wasm.sh'];
+      const visit = dir => {
+        for (const entry of fs.readdirSync(path.join(repo, dir), { withFileTypes: true })) {
+          const rel = dir + '/' + entry.name;
+          if (entry.isDirectory()) visit(rel);
+          else if (/\.(c|h)$/.test(entry.name)) files.push(rel);
+        }
+      };
+      for (const dir of ['LIDAR System/main', 'LIDAR System/orchestrator', 'Vision System/main', 'shared']) visit(dir);
+      const hash = crypto.createHash('sha256');
+      for (const file of files.sort()) {
+        hash.update(file).update(Buffer.from([0]));
+        hash.update(fs.readFileSync(path.join(repo, file), 'utf8').replace(/\r\n/g, '\n'));
+        hash.update(Buffer.from([0]));
+      }
+      const wasmHash = crypto.createHash('sha256').update(source).digest('hex');
+      if (hash.digest('hex') !== manifest.sources_sha256 || wasmHash !== manifest.wasm_sha256)
+        throw new Error('WASM desactualizado: recompila simulator/wasm/build.ps1');
+    }
     const imports = { wasi_snapshot_preview1: { fd_close: () => 0, fd_seek: () => 0, fd_write: () => 0 } };
     const result = await WebAssembly.instantiate(source, imports);
     const x = (result.instance || result).exports;
+    const expected = { core_abi_version: 2, core_cmd_fields: 86, core_vision_fields: 125,
+      core_debug_fields: 345, core_debug_route_points: 48, core_debug_camera_objects: 12, core_max_points: 512 };
+    for (const [name, value] of Object.entries(expected)) {
+      if (typeof x[name] !== 'function' || x[name]() !== value)
+        throw new Error('ABI WASM incompatible (' + name + '): recompila el simulador y revisa core.js');
+    }
     const mem = () => x.memory.buffer;
     const f32 = (ptr, n) => new Float32Array(mem(), ptr, n);
     const u8 = (ptr, n) => new Uint8Array(mem(), ptr, n);
@@ -93,6 +124,11 @@
       ctrlReconfigure() { x.core_ctrl_reconfigure(); },
       imu(tUs, gyroDps, magDeg) { x.core_ctrl_imu(tUs, gyroDps, magDeg == null ? NaN : magDeg); },
       encoders(tUs, leftDeg, rightDeg) { x.core_ctrl_encoders(tUs, leftDeg, rightDeg); },
+      axleEncoder(tUs, axleDeg) {
+        if (!x.core_ctrl_axle_encoder) throw new Error('WASM anterior a la odometría Ackermann: recompílalo');
+        x.core_ctrl_axle_encoder(tUs, axleDeg);
+      },
+      hasAxleEncoder() { return typeof x.core_ctrl_axle_encoder === 'function'; },
       start(tUs) { return x.core_ctrl_start(tUs) === 1; },
       cameraFocal(f) { x.core_camera_focal(f); },
       cameraPitch(deg) { x.core_camera_pitch(deg); },
@@ -132,16 +168,16 @@
       mapCellCm() { return x.core_map_cell_cm(); },
       map() { const n = x.core_map_size(); return u8(x.core_map_ptr(), n * n).slice(); },
       debug() {
-        const o = f32(x.core_debug_ptr(), 8 + 3 * 48 * 2 + 12 * 4).slice();
+        const o = f32(x.core_debug_ptr(), x.core_debug_fields()).slice();
         const route = [], probe = [], colored = [], plan = [];
-        for (let i = 0; i < o[4]; i++) route.push([o[8 + i * 2], o[9 + i * 2]]);
-        for (let i = 0; i < o[5]; i++) probe.push([o[8 + 96 + i * 2], o[9 + 96 + i * 2]]);
-        for (let i = 0; i < o[3]; i++) plan.push([o[8 + 192 + i * 2], o[9 + 192 + i * 2]]);
+        for (let i = 0; i < o[4]; i++) route.push([o[9 + i * 2], o[10 + i * 2]]);
+        for (let i = 0; i < o[5]; i++) probe.push([o[9 + 96 + i * 2], o[10 + 96 + i * 2]]);
+        for (let i = 0; i < o[8]; i++) plan.push([o[9 + 192 + i * 2], o[10 + 192 + i * 2]]);
         for (let i = 0; i < o[7]; i++) {
-          const p = 8 + 288 + i * 4;
+          const p = 9 + 288 + i * 4;
           colored.push({ x: o[p], forward: o[p + 1], color: o[p + 2], confirmed: o[p + 3] > 0 });
         }
-        return { lane: o[0], reference: o[1], pass: o[2], planPoints: o[3], route, probe, plan, curtains: o[6], colored };
+        return { lane: o[0], reference: o[1], pass: o[2], cost: o[3], planPoints: o[8], route, probe, plan, curtains: o[6], colored };
       }
     };
     return api;

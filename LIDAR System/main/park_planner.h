@@ -73,6 +73,8 @@ park_decision_t park_field_decide(const park_pose_t *pose, park_move_t previous)
 float park_field_cost(const park_pose_t *pose);
 /* Pose libre de choque (con holgura) en el campo? */
 bool park_field_free(const park_pose_t *pose);
+/* Geometria continua, sin depender de la rejilla del planificador diferencial. */
+bool park_pose_free(const park_params_t *params, const park_pose_t *pose);
 
 size_t park_heading_count(void);
 float park_heading_deg(size_t k);

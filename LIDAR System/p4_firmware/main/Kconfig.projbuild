@@ -71,7 +71,7 @@ menu "WRO - pines y hardware del P4"
 
     config WRO_TRACK_MM
         int "Separacion entre ruedas motrices (mm)"
-        default 115
+        default 120
 
     config WRO_MOTORS_ENABLED
         bool "Mover los motores (desactivado: el P4 calcula pero los motores quedan parados)"
@@ -103,12 +103,22 @@ menu "WRO - pines y hardware del P4"
         default -1
 
     config WRO_AXLE_ENCODER_COUNTS_PER_REV
-        int "Cuentas x4 por vuelta del eje de las ruedas (confirmar en el motor real)"
+        int "Cuentas x4 por vuelta del eje de salida del motorreductor"
         range 1 1000000
         default 440
         help
             Valor inicial 11 pulsos por vuelta del motor x 4 flancos x 10 de reduccion,
-            suponiendo conexion 1:1 del eje de salida a las ruedas. Verificar fisicamente.
+            Verificar en el motor real; la transmision externa se configura por separado.
+
+    config WRO_MOTOR_GEAR_TEETH
+        int "Dientes del engranaje que gira con la salida del motorreductor"
+        range 1 500
+        default 1
+
+    config WRO_DIFF_GEAR_TEETH
+        int "Dientes del engranaje que acciona el diferencial"
+        range 1 500
+        default 1
 
     config WRO_AXLE_ENCODER_INVERT
         bool "Invertir signo del encoder del eje"
@@ -144,9 +154,9 @@ menu "WRO - pines y hardware del P4"
 
     config WRO_WHEEL_RADIUS_MM
         int "Radio de la rueda (mm) para convertir el encoder en grados"
-        default 34
+        default 33
         help
-            Rueda de 68 mm de diametro (dato del equipo).
+            Rueda provisional de 66 mm de diametro; medir el carrito real.
 
     config WRO_START_GPIO
         int "GPIO del boton de arranque (-1 = sin boton; 5 = boton fisico)"

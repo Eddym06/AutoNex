@@ -16,23 +16,20 @@
 #define LOCAL_SENSOR_SYNC_MAX_AGE_US 150000u
 /* Montaje de los sensores respecto al EJE de las ruedas motrices. Provisional: el equipo
  * todavia no los ha montado; hay que medirlos. */
-#define LOCAL_LIDAR_FORWARD_CM 3.0f
-#define LOCAL_CAMERA_FORWARD_CM 9.0f
+#define LOCAL_LIDAR_FORWARD_CM 10.0f
+#define LOCAL_CAMERA_FORWARD_CM 13.0f
 
 /* Geometria del chasis y del volante. Son los VALORES POR DEFECTO de
  * local_planner_config_t: hay que medirlos en el carrito real y ajustarlos en la
  * configuracion (un solo sitio), no recompilar. */
-#define LOCAL_CHASSIS_WIDTH_CM 13.0f
-#define LOCAL_CHASSIS_LENGTH_CM 17.0f
-#define LOCAL_CHASSIS_REAR_CM 7.0f     /* cuanto sobresale el chasis por detras del eje motriz */
-/* Con traccion diferencial (dos ruedas motrices atras y una rueda libre delante) el
- * "volante" es virtual: curvatura = tan(volante) / batalla. La batalla es la
- * distancia del eje motriz a la rueda libre y el volante maximo fija el giro mas
- * cerrado que el planificador pide con avance (el robot puede ademas girar en el sitio). */
-#define LOCAL_WHEELBASE_CM 6.0f
+#define LOCAL_CHASSIS_WIDTH_CM 14.0f
+#define LOCAL_CHASSIS_LENGTH_CM 22.0f
+#define LOCAL_CHASSIS_REAR_CM 4.0f
+/* Ackermann: curvatura = tan(ángulo efectivo) / batalla. Valores provisionales. */
+#define LOCAL_WHEELBASE_CM 14.0f
 #define LOCAL_STEER_NUDGE_DEG 4.0f
 #define LOCAL_STEER_SOFT_DEG 14.0f
-#define LOCAL_STEER_HARD_DEG 38.0f
+#define LOCAL_STEER_HARD_DEG 30.0f
 
 /* Planificador por retícula de rutas: tres arcos sobre las cinco acciones de
  * avance. Ver la nota de diseno en local_obstacle_map.c. */

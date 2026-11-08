@@ -13,12 +13,14 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+from wasm.manifest import verify
 
 WEB = Path(__file__).resolve().parent / "web"
 ORDER = ["geometry.js", "rng.js", "field.js", "sensors.js", "robot.js", "judge.js", "core.js", "sim.js", "app.js"]
 
 
 def build_html(sequences=None):
+    verify()
     wasm = (WEB / "wro_core.wasm").read_bytes()
     scripts = ["window.WASM_B64=" + json.dumps(base64.b64encode(wasm).decode("ascii")) + ";"]
     if sequences is not None:

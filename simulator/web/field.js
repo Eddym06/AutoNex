@@ -16,6 +16,7 @@
   const WRO = root.WRO = root.WRO || {};
   const G = WRO.geometry || (typeof require !== 'undefined' ? require('./geometry.js').geometry : null);
   const RNG = WRO.rng || (typeof require !== 'undefined' ? require('./rng.js').rng : null);
+  const MAX_LAYOUT_SLOPE = 0.45;
 
   const RULES = {
     outerHalf: 150, signW: 5, signD: 5, signH: 10, wallH: 10,
@@ -131,7 +132,7 @@
 
   function lotGeometry(field, parking, robotLength) {
     const s = straightInfo(field, parking.section);
-    const length = RULES.lotLengthFactor * (parking.robotLength || robotLength || 17);
+    const length = RULES.lotLengthFactor * (parking.robotLength || robotLength || 22);
     const sign = s.outer > 0 ? 1 : -1;               // el muro exterior esta en +H o -H
     const wallCoord = s.outer;
     const innerCoord = wallCoord - sign * RULES.lotWidth; // borde del parqueo hacia el carril
@@ -159,7 +160,7 @@
                yaw: ccwT ? Math.PI / 2 : -Math.PI / 2 };
     }
     if (field.startInLot && field.lot && field.lot.section === 0) {
-      const ccwL = field.direction !== 'cw', lot = field.lot, rb = field.robotBody || { length: 17, rear: 7 };
+      const ccwL = field.direction !== 'cw', lot = field.lot, rb = field.robotBody || { length: 22, rear: 4 };
       const centreAlong = (lot.a0 + lot.a1) / 2, bodyShift = rb.length / 2 - rb.rear;
       /* pegado al lado del carril (12,5 cm de la pared): centrado en el cajon no puede girar para salir */
       const lateral = lot.wallCoord + (lot.innerCoord - lot.wallCoord) * (12.5 / lot.lotWidth);
@@ -197,7 +198,7 @@
       field.signs.push(sign);
     }
     if (o.parking) {
-      field.parking = Object.assign({ section: 0, along: 0, robotLength: 17 }, o.parking);
+      field.parking = Object.assign({ section: 0, along: 0, robotLength: o.robotBody ? o.robotBody.length : 22 }, o.parking);
       field.lot = lotGeometry(field, field.parking);
     }
     field.signJitterDeg = jitter;
@@ -219,7 +220,7 @@
       const s = straightInfo(base, parking.section);
       const len = s.hi - s.lo;
       parking.along = s.lo + len * rng.range(0.3, 0.7);
-      parking.robotLength = o.robotLength || 17;
+      parking.robotLength = o.robotLength || (o.robotBody && o.robotBody.length) || 22;
     }
     /* El robot arranca donde el sorteo lo deja; un letrero a menos de ~75 cm por
      * delante en su recta no deja carrera para ponerse al lado que toca (el radio
@@ -227,7 +228,7 @@
     const start = startPose(Object.assign({}, base, { start: { along: 0, lateral: 0 } }));
     const startAlong = o.startAlong == null ? 60 : o.startAlong;
     const candidates = all.filter(seat => {
-      if (seat.section === 0) {
+      if (o.feasible === true && seat.section === 0) {
         const ahead = (seat.x - start.x) * (o.direction === 'cw' ? -1 : 1);
         if (ahead > -20 - 0 && ahead < startAlong + 90) return false;
       }
@@ -250,7 +251,7 @@
        * paso en el sentido de marcha original: si el ultimo letrero de la 2.a vuelta
        * es rojo y se da media vuelta, esa misma fila queda con el verde a la
        * izquierda, que no tiene trayectoria. Por defecto una fila lleva uno solo. */
-      const rowLimit = o.allowGates ? 2 : 1;
+      const rowLimit = o.allowGates === false ? 1 : 2;
       if (row.length >= rowLimit || (row.length === 1 && Math.abs(row[0] - seat.lateralIndex) < 2)) continue;
       row.push(seat.lateralIndex);
       rows[key] = row;
@@ -261,7 +262,7 @@
      * descartan los letreros cuyo lado exigido queda mas lejos de lo que un giro de
      * radio 21 cm recorre en la distancia que los separa (pendiente <= 0,45).
      * Es el mismo criterio con el que un juez humano reconoceria un layout "injusto". */
-    if (o.feasible !== false) {
+    if (o.feasible === true) {
       const colorOf = seat => seat.__color;
       picked.forEach(seat => { seat.__color = rng() < 0.5 ? 'red' : 'green'; });
       for (let changed = true; changed;) {
@@ -282,7 +283,7 @@
             let shift;
             if (prevV === null) shift = Math.max(0, lo - 6, -6 - hi) / (along + 10);   // el color solo se ve a ~50 cm: poco margen tras la esquina
             else shift = Math.max(0, lo - prevV.hi, prevV.lo - hi) / Math.max(1, along - prevAlong);
-            if (shift > 0.45) { picked.splice(picked.indexOf(seat), 1); changed = true; break; }
+            if (shift > MAX_LAYOUT_SLOPE) { picked.splice(picked.indexOf(seat), 1); changed = true; break; }
             prevV = { lo, hi }; prevAlong = along;
           }
           if (changed) break;
@@ -295,7 +296,7 @@
     const lastStraight = o.direction === 'cw' ? 2 : 6;
     const lastKey = lastStraight + ':' + (seatsPerRowAlong(base) - 1);
     const lastRow = picked.filter(seat => seat.section + ':' + seat.alongIndex === lastKey);
-    if (lastRow.length > 1) picked.splice(picked.indexOf(lastRow[1]), 1);
+    if (o.reverseRule && lastRow.length > 1) picked.splice(picked.indexOf(lastRow[1]), 1);
     const signs = picked.map(seat => ({ color: seat.__color || (rng() < 0.5 ? 'red' : 'green'), x: seat.x, z: seat.z,
                                          rot: rng.range(-2, 2) * Math.PI / 180, seat }));
     /* Dos letreros en la misma fila solo tienen solucion si el de la izquierda es
@@ -305,7 +306,7 @@
     const byRow = {};
     for (const sg of signs) (byRow[sg.seat.section + ':' + sg.seat.alongIndex] = byRow[sg.seat.section + ':' + sg.seat.alongIndex] || []).push(sg);
     for (const row of Object.values(byRow)) {
-      if (row.length !== 2) continue;
+      if (o.feasible !== true || row.length !== 2) continue;
       const T = travelVector(row[0].seat.section, o.direction), right = [T[1], -T[0]];
       row.sort((a, b) => (a.x * right[0] + a.z * right[1]) - (b.x * right[0] + b.z * right[1]));
       row[0].color = 'red';
@@ -321,8 +322,9 @@
    * que el plano cargado sea identico al pegado. */
   function toJSON(field) {
     return JSON.stringify({
-      v: 2, inner: field.inner, direction: field.direction, seed: field.seed, start: field.start,
-      signs: field.signs.map(s => ({ color: s.color, x: +s.x.toFixed(2), z: +s.z.toFixed(2), rot: +(s.rot || 0).toFixed(4) })),
+      v: 3, inner: field.inner, wallT: field.wallT, seatModel: field.seatModel, robotBody: field.robotBody,
+      direction: field.direction, seed: field.seed, start: field.start,
+      signs: field.signs.map(s => ({ color: s.color, x: +s.x.toFixed(2), z: +s.z.toFixed(2), rot: +(s.rot || 0).toFixed(4), seatX: s.seat.x, seatZ: s.seat.z })),
       parking: field.parking ? { section: field.parking.section, along: +field.parking.along.toFixed(2),
                                  robotLength: field.parking.robotLength } : null,
       startInLot: !!field.startInLot, startOnTrack: !!field.startOnTrack
@@ -348,7 +350,10 @@
       if (sectionAt(probe, x, z) < 0) throw new Error('letrero ' + n + ': esta dentro del muro interior');
       const rot = b.rot == null ? 0 : Number(b.rot);
       if (!Number.isFinite(rot)) throw new Error('letrero ' + n + ': rot invalido');
-      return { color, x, z, rot };
+      const seatX = b.seatX == null ? x : Number(b.seatX), seatZ = b.seatZ == null ? z : Number(b.seatZ);
+      if (!Number.isFinite(seatX) || !Number.isFinite(seatZ) || Math.abs(seatX) > 150 || Math.abs(seatZ) > 150)
+        throw new Error('letrero ' + n + ': asiento invalido');
+      return { color, x, z, rot, seatX, seatZ };
     });
     if (signs.length > 2 * RULES.maxSigns) throw new Error('el reglamento permite como mucho ' + RULES.maxSigns + ' letreros de cada color');
     const direction = data.direction === 'cw' ? 'cw' : 'ccw';
@@ -358,7 +363,16 @@
       if (![0, 2, 4, 6].includes(s) || !Number.isFinite(a) || Math.abs(a) > 48) throw new Error('parking: seccion 0/2/4/6 y along entre -48 y 48');
       parking = { section: s, along: a, robotLength: Number(p.robotLength) || 17 };
     }
-    return create({ inner, direction, signs, parking, seed: data.seed == null ? 1 : data.seed, start: data.start,
+    const wallT = data.wallT == null ? 2 : Number(data.wallT);
+    if (!Number.isFinite(wallT) || wallT <= 0 || wallT > 20) throw new Error('wallT: grosor invalido');
+    const seatModel = data.seatModel || null;
+    if (seatModel && (!Array.isArray(seatModel.seatAlong) || !seatModel.seatAlong.length ||
+        !Array.isArray(seatModel.seatLateral) || !seatModel.seatLateral.length ||
+        seatModel.seatAlong.some(v => !Number.isFinite(v) || v < 0 || v > 1) ||
+        seatModel.seatLateral.some(v => !Number.isFinite(v) || Math.abs(v) > 0.5))) throw new Error('seatModel invalido');
+    const robotBody = data.robotBody || null;
+    if (robotBody && (!(robotBody.length > 0) || !(robotBody.rear >= 0) || robotBody.rear > robotBody.length)) throw new Error('robotBody invalido');
+    return create({ inner, wallT, seatModel, robotBody, direction, signs, parking, seed: data.seed == null ? 1 : data.seed, start: data.start,
                    startInLot: !!data.startInLot, startOnTrack: !!data.startOnTrack });
   }
 
@@ -386,11 +400,11 @@
   /* Avisos sobre un plano: letreros seguidos que ningun chasis puede pasar. Para cada recta se ordenan los letreros en
    * el sentido de la marcha; cada uno exige que el CENTRO del robot quede a un lado (rojo: a su derecha; verde: a su
    * izquierda) a letrero/2 + medio chasis + 1 cm. Entre dos exigencias consecutivas el robot solo puede desplazarse
-   * lateralmente `maxSlope` cm por cada cm de recta (0,75: unos 37 grados; un chasis de 13 cm con giro diferencial
-   * lo traza, pero es el limite de lo razonable). Si arranca dentro del cajon, la salida deja al robot a 30 cm de la
+   * lateralmente `maxSlope` cm por cada cm de recta. Es una aproximacion conservadora, no prueba de trayectoria.
+   * Si arranca dentro del cajon, la salida deja al robot a 30 cm de la
    * pared exterior: cuenta como la primera exigencia de esa recta. Es geometria sobre el plano, no mira el firmware. */
   function checkLayout(field, options) {
-    const o = Object.assign({ bodyWidth: 13, maxSlope: 0.75, signWidth: 5 }, options || {});
+    const o = Object.assign({ bodyWidth: 13, maxSlope: MAX_LAYOUT_SLOPE, signWidth: 5 }, options || {});
     const ccw = field.direction !== 'cw', warnings = [];
     const need = o.signWidth / 2 + o.bodyWidth / 2 + 1;
     const ranges = { 0: 0, 2: 0, 4: 0, 6: 0 };
@@ -401,7 +415,8 @@
       const latOf = p => (p.x - laneC[0]) * right[0] + (p.z - laneC[1]) * right[1];
       const list = field.signs.map((s, i) => ({ s, i })).filter(e => sectionAt(field, e.s.seat.x, e.s.seat.z) === index)
         .sort((a, b) => alongOf(a.s.seat) - alongOf(b.s.seat));
-      const entry = { along: (axisX ? info.lo : info.lo) * (axisX ? T[0] : T[1]) - 10 * 0, lo: -15, hi: 15, label: 'entrada de la recta' };
+      const sign = axisX ? T[0] : T[1];
+      const entry = { along: (sign > 0 ? info.lo : info.hi) * sign, lo: -15, hi: 15, label: 'entrada de la recta' };
       const signMarks = list.map(e => {
         const v = latOf(e.s.seat), red = e.s.color === 'red';
         return { along: alongOf(e.s.seat), lo: red ? v + need : -1e9, hi: red ? 1e9 : v - need, label: 'letrero #' + e.i + ' (' + e.s.color + ')', sign: e.i };

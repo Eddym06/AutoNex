@@ -34,9 +34,11 @@
       this.lastOrder = null; this.net = 0; this.maxNet = 0; this.backSteps = 0; this.flipNet = null;
       this.sectionTrace = [];
       this.signState = new Map();
+      this.passes = [];
       this.lastSignLap2 = null; this.finalDirection = this.field.direction; this.flipped = false;
       this.violations = []; this.contacts = { wall: 0, limiter: 0, sign: 0 };
       this.stall = 0; this.stoppedSince = null; this.maxTravelNow = 0;
+      this.lastUpdate = null;
       this.signMoved = false;
       this.parkingTouched = false;
       this.lapTimes = [];
@@ -66,7 +68,9 @@
       this.checkSigns(t, robot, body);
       if (this.ended) return;
       /* Robot parado sin haber terminado: haria falta reparar (mitad de puntos). */
-      if (Math.abs(robot.v) < 0.5) this.stall += 1 / 100; else this.stall = 0;
+      const dt = this.lastUpdate == null ? 0 : Math.max(0, t - this.lastUpdate);
+      this.lastUpdate = t;
+      if (Math.abs(robot.v) < 0.5) this.stall += dt; else this.stall = 0;
       if (!done && this.stall > this.opt.stallSeconds) { this.violations.push({ t, kind: 'stalled', text: 'el robot se quedo parado' }); this.end(t, 'stalled'); }
       if (done) {
         if (this.stoppedSince == null) this.stoppedSince = t;
@@ -125,7 +129,7 @@
           if (out) {
             this.signMoved = true;
             this.violations.push({ t, kind: 'moved', text: 'movio un letrero fuera de su circulo' });
-            if (this.maxNet < this.opt.laps * 8 || true) this.end(t, 'moved');
+            this.end(t, 'moved');
             return;
           }
         }
@@ -172,7 +176,10 @@
         return along >= lot.a0 && along <= lot.a1 && lateral >= lo && lateral <= hi;
       };
       const pts = G.corners(body), n = pts.filter(inside).length;
-      if (n === 0) return null;
+      const lotBox = lot.axis === 'x'
+        ? { x: (lot.a0 + lot.a1) / 2, z: (lot.wallCoord + lot.innerCoord) / 2, w: lot.a1 - lot.a0, d: lot.lotWidth, rot: 0 }
+        : { x: (lot.wallCoord + lot.innerCoord) / 2, z: (lot.a0 + lot.a1) / 2, w: lot.lotWidth, d: lot.a1 - lot.a0, rot: 0 };
+      if (n === 0 && !G.overlapBoxes(body, lotBox)) return null;
       const yaw = body.rot || 0;
       const sinAngle = Math.abs(lot.axis === 'x' ? Math.cos(yaw) : Math.sin(yaw));
       const parallel = sinAngle * this.opt.wheelbase <= this.opt.parallelToleranceCm;

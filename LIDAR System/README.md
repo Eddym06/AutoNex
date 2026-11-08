@@ -69,12 +69,12 @@ Los valores por defecto están en `local_planner_config_default` y `wro_controll
 | Archivo | Función |
 | --- | --- |
 | `main/local_obstacle_map.c/.h` | Rejilla, fusión cámara/LiDAR, cortinas, corredor, escape |
-| `main/wro_controller.c/.h` | Misión: fases, esquinas, sentido, letreros, vuelta final, perro guardián |
+| `orchestrator/wro_controller.c/.h` | Misión: fases, esquinas, sentido, letreros, vuelta final, perro guardián |
 | `main/imu_yaw.c/.h` | Giroscopio con sesgo, reanclaje, magnetómetro opcional |
 | `main/camera_table_receiver.c/.h` | Decodificador de tablas v2 del S3 |
 | `main/park_planner.c/.h` | Campo de costes de poses para entrar y salir del cajón |
 | `main/park_localize.c/.h` | Localización respecto al cajón con el LiDAR |
-| `main/p4_runtime.c/.h` | Bucle del P4 y tabla de funciones de hardware |
+| `orchestrator/p4_runtime.c/.h` | Bucle del P4 y tabla de funciones de hardware |
 | `../shared/` | Protocolo con CRC16 y motor de configuración |
 | `tests/` | `test_local_obstacle_map`, `test_planner_fusion`, `test_camera_table_receiver`, `test_imu_yaw`, `test_wro_controller`, `test_park_planner`, `test_p4_runtime` |
 | `tools/route_planner_prototype.py` | Prototipo antiguo de escritorio (rejilla de 5 cm). **Obsoleto**: no corresponde al planificador actual |

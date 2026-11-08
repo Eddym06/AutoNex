@@ -4,6 +4,8 @@
 > es histórica. El nuevo robot usa un motor trasero con encoder integrado y
 > dirección Ackermann por servo. La adaptación está incompleta; ver
 > [`ACKERMANN.md`](ACKERMANN.md) antes de usar el firmware o el simulador.
+> Las afirmaciones de pruebas en verde son históricas: la misión Ackermann no se
+> ha validado de extremo a extremo y la prueba diferencial de salida falla.
 
 > **Actualización de lectura:** este documento mezcla etapas y contiene pendientes
 > históricos. En el árbol actual existen drivers del P4 para motores, encoders,
@@ -66,7 +68,7 @@ Detalle y tabla en `LIDAR System/README.md`, sección «Configuración final val
 
 ## 5. LO QUE FALTA: hardware y drivers del P4
 
-La lógica ya está hecha y probada en simulación. Falta conectar cada entrada y salida del P4 al hardware. Son las funciones que el equipo rellena en `p4_hal_t` (`LIDAR System/main/p4_runtime.h`):
+La lógica ya está hecha y probada en simulación. Falta conectar cada entrada y salida del P4 al hardware. Son las funciones que el equipo rellena en `p4_hal_t` (`LIDAR System/orchestrator/p4_runtime.h`):
 
 | Función | Hardware | Estado |
 | --- | --- | --- |
@@ -127,3 +129,12 @@ El signo del giroscopio no se cambia solo con el robot armado.
 - Enlace: ~406 puntos por vuelta (limite 512), trama de estado ~1,8 KB a 8 Hz = ~15 KB/s de los 92 KB/s de la UART a 921600.
 
 **Pendiente (necesita el robot / la mano):** girar el robot a mano para comprobar rumbo y signo del giroscopio; flashear el S3 (`S3 Robot`, ya compila con IDF 5.5.4) con su red WiFi en `S3 Robot/main/wifi_secrets.h`; motores y encoders al final.
+# Estado actual de la adaptación Ackermann
+
+El estado detallado que sigue conserva resultados históricos del chasis diferencial;
+no acredita el funcionamiento del vehículo actual. El simulador usa por defecto
+un chasis Ackermann provisional y encoder de eje. Se verificaron seis salidas de
+parqueo aisladas, no la misión completa ni la entrada al cajón. Una salida tardó
+55,21 s simulados. La prueba histórica de parqueo diferencial se detiene en la
+salida; `test_missions.js` no está íntegramente en verde. No usar estas cifras
+como validación del chasis real, cuyas medidas aún faltan.

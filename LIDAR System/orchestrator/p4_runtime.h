@@ -41,4 +41,7 @@ void p4_runtime_init(p4_runtime_t *rt, const p4_hal_t *hal, const wro_controller
 /* Una pasada: llamala en un bucle sin esperas largas (por ejemplo cada 1 ms). */
 void p4_runtime_step(p4_runtime_t *rt);
 
+/* Misma comprobación de frescura para el P4 y el simulador. */
+bool p4_runtime_guard(wro_controller_t *controller, uint64_t now_us, wro_command_t *command);
+
 #endif
