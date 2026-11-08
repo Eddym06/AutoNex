@@ -17,7 +17,7 @@
   const DEFAULT_ROBOT = {
     drive: 'bicycle', wheelbase: 14, bodyWidth: 14, bodyLength: 22, rearOverhang: 4,
     trackWidth: 12, wheelTauS: 0.09, wheelDeadband: 2.5, wheelMismatch: 0.03, maxWheelSpeed: 60,
-    maxSteerDeg: 30, steerRateDegS: 420, steerTauS: 0.045, steerTrimDeg: 0.8,
+    maxSteerDeg: 40, steerRateDegS: 420, steerTauS: 0.045, steerTrimDeg: 0.8,
     speedTauS: 0.16, maxAccel: 180, speedGain: 0.94, pushSigns: true,
     /* Ruedas reales (los encoders miden el giro de la rueda, no el avance del suelo): diametro de cada una,
      * patinaje esporadico (rafagas en que una rueda gira de mas) y lo poco que gira una rueda contra un obstaculo. */
@@ -103,8 +103,37 @@
       this.encR += wheelR * dt * turnR * 360 / (Math.PI * c.wheelDiameterR);
       if (blocked) {
         events.push({ kind: blocked.kind, box: blocked });
-        this.v = 0;      // las ruedas patinan contra la pared: el motor se cala
-        this.yawRate = 0;
+        /* La pared no se atraviesa, pero el chasis puede seguir haciendo algo: girar sobre
+         * el sitio (diferencial) o deslizar por la cara con la que roza, quitando la
+         * componente del avance que entra en ella. Antes se quedaba clavado de golpe, que
+         * no es lo que hace el carrito y ademas le quitaba el giro al diferencial. */
+        const free = q => !world.solids.some(s => G.overlapBoxes(this.body(q), s));
+        let resolved = null;
+        if (c.drive === 'differential' && Math.abs(yawRate) > 1e-9 && free({ x: this.x, z: this.z, yaw: next.yaw }))
+          resolved = { x: this.x, z: this.z, yaw: next.yaw };
+        const out = G.separation(blocked, box);        // saca el chasis del obstaculo
+        if (out) {
+          const L = Math.hypot(out[0], out[1]);
+          const dx = next.x - this.x, dz = next.z - this.z;
+          if (L > 1e-9) {
+            const nx = out[0] / L, nz = out[1] / L, into = dx * nx + dz * nz;
+            if (into < 0) {                            // el avance empuja contra la cara
+              const slid = { x: this.x + dx - into * nx, z: this.z + dz - into * nz,
+                             yaw: resolved ? resolved.yaw : this.yaw };
+              if (free(slid)) resolved = slid;
+            }
+          }
+        }
+        const turned = resolved && resolved.yaw !== this.yaw;
+        if (resolved) {
+          const dx = resolved.x - this.x, dz = resolved.z - this.z;
+          this.travelled += Math.hypot(dx, dz);
+          this.x = resolved.x; this.z = resolved.z; this.yaw = resolved.yaw;
+          this.v = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / dt;
+        } else {
+          this.v = 0;
+        }
+        this.yawRate = turned ? yawRate : 0;
       } else {
         this.travelled += Math.abs(this.v * dt);
         this.x = next.x; this.z = next.z; this.yaw = next.yaw;
@@ -121,6 +150,28 @@
     }
   }
 
-  WRO.robot = { Robot, DEFAULT_ROBOT };
+  /* Perfiles de chasis con nombre. Un plano puede declarar para cúal se dibujó (`robot` en
+   * el JSON) y la simulación corre con ese, en vez de con el modelo por defecto. Un cajón
+   * de 1,5 x 17 cm no es el de un robot de 22 cm: reproducir el plano con otro chasis deja
+   * escenas que no tienen solución. */
+  const PROFILES = {
+    /* El vehiculo del equipo (perfil provisional, ver PERFIL_PROVISIONAL.md). */
+    ackermann: DEFAULT_ROBOT,
+    /* Chasis medido del equipo: 260 x 130 mm, batalla 184,5 mm, rueda de 66 mm. Voladizos
+     * simetricos de 37,75 mm ((260 - 184,5) / 2). Es el mismo robot que `ackermann` en todo
+     * lo demas; se separa para poder comparar y para que los planos puedan declararlo. */
+    largo26: {
+      drive: 'bicycle', wheelbase: 18.45, bodyWidth: 13, bodyLength: 26, rearOverhang: 3.775,
+      wheelDiameterL: 6.6, wheelDiameterR: 6.6, maxSteerDeg: 40
+    },
+    /* Chasis anterior de 17 x 13 cm con traccion diferencial: los planos y las cifras
+     * historicas se dibujaron para el. */
+    differential17: {
+      drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7,
+      trackWidth: 11.5, wheelDiameterL: 5.5, wheelDiameterR: 5.5
+    }
+  };
+
+  WRO.robot = { Robot, DEFAULT_ROBOT, PROFILES };
   if (typeof module !== 'undefined') module.exports = WRO;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -22,7 +22,7 @@ Documento de relevo: dice qué está hecho, cómo comprobarlo y qué queda para 
 
 ## 1. Resumen
 
-El robot (chasis de dos ruedas con encoders ópticos, ESP32-P4 + ESP32-S3 CAM) ya navega, esquiva letreros, completa 3 vueltas, sale del cajón y aparca **en simulación**, usando encoders, giroscopio, LiDAR y cámara. El simulador ejecuta el mismo C del firmware (WebAssembly). Todo el pase de pruebas está en verde.
+El robot (chasis de dos ruedas con encoders ópticos, ESP32-P4 + ESP32-S3 CAM) ya navega, esquiva letreros, completa 3 vueltas, sale del cajón y aparca **en simulación**, usando encoders, giroscopio, LiDAR y cámara. El simulador ejecuta el mismo C del firmware (WebAssembly). Pase de pruebas del simulador en verde el 7 nov 2026 (`simulate.ps1 -Quick` y las rondas completas).
 
 Lo que impide pasar al robot real es el hardware y los drivers del P4 (sección 5).
 
@@ -30,11 +30,14 @@ Lo que impide pasar al robot real es el hardware y los drivers del P4 (sección 
 
 | Prueba | Resultado |
 | --- | --- |
-| `Vision System/tools/simulate.ps1` (pruebas en C, simulador, 20 rondas, depurador, visión) | Todo en verde; regenera `simulator/build/simulador.html` (marca `13/10 10:40`, fw `07c0fed`) |
+| `Vision System/tools/simulate.ps1` (C nativo, simulador, rondas, depurador, visión) | Verde el 7 nov 2026 con el WASM reconstruido; regenera `simulator/build/simulador.html` |
+| `simulator/tests/test_missions.js` | Verde, incluida la misión de 62 puntos (salir del cajón, 3 vueltas, aparcar) en los dos sentidos con el chasis de 17 × 13 cm |
 | `simulator/tests/plano_errores.json` (plano del equipo) | 62 puntos, parqueo completo, 24/24 secciones, 0 contactos, 177 s |
 | Banco de 100 pistas, semillas 21–70 (ajuste) | 99 perfectas, 0 contactos |
 | Banco de 100 pistas, semillas 71–120 (validación) | 95 perfectas, 0 contactos |
 | Velocidad | 23 cm/s (mediana 143 s, máximo 159 s de 180 s) |
+| Salida del cajón (6 combinaciones) | 20–55 s de los 180 de ronda; mediana ~22 s |
+| Costo por paso de simulación (navegador, WASM actual) | 1,5 ms: techo de ~6,9 s simulados por segundo real (8× no se sostiene; 4× sí) |
 
 Todo es **solo simulación**. Con el robot real solo se probó la cámara.
 
@@ -93,9 +96,13 @@ Tareas, en orden:
 ## 6. Fallos conocidos
 
 - ~1 de cada 20 pistas aleatorias falla (sin contactos): letrero a ~10 cm con el morro girado 20–30°, o parqueo que no termina.
-- Dos cambios de lado seguidos más rápidos de lo que permite el radio de giro no tienen trayectoria; son un problema del plano (`field.checkLayout` los avisa).
-- Todos los datos de hardware (rueda, vía, encoder, montaje de LiDAR/cámara, ganancia de velocidad) son supuestos hasta medirlos.
-- La interfaz del simulador se probó con un DOM simulado, no visualmente en un navegador.
+- Dos cambios de lado seguidos más rápidos de lo que permite el radio de giro no tienen trayectoria; son un problema del plano (`field.checkLayout` los avisa). El aviso de "entrada de la recta" ya mide desde el extremo por donde se entra en las cuatro rectas y en los dos sentidos.
+- La salida del cajón cuesta ~9,5 s de los 180 de ronda con el volante a 40° (con 30° llegaba a 55 s en el peor caso; con el frenado por arco que había antes, 21–24 s). El parqueo de entrada, ~10–15 s.
+- El parqueo de la misión diferencial depende de que el cajón esté dibujado para ese chasis: los planos declaran su perfil (`robot` en el JSON) y la simulación corre ese chasis; si un plano no lo declara, el cajón y la pose de arranque se ajustan al robot simulado.
+- Misión completa del chasis Ackermann (salir del cajón, 3 vueltas, aparcar): 62 puntos en 4 de 4 casos, terminando a los 141–155 s de 180, con y sin letreros.
+- La velocidad de reproducción 8× no se sostiene (medido: 5,9× con la ventana en primer plano); 1× y 4× sí. Falta sacar la simulación del hilo de la interfaz para llegar a 8×.
+- Todos los datos de hardware (rueda, vía, encoder, montaje de LiDAR/cámara, ganancia de velocidad) son supuestos hasta medirlos. El volante a 40° es lo que pediste; el servo real hay que medirlo igual que el resto.
+- La interfaz del simulador se probó con un DOM simulado y, desde esta revisión, abriéndola en Chrome; no hay prueba automática de lo que se ve.
 
 ## 7. Cómo reproducir
 

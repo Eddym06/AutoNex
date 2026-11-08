@@ -15,9 +15,13 @@
 #define NY 71
 #define NH 36
 #define N (NX * NY * NH)
+/* Tope de nodos del A*. Se probo a subirlo a 60000 con 40 grados y el resultado no cambio
+ * (los mismos casos fallaban), asi que el limite no era la causa; se deja el valor original. */
 #define MAX_NODES 24000
 #define HEAP_CAP (MAX_NODES * 4)
 #define PI_F 3.14159265358979323846f
+/* Penalizacion de un cambio de sentido en el plan (ver la nota del coste). */
+#define PARK_REVERSE_COST 12.0f
 #define RAD (PI_F / 180.0f)
 #define NEVER 1.0e20f
 
@@ -127,7 +131,11 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
             if (cell < 0) continue;
             int id = cells[cell];
             if (id == item.id) continue;
-            float cost = cur.cost + cfg->step_cm * (dir < 0 ? 1.1f : 1.0f) + (cur.dir && cur.dir != dir ? 4.0f : 0.0f);
+            /* Cambiar de sentido cuesta PARK_REVERSE_COST: con 4 (lo que valia) un cambio
+             * costaba lo mismo que un arco de 3,5 cm y el plan salia a base de repasadas
+             * (10 dentro del cajon). Cada repasada es tiempo y desgaste: se penaliza mas. */
+            float cost = cur.cost + cfg->step_cm * (dir < 0 ? 1.1f : 1.0f) +
+                         (cur.dir && cur.dir != dir ? PARK_REVERSE_COST : 0.0f);
             if (id >= 0 && cost >= nodes[id].cost) continue;
             if (id < 0) {
                 if (node_n >= MAX_NODES) continue;

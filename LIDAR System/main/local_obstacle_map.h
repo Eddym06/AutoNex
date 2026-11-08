@@ -29,7 +29,7 @@
 #define LOCAL_WHEELBASE_CM 14.0f
 #define LOCAL_STEER_NUDGE_DEG 4.0f
 #define LOCAL_STEER_SOFT_DEG 14.0f
-#define LOCAL_STEER_HARD_DEG 30.0f
+#define LOCAL_STEER_HARD_DEG 40.0f
 
 /* Planificador por retícula de rutas: tres arcos sobre las cinco acciones de
  * avance. Ver la nota de diseno en local_obstacle_map.c. */

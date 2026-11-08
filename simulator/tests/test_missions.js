@@ -89,7 +89,7 @@ const clean = r => { assert.equal(r.violations.length, 0, 'sin infracciones'); a
     const dump = probe.ctrlConfigDump();
     assert(/start_in_lot false/.test(dump));
     await run('salir del cajon con el volcado de configuracion de la interfaz', {
-      field: F.randomLayout(1, { direction: 'ccw', signs: 6, parking: true, startInLot: true }), seed: 1,
+      field: F.randomLayout(1, { direction: 'ccw', signs: 6, parking: true, startInLot: true, feasible: true, allowGates: false }), seed: 1,
       ctrlConfig: dump + '\nplanner.speed_cm_s 20' }, 20, r => {
       assert(r.sections >= 1, 'sale del cajon y avanza'); assert.notEqual(r.endReason, 'stalled'); assert.equal(r.violations.length, 0); });
   }
@@ -99,7 +99,9 @@ const clean = r => { assert.equal(r.violations.length, 0, 'sin infracciones'); a
       field: F.randomLayout(2, { direction, signs: 0, parking: true, startOnTrack: true }), seed: 2 }, 90, r => {
       assert.equal(r.violations.length, 0); assert.equal(r.parking, 'full'); assert(r.elapsed < 60, 'aparca pronto'); });
   await run('con letreros: 3 vueltas y aparcar', {
-    field: F.randomLayout(4, { direction: 'ccw', signs: 4, parking: true, startInLot: true }), seed: 4 }, 200, r => {
+    /* Plano pasable: el sorteo con `feasible` no deja cambios de lado que ningun chasis
+     * puede trazar (el mismo criterio que la interfaz y el banco). */
+    field: F.randomLayout(4, { direction: 'ccw', signs: 4, parking: true, startInLot: true, feasible: true, allowGates: false }), seed: 4 }, 200, r => {
     assert.equal(r.violations.length, 0); assert.equal(r.parking, 'full'); assert(r.points >= 52); });
   await run('con cajon pero arrancando fuera de el: sin los 7 puntos de salida', {
     field: F.randomLayout(5, { direction: 'ccw', signs: 0, parking: true, startInLot: false }), seed: 5 }, 200, r => {

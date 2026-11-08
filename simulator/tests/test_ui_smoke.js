@@ -19,7 +19,7 @@ function element(id) {
   for (const n of ['redSide']) if (id === n) el.value = '1';
   if (id === 'greenSide') el.value = '-1';
   if (id === 'rSpeed') el.value = '20';
-  for (const [k, v] of Object.entries({ rLidarNoise: 1, rCamNoise: 1, rSpeedGain: 0.94, rTrim: 0.8, rLight: 1, rLatency: 45, rBitErr: 0 })) if (id === k) el.value = String(v);
+  for (const [k, v] of Object.entries({ rLidarNoise: 1, rCamNoise: 1, rSpeedGain: 0.94, rTrim: 0.8, rLight: 1, rLatency: 45, rCamFps: 30, rBitErr: 0 })) if (id === k) el.value = String(v);
   if (id === 'world') el.width = 760;
   if (id === 'camera') { el.width = 160; el.height = 120; }
   if (id === 'local') { el.width = 300; el.height = 300; }

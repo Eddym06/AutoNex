@@ -63,8 +63,12 @@ if ($newest.LastWriteTime -gt (Get-Item $wasmFile).LastWriteTime) {
 
 & node (Join-Path $repoRoot 'simulator\tests\test_sim_basics.js')
 if ($LASTEXITCODE -ne 0) { throw 'Pruebas del mundo simulado fallaron' }
+& node (Join-Path $repoRoot 'simulator\tests\test_contrato.js')
+if ($LASTEXITCODE -ne 0) { throw 'El contrato simulacion-firmware falló' }
 & node (Join-Path $repoRoot 'simulator\tests\test_axle_encoder.js')
 if ($LASTEXITCODE -ne 0) { throw 'Prueba del encoder simulado falló' }
+& node (Join-Path $repoRoot 'simulator\tests\test_parking_exit.js')
+if ($LASTEXITCODE -ne 0) { throw 'La salida del cajon falló' }
 & node (Join-Path $repoRoot 'simulator\tests\test_ui_smoke.js')
 if ($LASTEXITCODE -ne 0) { throw 'La interfaz no arranca' }
 if (-not $Quick) {

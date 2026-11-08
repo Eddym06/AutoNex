@@ -382,12 +382,15 @@ park_decision_t park_field_decide(const park_pose_t *pose, park_move_t previous)
     const int here = g_cost[k][j][i];
     out.cost = (float)here * 0.25f;
     if (here == 0) {
-        /* La celda es meta, pero el rumbo medido puede estar a medio bin de distancia: hay que
-         * alinearse de verdad, no solo caer en el bin mas cercano. */
-        float err = g_deg[k] - pose->theta_deg;
+        /* La celda es meta. La meta de este planeador es quedar EN PARALELO (theta 0) o, al
+         * salir, con el morro hacia el carril: se corrige contra rumbo 0 y no contra el bin
+         * de discretizacion mas cercano. Con la pose medida temblando medio grado, el bin
+         * oscila entre dos vecinos y el robot gira alternativamente a un lado y al otro sin
+         * asentarse nunca (con el retardo del motor, el parqueo no terminaba). */
+        float err = -pose->theta_deg;
         while (err > 180.0f) err -= 360.0f;
         while (err < -180.0f) err += 360.0f;
-        out.target_theta_deg = g_deg[k];
+        out.target_theta_deg = 0.0f;
         if (fabsf(err) > 4.0f) { out.move = err > 0.0f ? PARK_MOVE_ROT_POS : PARK_MOVE_ROT_NEG; return out; }
         out.at_goal = true;
         return out;

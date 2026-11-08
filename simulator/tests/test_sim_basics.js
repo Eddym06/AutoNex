@@ -74,7 +74,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   /* Los diseños aleatorios son pasables: nunca dos letreros con lados incompatibles seguidos. */
   for (let seed = 1; seed <= 30; seed++) {
     const L = F.randomLayout(seed, { direction: seed % 2 ? 'ccw' : 'cw', signs: 9 });
-    assert(L.signs.length <= 14); assert(L.signs.every(s => F.sectionAt(L, s.x, s.z) >= 0));
+    assert(L.signs.length <= 9 && L.signs.length > 0, 'el filtro quita, no inventa:' + L.signs.length); assert(L.signs.every(s => F.sectionAt(L, s.x, s.z) >= 0));
   }
 }
 
@@ -199,6 +199,29 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   const wall = { x: 0, z: 40, w: 100, d: 2, rot: 0, h: 10, kind: 'wall' };
   let hits = 0; for (let i = 0; i < 500; i++) hits += r.step(0.01, { solids: [wall], signs: [] }).length;
   assert(hits > 0 && r.z + (r.cfg.bodyLength - r.cfg.rearOverhang) < 40.5, 'choca y se detiene');
+  /* Cerca de un obstaculo, la rotacion diferencial solo se permite si cabe. */
+  const obstacle = { x: -6, z: 12, w: 1, d: 1, rot: 0, kind: 'wall' };
+  r.reset({ x: 0, z: 0, yaw: 0 }); r.cmd = { steer: 0, speed: 20, yawRate: 90 };
+  let turnedWhileBlocked = false;
+  for (let i = 0; i < 15; i++) {
+    const before = r.yaw, events = r.step(0.01, { solids: [obstacle], signs: [] });
+    if (events.length && r.yaw > before) turnedWhileBlocked = true;
+  }
+  assert(turnedWhileBlocked, 'gira cuando el avance esta bloqueado pero la rotacion cabe');
+  assert(!G.overlapBoxes(r.body(), obstacle), 'la rotacion no atraviesa la pared');
+  /* Rozando la pared en diagonal, el chasis desliza por la cara en vez de clavarse. */
+  {
+    const side = { x: -40, z: 0, w: 2, d: 400, rot: 0, h: 10, kind: 'wall' };   // pared a la izquierda (cara en -39)
+    const slide = new R.Robot({ drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7, speedGain: 1 });
+    slide.reset({ x: -20, z: -60, yaw: -40 * Math.PI / 180 });                  // 40 grados HACIA la pared
+    slide.cmd = { steer: 0, speed: 20 };
+    let touched = 0;
+    for (let i = 0; i < 400; i++) touched += slide.step(0.01, { solids: [side], signs: [] }).length;
+    assert(touched > 0, 'la trayectoria en diagonal toca la pared');
+    assert(!G.overlapBoxes(slide.body(), side), 'no la atraviesa');
+    assert(slide.z > -25, 'y sigue avanzando pegada a ella (z=' + slide.z.toFixed(1) + ')');
+    assert(slide.x > -39, 'sin meterse en la pared (x=' + slide.x.toFixed(1) + ')');
+  }
   /* Empuja un letrero. */
   r.reset({ x: 0, z: 0, yaw: 0 }); r.cmd = { steer: 0, speed: 20 };
   const sign = { x: 0, z: 30, w: 5, d: 5, rot: 0, h: 10, kind: 'red' };

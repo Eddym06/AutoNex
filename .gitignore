@@ -1,5 +1,6 @@
 Vision System/build/
 simulator/build/
+simulator/.toolchain/
 LIDAR System/build/
 Vision System/managed_components/
 Vision System/sdkconfig

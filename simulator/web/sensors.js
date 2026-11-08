@@ -81,10 +81,11 @@
   }
 
   /* ------------------------------------------------------------------ camara */
+  /* `fps` es la unica frecuencia de la camara: la simulacion la lee de aqui. */
   const DEFAULT_CAMERA = {
     width: 160, height: 120, focal: 118.6, mountForward: 13, mountLateral: 0, camHeight: 5, horizonRow: 30,
     gain: 1.0, tint: [1, 1, 1], noiseSigma: 3.5, vignette: 0.12, exposureSeconds: 0.008,
-    background: [88, 92, 104], latencyMs: 45, latencyJitterMs: 8, bitErrorRate: 0
+    background: [88, 92, 104], fps: 30, latencyMs: 45, latencyJitterMs: 8, bitErrorRate: 0
   };
 
   function projectRow(cam, fwd, up) {

@@ -30,7 +30,11 @@ if (-not $WasiSdk -and $Download) {
     Write-Host "Descargando wasi-sdk $version (unos 500 MB) desde $url"
     & curl.exe -L -o $archive $url
     if ($LASTEXITCODE -ne 0) { throw 'La descarga fallo' }
-    & tar.exe -xzf $archive -C $toolchain
+    # No basta con `tar.exe`: si el PATH resuelve al tar de Git (MSYS), interpreta
+    # "C:\..." como un host remoto y falla con "Cannot connect to C". Se usa el de Windows.
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (-not (Test-Path $tar)) { $tar = 'tar.exe' }
+    & $tar -xzf $archive -C $toolchain
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo extraer el SDK' }
     Remove-Item $archive
     $WasiSdk = (Get-ChildItem -Path $toolchain -Directory -Filter 'wasi-sdk-*' | Select-Object -First 1).FullName

@@ -22,7 +22,7 @@
   class Judge {
     constructor(field, options) {
       const o = Object.assign({ passSide: { red: 1, green: -1 }, roundSeconds: F.RULES.roundSeconds, laps: 3, reverseRule: false, wheelbase: 6, parallelToleranceCm: 2,
-                                stallSeconds: 8, finishHoldSeconds: 15 }, options || {});
+                                stallSeconds: 8, stallYawRateDps: 5, finishHoldSeconds: 15 }, options || {});
       this.field = field;
       this.opt = o;
       this.reset();
@@ -67,10 +67,13 @@
       this.trackSections(t, body);
       this.checkSigns(t, robot, body);
       if (this.ended) return;
-      /* Robot parado sin haber terminado: haria falta reparar (mitad de puntos). */
+      /* Robot parado sin haber terminado: haria falta reparar (mitad de puntos). Un robot que
+       * gira en el sitio NO esta parado: las maniobras de parqueo giran con v = 0 y antes
+       * acababan la ronda por 'stalled' a los 8 s. */
       const dt = this.lastUpdate == null ? 0 : Math.max(0, t - this.lastUpdate);
       this.lastUpdate = t;
-      if (Math.abs(robot.v) < 0.5) this.stall += dt; else this.stall = 0;
+      const pivoting = Math.abs(robot.yawRate || 0) >= this.opt.stallYawRateDps;
+      if (Math.abs(robot.v) < 0.5 && !pivoting) this.stall += dt; else this.stall = 0;
       if (!done && this.stall > this.opt.stallSeconds) { this.violations.push({ t, kind: 'stalled', text: 'el robot se quedo parado' }); this.end(t, 'stalled'); }
       if (done) {
         if (this.stoppedSince == null) this.stoppedSince = t;

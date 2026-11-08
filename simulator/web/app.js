@@ -34,12 +34,13 @@
   function newField() {
     const dir = $('direction').value, preset = $('preset').value;
     const lot = $('withLot').checked, inLot = lot && $('startInLot').checked, onTrack = lot && !inLot && $('startOnTrack').checked;
-    const robotLength = WRO.robot.DEFAULT_ROBOT.bodyLength;
-    if (preset === 'random') field = F.randomLayout(Number($('seed').value) || 1, { direction: dir, signs: Number($('signCount').value), parking: lot, startInLot: inLot, startOnTrack: onTrack, robotLength, feasible: true, allowGates: false });
+    /* Sin `robotLength`: el cajon y la pose de arranque los ajusta la simulacion al
+     * chasis que corre (field.fitToRobot), como manda el reglamento (1,5 x el robot). */
+    if (preset === 'random') field = F.randomLayout(Number($('seed').value) || 1, { direction: dir, signs: Number($('signCount').value), parking: lot, startInLot: inLot, startOnTrack: onTrack, feasible: true, allowGates: false });
     else {
       const base = F.preset(preset);
       field = F.create({ signs: base.signs.map(s => ({ color: s.color, x: s.seat.x, z: s.seat.z })), direction: dir,
-                        parking: lot ? { section: 0, along: 0, robotLength } : null, startInLot: inLot, startOnTrack: onTrack });
+                        parking: lot ? { section: 0, along: 0 } : null, startInLot: inLot, startOnTrack: onTrack });
     }
     const requested = Number($('signCount').value);
     generatedNotice = preset === 'random' && field.signs.length < requested
@@ -53,12 +54,13 @@
       'planner.pass_side_red ' + $('redSide').value, 'planner.pass_side_green ' + $('greenSide').value].join('\n');
     const vision = [$('visionText').value, 'pass_side_red ' + $('redSide').value, 'pass_side_green ' + $('greenSide').value].join('\n');
     const gyro = $('rGyroBias').value === '' ? null : num('rGyroBias');
+    const camFps = num('rCamFps') || WRO.sensors.DEFAULT_CAMERA.fps;
     const passSide = $('judgeFollows').checked ? { red: Number($('redSide').value), green: Number($('greenSide').value) } : { red: 1, green: -1 };
     try {
       sim = new WRO.sim.Simulation(core, {
         field, seed: Number($('seed').value) || 1, ctrlConfig: lines, visionConfig: vision,
         lidar: { sigmaNearCm: 0.5 * noise, sigmaFarCm: 2 * noise, angleJitterDeg: 0.15 * noise, dropout: noise > 0 ? 0.015 : 0 },
-        camera: { noiseSigma: 3.5 * camNoise, gain: num('rLight'), latencyMs: num('rLatency'), bitErrorRate: num('rBitErr') / 100 },
+        camera: { noiseSigma: 3.5 * camNoise, gain: num('rLight'), latencyMs: num('rLatency'), fps: camFps, bitErrorRate: num('rBitErr') / 100 },
         imu: { biasDps: gyro }, robot: { speedGain: num('rSpeedGain'), steerTrimDeg: num('rTrim') }, judge: { passSide }
       });
       setStatus('listo', '');
@@ -176,7 +178,6 @@
     g.fillStyle = sim.robot.v === 0 && sim.cmd && sim.cmd.done ? '#7aa7d9' : '#4da3ff'; g.fillRect(-rb.bodyWidth / 2 * S, -(rb.bodyLength - rb.rearOverhang) * S, rb.bodyWidth * S, rb.bodyLength * S);
     g.strokeStyle = '#fff'; g.lineWidth = 1; g.strokeRect(-rb.bodyWidth / 2 * S, -(rb.bodyLength - rb.rearOverhang) * S, rb.bodyWidth * S, rb.bodyLength * S);
     g.fillStyle = '#fff'; g.beginPath(); g.moveTo(0, -(rb.bodyLength - rb.rearOverhang) * S - 4); g.lineTo(-3, -(rb.bodyLength - rb.rearOverhang) * S + 2); g.lineTo(3, -(rb.bodyLength - rb.rearOverhang) * S + 2); g.fill();
-    g.strokeStyle = '#102236'; g.lineWidth = 3;
     g.strokeStyle = '#102236'; g.lineWidth = 3;
     if (rb.drive === 'differential') {
       /* ruedas motrices atras (en el eje) y una rueda libre delante */
@@ -355,7 +356,7 @@
     $('random').onclick = () => { $('seed').value = Math.floor(Math.random() * 9000) + 1; $('preset').value = 'random'; newField(); };
     $('seed').onchange = () => { $('preset').value = 'random'; newField(); };
     $('signCount').onchange = () => { $('preset').value = 'random'; newField(); };
-    for (const id of ['redSide', 'greenSide', 'judgeFollows', 'rSpeed', 'rLidarNoise', 'rCamNoise', 'rGyroBias', 'rSpeedGain', 'rTrim', 'rLight', 'rLatency', 'rBitErr']) $(id).onchange = startSim;
+    for (const id of ['redSide', 'greenSide', 'judgeFollows', 'rSpeed', 'rLidarNoise', 'rCamNoise', 'rGyroBias', 'rSpeedGain', 'rTrim', 'rLight', 'rLatency', 'rCamFps', 'rBitErr']) $(id).onchange = startSim;
     $('applyCtrl').onclick = startSim; $('applyVision').onclick = startSim;
     $('defaultsCtrl').onclick = () => { core.ctrlDefaults(); $('ctrlText').value = core.ctrlConfigDump(); startSim(); };
     $('defaultsVision').onclick = () => { core.visionDefaults(); $('visionText').value = core.visionConfigDump(); startSim(); };

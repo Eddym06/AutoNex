@@ -96,6 +96,8 @@ def main():
     ap.add_argument("--json", help="guarda el informe completo en este archivo")
     ap.add_argument("--sin-mapas", action="store_true", help="no pedir el mapa del planificador de cada hallazgo (mas rapido)")
     ap.add_argument("--max-hallazgos", type=int, default=12)
+    ap.add_argument("--permitir", default="", help="tipos de hallazgo ya documentados que no hacen fallar el comando "
+                    "(p.ej. 'parqueo'); se siguen imprimiendo marcados como [permitido]")
     a = ap.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -287,7 +289,17 @@ def main():
     if a.json:
         Path(a.json).write_text(json.dumps({"resultado": fin, "cabecera": cab, "hallazgos": hallazgos, "fases": fases}, ensure_ascii=False, indent=1), encoding="utf-8")
         print("Informe guardado en " + a.json)
-    sys.exit(1 if (fin["violations"] or any(h["tipo"] in ("infraccion", "parada", "bucle", "salida", "parqueo") for h in hallazgos)) else 0)
+    # Tipos que el llamador acepta como conocidos (no hacen fallar el comando). Se usa para
+    # dejar en verde una comprobacion automatica de un caso ya documentado, sin ocultarlo: los
+    # hallazgos se siguen imprimiendo, con la marca (permitido).
+    permitidos = set(x.strip() for x in (a.permitir or "").split(",") if x.strip())
+    for h in hallazgos:
+        if h["tipo"] in permitidos:
+            h["titulo"] = h["titulo"] + " [permitido]"
+    grave = ("infraccion", "parada", "bucle", "salida", "parqueo")
+    falla = (bool(fin["violations"]) and "infraccion" not in permitidos) or \
+            any(h["tipo"] in grave and h["tipo"] not in permitidos for h in hallazgos)
+    sys.exit(1 if falla else 0)
 
 
 if __name__ == "__main__":

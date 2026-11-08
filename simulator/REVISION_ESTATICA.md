@@ -1,10 +1,24 @@
 # Revisión estática del simulador
 
-> **Trabajo posterior:** se han preparado correcciones para la mayoría de los
-> puntos descritos abajo. Este documento conserva los hallazgos originales; no
-> acredita su cierre. El WASM ya se reconstruyó y la salida Ackermann pasó
-> pruebas aisladas con LiDAR en CPU; faltan pruebas de entrada, rondas completas,
-> mediciones reales y validación de pistas oficiales.
+> **Estado a 7 nov 2026 (tras la adaptación al chasis Ackermann y esta revisión).**
+> La tabla dice qué punto sigue abierto; los números remiten a los de abajo. Los
+> párrafos originales se conservan sin reescribir como registro de lo que se creía
+> antes de corregirlo.
+>
+> | # | Punto | Estado |
+> | --- | --- | --- |
+> | 1 | Parqueo Ackermann no implementado / interfaz contradictoria | **cerrado**: `park_ackermann.c`, `park_ackermann` como configuración y el cajón se dimensiona con el robot que corre (`field.fitToRobot`) |
+> | 2 | No se ejercita el encoder del vehículo nuevo | **cerrado**: encoder de eje, `core_ctrl_axle_encoder` y `test_axle_encoder.js` |
+> | 3 | La vía de seguridad no es la del P4 | **parcial**: se comparte `p4_runtime_guard` (edad del giroscopio y del LiDAR); el ciclo `p4_runtime_step` completo, el botón de arranque y el HAL no se ejecutan |
+> | 4 | El WASM puede ser antiguo | **cerrado**: manifiesto de fuentes y ABI versionada; `core.js` aborta la carga si no coinciden |
+> | 5 | Pruebas históricas incompatibles con el modo por defecto | **cerrado**: las rondas diferenciales declaran su chasis y pasan |
+> | 6 | Las pistas aleatorias excluyen casos exigentes | **abierto**: la interfaz y el banco piden `feasible`; falta documentar la distribución |
+> | 7 | Geometría provisional y no centralizada | **mejorado**: el cajón y la pose de arranque siguen al chasis; las medidas del perfil siguen sin medir |
+> | 8 | El juez depende del paso temporal | **cerrado**: acumula con marcas de tiempo |
+> | 9 | Exportar e importar un plano puede cambiarlo | **cerrado**: formato v3 con `wallT`, `seatModel`, `robotBody` y `robotLength` (nulo = el del robot) |
+> | 10 | Visualización LiDAR y ajuste que no coinciden | **cerrado**: se dibuja con el montaje del sensor |
+> | 11 | El juez pierde intersecciones parciales del cajón | **cerrado**: intersección de cajas además de esquinas dentro |
+> | 12 | Línea de carrera dibujada con datos anteriores | **parcial**: se refresca al cambiar el número de estaciones o la longitud, no la geometría |
 
 Revisión del código fuente sin ejecutar, compilar ni abrir el simulador. Los
 hallazgos son deducciones del código, no resultados de pruebas. El WASM

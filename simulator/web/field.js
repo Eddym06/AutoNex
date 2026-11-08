@@ -130,9 +130,15 @@
              w: RULES.signW, d: RULES.signD, h: RULES.signH, section: seat.section };
   }
 
+  /* Largo del cajon: el reglamento lo ata al del robot (1,5 x). Si el plano no lo fija
+   * (`robotLength` nulo), manda el chasis que corre: lo rellena `fitToRobot`. */
+  function lotRobotLength(field, parking) {
+    return (parking && parking.robotLength) || (field.robotBody && field.robotBody.length) || 22;
+  }
+
   function lotGeometry(field, parking, robotLength) {
     const s = straightInfo(field, parking.section);
-    const length = RULES.lotLengthFactor * (parking.robotLength || robotLength || 22);
+    const length = RULES.lotLengthFactor * (robotLength || lotRobotLength(field, parking));
     const sign = s.outer > 0 ? 1 : -1;               // el muro exterior esta en +H o -H
     const wallCoord = s.outer;
     const innerCoord = wallCoord - sign * RULES.lotWidth; // borde del parqueo hacia el carril
@@ -185,7 +191,10 @@
       seed: o.seed == null ? 1 : o.seed,
       signs: [], parking: null, lot: null, walls: [], lines: [], clutter: o.clutter || [],
       seatModel: o.seatModel || null, startInLot: !!o.startInLot, startOnTrack: !!o.startOnTrack && !o.startInLot,
-      robotBody: o.robotBody || null
+      robotBody: o.robotBody || null,
+      /* Perfil de chasis para el que se dibujo el plano (robot.js: PROFILES). Nulo = el
+       * modelo por defecto de la simulacion. */
+      robotProfile: o.robot || null
     };
     field.walls = wallBoxes(field);
     field.lines = o.lines === false ? [] : cornerLines(field);
@@ -198,10 +207,26 @@
       field.signs.push(sign);
     }
     if (o.parking) {
-      field.parking = Object.assign({ section: 0, along: 0, robotLength: o.robotBody ? o.robotBody.length : 22 }, o.parking);
+      /* `robotLength` nulo = "el que tenga el robot simulado" (ver fitToRobot). */
+      field.parking = Object.assign({ section: 0, along: 0, robotLength: null }, o.parking);
+      if (o.robotBody && o.parking.robotLength == null) field.parking.robotLength = o.robotBody.length;
       field.lot = lotGeometry(field, field.parking);
     }
     field.signJitterDeg = jitter;
+    return field;
+  }
+
+  /* Ajusta el cajon y la pose inicial al chasis que se va a simular. El reglamento ata el
+   * largo del cajon al del robot (1,5 x) y la pose de arranque centra el CUERPO, asi que
+   * una pista construida para otro chasis da un cajon ajeno y el robot arranca torcido.
+   * Un plano que trae sus propias medidas (`robotBody` o `parking.robotLength`) manda. */
+  function fitToRobot(field, body) {
+    if (!field || !body || !field.parking) return field;
+    if (!field.robotBody) field.robotBody = { length: body.length, rear: body.rear };
+    if (field.parking.robotLength == null) {
+      field.parking.robotLength = body.length;
+      if (field.lot) field.lot = lotGeometry(field, field.parking);
+    }
     return field;
   }
 
@@ -220,7 +245,8 @@
       const s = straightInfo(base, parking.section);
       const len = s.hi - s.lo;
       parking.along = s.lo + len * rng.range(0.3, 0.7);
-      parking.robotLength = o.robotLength || (o.robotBody && o.robotBody.length) || 22;
+      /* Nulo si el sorteo no lo pide: lo fija el robot que corra (fitToRobot). */
+      parking.robotLength = o.robotLength || (o.robotBody && o.robotBody.length) || null;
     }
     /* El robot arranca donde el sorteo lo deja; un letrero a menos de ~75 cm por
      * delante en su recta no deja carrera para ponerse al lado que toca (el radio
@@ -314,7 +340,7 @@
     }
     for (const sg of signs) delete sg.seat;
     return create({ inner: o.inner, direction: o.direction, seed, signs, parking, seatModel: o.seatModel,
-                    startInLot: !!o.startInLot, startOnTrack: !!o.startOnTrack, robotBody: o.robotBody,
+                    startInLot: !!o.startInLot, startOnTrack: !!o.startOnTrack, robotBody: o.robotBody, robot: o.robot,
                     start: { along: rng.range(10, 60), lateral: rng.range(-15, 15), yawErrorDeg: rng.range(-3, 3) } });
   }
 
@@ -323,6 +349,7 @@
   function toJSON(field) {
     return JSON.stringify({
       v: 3, inner: field.inner, wallT: field.wallT, seatModel: field.seatModel, robotBody: field.robotBody,
+      robot: field.robotProfile || null,
       direction: field.direction, seed: field.seed, start: field.start,
       signs: field.signs.map(s => ({ color: s.color, x: +s.x.toFixed(2), z: +s.z.toFixed(2), rot: +(s.rot || 0).toFixed(4), seatX: s.seat.x, seatZ: s.seat.z })),
       parking: field.parking ? { section: field.parking.section, along: +field.parking.along.toFixed(2),
@@ -361,7 +388,11 @@
     if (data.parking) {
       const p = data.parking, s = Number(p.section), a = Number(p.along);
       if (![0, 2, 4, 6].includes(s) || !Number.isFinite(a) || Math.abs(a) > 48) throw new Error('parking: seccion 0/2/4/6 y along entre -48 y 48');
-      parking = { section: s, along: a, robotLength: Number(p.robotLength) || 17 };
+      /* Sin robotLength el plano deja que el cajon siga al chasis que corra (fitToRobot);
+       * con el, se conserva exacto para que cargar el plano de el mismo resultado. */
+      const rl = p.robotLength == null ? null : Number(p.robotLength);
+      if (rl != null && !(Number.isFinite(rl) && rl >= 5 && rl <= 60)) throw new Error('parking: robotLength debe estar entre 5 y 60 cm');
+      parking = { section: s, along: a, robotLength: rl };
     }
     const wallT = data.wallT == null ? 2 : Number(data.wallT);
     if (!Number.isFinite(wallT) || wallT <= 0 || wallT > 20) throw new Error('wallT: grosor invalido');
@@ -372,7 +403,9 @@
         seatModel.seatLateral.some(v => !Number.isFinite(v) || Math.abs(v) > 0.5))) throw new Error('seatModel invalido');
     const robotBody = data.robotBody || null;
     if (robotBody && (!(robotBody.length > 0) || !(robotBody.rear >= 0) || robotBody.rear > robotBody.length)) throw new Error('robotBody invalido');
-    return create({ inner, wallT, seatModel, robotBody, direction, signs, parking, seed: data.seed == null ? 1 : data.seed, start: data.start,
+    const robot = data.robot == null ? null : data.robot;
+    if (robot !== null && typeof robot !== 'string') throw new Error('robot: nombre de perfil invalido');
+    return create({ inner, wallT, seatModel, robotBody, robot, direction, signs, parking, seed: data.seed == null ? 1 : data.seed, start: data.start,
                    startInLot: !!data.startInLot, startOnTrack: !!data.startOnTrack });
   }
 
@@ -445,6 +478,6 @@
   }
 
   WRO.field = { RULES, SECTION_NAMES, sectionAt, orderIndex, travelVector, straightInfo, seats, create,
-                randomLayout, toJSON, parse, preset, startPose, lotGeometry, checkLayout };
+                randomLayout, toJSON, parse, preset, startPose, lotGeometry, lotRobotLength, fitToRobot, checkLayout };
   if (typeof module !== 'undefined') module.exports = WRO;
 })(typeof window !== 'undefined' ? window : globalThis);

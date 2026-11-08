@@ -262,6 +262,13 @@ typedef struct {
     int8_t park_arc_directions[PARK_ACK_MAX_STEPS], park_arc_steering[PARK_ACK_MAX_STEPS];
     bool park_init, parked;
     float park_search_cm;
+    /* Giro en el sitio del parqueo: con el retardo del motor, repetir la consigna cada
+     * barrido hace oscilar el rumbo en vez de asentarlo. Se gira un barrido y se deja
+     * asentar el siguiente. */
+    int park_rot_hold;
+    /* Diagnostico del ultimo plan de la maniobra Ackermann (ver core_park_dbg_ptr). */
+    int park_plan_found, park_plan_expanded, park_plan_at_goal, park_plan_count, park_plan_step;
+    int park_rot_sign;              /* sentido del ultimo giro (+1 contra reloj, -1 a favor) */
     float net_cm, progress_best_cm, stuck_s, relax_from_cm;   /* avance neto (velocidad ordenada x tiempo) */
     bool relaxed;
 

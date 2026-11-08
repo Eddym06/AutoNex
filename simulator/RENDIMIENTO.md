@@ -2,11 +2,32 @@
 
 Mediciones locales del 7 de noviembre de 2026 en un Intel Core Ultra 9 185H
 (16 núcleos, 22 hilos lógicos), Node.js y C nativo compilado con GCC `-O2`.
-No se ejecutó una ronda completa, no se usó GPU ni se midió el navegador.
-El WASM actual no fue reconstruido: los valores de C nativo no son tiempos de
-WebAssembly y no deben sumarse para pronosticar la velocidad final.
+El WASM se reconstruyó con wasi-sdk 25 y la medición en el navegador está en la
+sección siguiente; los tiempos de C nativo no son tiempos de WebAssembly y no se
+deben sumar.
 
-## Resultados orientativos
+## Medición en el navegador (WASM versionado)
+
+Chrome, `simulator/build/simulador.html`, pista aleatoria de la interfaz y robot por
+defecto. Un paso de simulación (física del carrito, LiDAR y —uno de cada 30— un cuadro
+de cámara con visión y trama del enlace) cuesta **1,5 ms de CPU**, con el controlador C
+dominando el total: 10 barridos/s a ~10 ms cada uno suman la mayor parte del paso.
+
+| Medida | Valor |
+| --- | ---: |
+| Costo por paso de simulación | 1,5 ms |
+| Techo sostenible (sin contar dibujado) | ~6,9 s simulados por segundo real |
+| Medido a 8× pedidos, ventana en primer plano | 5,9× reales |
+| Velocidad pedida frente a alcanzada | 1× y 4× sobran; 8× no se sostiene |
+
+La interfaz ya muestra la velocidad real (`actualSpeed`), así que la diferencia se ve en
+pantalla. Nota de método: con la ventana de Chrome oculta o tapada, el navegador limita
+las llamadas de dibujo a ~1 Hz y la cifra que se lee (0,1×) no mide el simulador; hay que
+medir con la ventana visible. Acelerar de verdad exige sacar la simulación del hilo de la
+interfaz (Web Worker) o bajar el costo del controlador, no tocar el dibujado: en las mismas
+mediciones el dibujado entero costaba unos 3 ms por cuadro.
+
+## Resultados orientativos (C nativo, componentes aislados)
 
 | Operación aislada | Promedio o caso medido |
 | --- | ---: |
@@ -47,9 +68,9 @@ fidelidad equivalente y sus diferencias no se deben sumar.
 
 ## Mejoras recomendadas, por orden
 
-1. Medir el simulador real en navegador con WASM reconstruido, separando cámara,
-   detector, LiDAR, mapa, planificador, parqueo y dibujo; mostrar velocidad
-   real y tiempos medios/p95. Hacerlo en escenarios cortos antes de las rondas.
+1. ~~Medir el simulador real en navegador con WASM reconstruido~~ (hecho: ver la
+   tabla de arriba; el controlador C es el cuello de botella). Falta separar
+   mapa/planificador/parqueo dentro del barrido y registrar p95 en escenarios cortos.
 2. En cámara, precalcular ejes de líneas, coordenadas invariantes y tablas de
    píxeles; reducir objetos temporales. Mantener semilla, ruido y salida RGB565
    equivalentes con comparaciones por imagen.

@@ -112,6 +112,9 @@ static float g_race_out[2 + 3 * RACE_MAX_STATIONS + 3 * RACE_MAX_SIGNS];
 
 static uint8_t g_map_cells[LOCAL_MAP_SIZE * LOCAL_MAP_SIZE];
 static float g_debug_out[9 + 3 * LOCAL_DEBUG_ROUTE_POINTS * 2 + LOCAL_MAP_MAX_CAMERA_OBJECTS * 4];
+/* Diagnostico del ultimo plan de la maniobra: encontrado, nodos expandidos, en la meta,
+ * numero de arcos, paso del arco (decimas de cm). */
+static float g_park_dbg[5];
 
 /* Una version detecta cambios de significado; los tamaños detectan cambios de capacidad. */
 EXPORT("core_abi_version") int core_abi_version(void) { return 2; }
@@ -123,6 +126,7 @@ EXPORT("core_debug_camera_objects") int core_debug_camera_objects(void) { return
 EXPORT("core_max_points") int core_max_points(void) { return LOCAL_MAP_MAX_POINTS; }
 
 EXPORT("core_points_ptr") float *core_points_ptr(void) { return g_points_in; }
+EXPORT("core_park_dbg_ptr") float *core_park_dbg_ptr(void) { return g_park_dbg; }
 EXPORT("core_cmd_ptr") float *core_cmd_ptr(void) { return g_cmd_out; }
 EXPORT("core_map_ptr") uint8_t *core_map_ptr(void) { return g_map_cells; }
 EXPORT("core_map_size") int core_map_size(void) { return LOCAL_MAP_SIZE; }
@@ -204,6 +208,9 @@ static void export_debug(void)
     o[4] = (float)d->route_count; o[5] = (float)d->probe_count; o[6] = (float)d->curtain_cells;
     o[7] = (float)g_ctrl.map.colored_count;
     o[8] = (float)d->plan_count;
+    g_park_dbg[0] = (float)g_ctrl.park_plan_found; g_park_dbg[1] = (float)g_ctrl.park_plan_expanded;
+    g_park_dbg[2] = (float)g_ctrl.park_plan_at_goal; g_park_dbg[3] = (float)g_ctrl.park_plan_count;
+    g_park_dbg[4] = (float)g_ctrl.park_plan_step;
     float *p = o + 9;
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->route[i][0]; *p++ = d->route[i][1]; }
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->probe[i][0]; *p++ = d->probe[i][1]; }
