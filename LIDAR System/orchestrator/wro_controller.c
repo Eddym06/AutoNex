@@ -1281,14 +1281,26 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             /* (Un paso de 5 cm probado con el volante a 40 se probo y sale peor: el chasis de
              * 22 cm ni siquiera sale del cajon. El arco corto es lo que deja afinar.) */
             if (c->park_arc_index >= c->park_arc_count) {
-                park_ackermann_result_t a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                    {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
-                    &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
-                if (!a.found) {
-                    step_cm = 2.5f;
+                /* Al entrar, primero la maniobra de una pasada: una S de dos arcos largos desde
+                 * el carril (reversa que mete la cola + avance que endereza). Es lo que hace una
+                 * persona y sale en un solo cambio de sentido; el A* de arcos cortos necesita 7-8
+                 * pasadas. Solo se intenta desde el carril: ya dentro manda el A*. */
+                park_ackermann_result_t a = {0};
+                bool s_plan = false;
+                if (!exiting && c->park_arc_count == 0 && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
+                    s_plan = park_ackermann_entry_s(params, &(park_ackermann_config_t)
+                        {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                        &c->park_pose, &a);
+                if (!s_plan) {
                     a = park_ackermann_plan(params, &(park_ackermann_config_t)
                         {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
                         &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+                    if (!a.found) {
+                        step_cm = 2.5f;
+                        a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                            {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                            &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+                    }
                 }
                 c->park_plan_found = a.found ? 1 : 0; c->park_plan_expanded = (int)a.expanded;
                 c->park_plan_at_goal = a.at_goal ? 1 : 0; c->park_plan_count = (int)a.count;

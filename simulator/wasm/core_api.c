@@ -115,6 +115,8 @@ static float g_debug_out[9 + 3 * LOCAL_DEBUG_ROUTE_POINTS * 2 + LOCAL_MAP_MAX_CA
 /* Diagnostico del ultimo plan de la maniobra: encontrado, nodos expandidos, en la meta,
  * numero de arcos, paso del arco (decimas de cm). */
 static float g_park_dbg[5];
+/* Secuencia de arcos del plan vigente: [count, index, dir0, steer0, dir1, steer1, ...]. */
+static float g_park_plan[2 + 2 * PARK_ACK_MAX_STEPS];
 
 /* Una version detecta cambios de significado; los tamaños detectan cambios de capacidad. */
 EXPORT("core_abi_version") int core_abi_version(void) { return 2; }
@@ -127,6 +129,7 @@ EXPORT("core_max_points") int core_max_points(void) { return LOCAL_MAP_MAX_POINT
 
 EXPORT("core_points_ptr") float *core_points_ptr(void) { return g_points_in; }
 EXPORT("core_park_dbg_ptr") float *core_park_dbg_ptr(void) { return g_park_dbg; }
+EXPORT("core_park_plan_ptr") float *core_park_plan_ptr(void) { return g_park_plan; }
 EXPORT("core_cmd_ptr") float *core_cmd_ptr(void) { return g_cmd_out; }
 EXPORT("core_map_ptr") uint8_t *core_map_ptr(void) { return g_map_cells; }
 EXPORT("core_map_size") int core_map_size(void) { return LOCAL_MAP_SIZE; }
@@ -211,6 +214,12 @@ static void export_debug(void)
     g_park_dbg[0] = (float)g_ctrl.park_plan_found; g_park_dbg[1] = (float)g_ctrl.park_plan_expanded;
     g_park_dbg[2] = (float)g_ctrl.park_plan_at_goal; g_park_dbg[3] = (float)g_ctrl.park_plan_count;
     g_park_dbg[4] = (float)g_ctrl.park_plan_step;
+    g_park_plan[0] = (float)g_ctrl.park_arc_count;
+    g_park_plan[1] = (float)g_ctrl.park_arc_index;
+    for (size_t i = 0; i < PARK_ACK_MAX_STEPS; ++i) {
+        g_park_plan[2 + 2 * i] = (float)g_ctrl.park_arc_directions[i];
+        g_park_plan[3 + 2 * i] = (float)g_ctrl.park_arc_steering[i];
+    }
     float *p = o + 9;
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->route[i][0]; *p++ = d->route[i][1]; }
     for (size_t i = 0; i < LOCAL_DEBUG_ROUTE_POINTS; ++i) { *p++ = d->probe[i][0]; *p++ = d->probe[i][1]; }

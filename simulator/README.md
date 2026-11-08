@@ -115,12 +115,22 @@ margen de seguridad se reintenta **sin holgura** (si no, el planificador se nieg
 planificar y el robot se queda parado el resto de la ronda), y la meta de salida exige
 |θ| ≤ 10° para poder entrar al carril.
 
+**Entrar es más caro que salir**, y no por simetría mal resuelta: la salida termina en un
+área abierta (1 pasada), pero la entrada tiene que acabar en un hueco de 39 × 20 cm con el
+coche de 26 — holgura 13 cm a lo largo, que es un aparcamiento "apretado" (como entre dos
+coches). Medido: **7–8 pasadas**, 15–17 s. Se implementó una primitiva de entrada en una S
+de dos arcos (`park_ackermann_entry_s`) que **no encuentra solución en este cajón**:
+retroceder con el volante al máximo desde el carril hace que la esquina trasera enganche
+el tope a los 6,5 cm. Bajar de 8 exige un planificador que siga una trayectoria larga en
+vez de decidir arco a arco; está pendiente.
+
 ## Depurar un plano: `tools/depurar.py`
 
 ```powershell
 python simulator\tools\depurar.py plano.json                 # ronda estricta: se detiene en la primera infracción
 python simulator\tools\depurar.py plano.json --indulgente    # anota todas las infracciones y sigue, para ver todos los fallos
-python simulator\tools\depurar.py plano.json --permitir parqueo   # da por bueno un hallazgo ya documentado (se sigue imprimiendo)python simulator\tools\depurar.py plano.json --json info.json --ctrl "planner.speed_cm_s 15"
+python simulator\tools\depurar.py plano.json --permitir parqueo   # da por bueno un hallazgo ya documentado (se sigue imprimiendo)
+python simulator\tools\depurar.py plano.json --json info.json --ctrl "planner.speed_cm_s 15"
 ```
 
 Ejecuta el plano en **el mismo simulador** (firmware C en WebAssembly, sensores, robot, juez; con el cuadro de configuración por defecto como la interfaz, y el chasis que declare el plano) y escribe un informe: resultado, fases, y para cada hallazgo (infracciones, paradas, bucles de reversa, contactos, tramos lentos, salida/parqueo que no terminan, avisos del plano) el instante, la posición, la sección, lo que decide el firmware, los letreros reales cerca y el **mapa del planificador** en ese instante, con el comando exacto para mirarlo más (`tools/debug_trace.js snap plano.json T`). Pensado para que cualquier persona o modelo localice el problema sin leer trazas enormes. Devuelve código de salida 1 si encuentra infracciones, paradas, bucles, o una salida del cajón o un parqueo que no terminan (`--permitir <tipo>` los degrada a avisos, para un caso ya documentado).

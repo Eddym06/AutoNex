@@ -164,3 +164,67 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
     result.steer_deg = result.steering[0] * cfg->steer_max_deg;
     return result;
 }
+
+/* --------------------------------------- entrada en una pasada: S de dos arcos
+ * Entrar en el cajon como aparca una persona en paralelo: un arco largo de reversa que mete la
+ * cola y un arco largo de avance que endereza. Dos movimientos y **un solo cambio de sentido**.
+ * El A* de arriba no la encuentra porque encadena arcos de `step_cm` y vuelve a decidir en cada
+ * uno: con una meta tan estrecha cada correccion se convierte en una pasada corta mas (medido:
+ * 7-8 en la entrada, cuando la salida se hace en 1). Aqui se buscan las dos longitudes con la
+ * geometria real (esquinas contra pared y topes) y solo se acepta si termina centrada, dentro y
+ * paralela; si no hay ninguna, el llamador sigue con el A*. */
+static void arc_step(float wheelbase, float steer_deg, park_pose_t *s, float ds)
+{
+    const float k = tanf(steer_deg * RAD) / wheelbase;
+    const float mid = s->theta_deg * RAD + ds * k * 0.5f;
+    s->u_cm += ds * cosf(mid); s->w_cm += ds * sinf(mid);
+    s->theta_deg = wrap(s->theta_deg + ds * k / RAD);
+}
+
+bool park_ackermann_entry_s(const park_params_t *p, const park_ackermann_config_t *cfg,
+                            const park_pose_t *start, park_ackermann_result_t *out)
+{
+    if (!p || !cfg || !start || !out || !(cfg->wheelbase_cm > 0) || !(cfg->steer_max_deg > 0)) return false;
+    const float w_center = p->lot_width_cm * 0.5f;
+    const float u_center = -(p->robot_length_cm * 0.5f - p->rear_overhang_cm);
+    const float max_d = 2.4f * p->robot_length_cm;          /* no gastar mas que eso */
+    const float step = 0.5f;
+    for (int srev = 0; srev < 2; ++srev) {
+        const float st1 = (srev ? -1.0f : 1.0f) * cfg->steer_max_deg, st2 = -st1;
+        park_pose_t a = *start;
+        for (float d1 = step; d1 <= max_d; d1 += step) {
+            arc_step(cfg->wheelbase_cm, st1, &a, -step);
+            if (!park_pose_free(p, &a)) break;              /* mas largo tampoco cabe */
+            if (d1 < 2.0f) continue;
+            park_pose_t b = a;
+            for (float d2 = step; d2 <= max_d; d2 += step) {
+                arc_step(cfg->wheelbase_cm, st2, &b, +step);
+                if (!park_pose_free(p, &b)) break;
+                if (d2 < 2.0f) continue;
+                if (fabsf(wrap(b.theta_deg)) > 6.0f) continue;
+                if (fabsf(b.u_cm - u_center) > 6.0f) continue;
+                if (fabsf(b.w_cm - w_center) > 2.5f) continue;
+                if (!goal_reached(p, &b, PARK_GOAL_IN)) continue;
+                /* Se devuelve como arcos del ejecutor, sin pasar de PARK_ACK_MAX_STEPS. */
+                const unsigned n1 = (unsigned)ceilf(d1 / cfg->step_cm);
+                const unsigned n2 = (unsigned)ceilf(d2 / cfg->step_cm);
+                if (n1 + n2 == 0 || n1 + n2 > PARK_ACK_MAX_STEPS) return false;
+                out->count = 0;
+                for (unsigned i = 0; i < n1; ++i) {
+                    out->directions[out->count] = -1; out->steering[out->count] = (int8_t)(srev ? -1 : 1);
+                    ++out->count;
+                }
+                for (unsigned i = 0; i < n2; ++i) {
+                    out->directions[out->count] = +1; out->steering[out->count] = (int8_t)(srev ? 1 : -1);
+                    ++out->count;
+                }
+                out->found = true; out->at_goal = false;
+                out->direction = out->directions[0];
+                out->steer_deg = out->steering[0] * cfg->steer_max_deg;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
