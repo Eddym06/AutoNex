@@ -265,10 +265,12 @@ typedef struct {
     /* Entrada desde donde acaba la salida (la ronda empieza saliendo del cajon, asi que esa pose
      * se conoce): 0 sin empezar, 1 yendo por el carril, 2 un solo plan, 3 tanteo de siempre. */
     int park_stage;
+    bool park_symmetric;            /* la entrada de esta ronda arranca donde acabo la salida */
     park_pose_t park_exit_pose;     /* donde acabo la salida, medido en esta ronda */
     bool park_exit_valid;
     park_pose_t park_plan_pose;     /* pose que toca segun el plan (avance a ciegas de sus arcos) */
     float park_arc_theta0_deg, park_arc_dtheta_deg;   /* rumbo al empezar el arco y giro que le toca */
+    int park_settle;                /* barridos quieto con el volante ya puesto (ver park_step) */
     /* Giro en el sitio del parqueo: con el retardo del motor, repetir la consigna cada
      * barrido hace oscilar el rumbo en vez de asentarlo. Se gira un barrido y se deja
      * asentar el siguiente. */

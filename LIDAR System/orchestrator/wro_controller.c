@@ -1327,7 +1327,13 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
          * (a la velocidad de busqueda: el carril esta libre) y desde ahi hace un solo plan, que es
          * la maniobra de la salida al reves. Entrar desde donde el LiDAR ve el cajon por primera
          * vez cuesta 4-8 repasadas y 15 s (medido); desde la pose de la salida, 3 y ~12 s. */
-        if (!exiting && c->park_stage == 0) c->park_stage = c->park_exit_valid ? 1 : 3;
+        if (!exiting && c->park_stage == 0) {
+            c->park_stage = c->park_exit_valid ? 1 : 3;
+            /* Sólo la entrada simétrica (la que arranca donde acabó la salida) usa el asentamiento
+             * del servo y el metrado por rumbo: el tanteo de siempre y la demostración desde la
+             * pista se quedan tal cual estaban (medido: cambiarlos deja el parqueo en parcial). */
+            c->park_symmetric = c->park_exit_valid;
+        }
         if (!exiting && c->park_stage == 1) {
             if (park_cruise_step(c, dt, out)) {
                 c->park_stage = 2;
@@ -1335,6 +1341,23 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 c->park_arc_index = 0;
                 c->park_goal_hits = 0;
             }
+            return;
+        }
+        /* El servo tarda ~0,2 s en pasar de un volante al otro (medido en el chasis: 80 grados a
+         * 420 grados/s). Si se arranca a mover en el mismo barrido, el primer arco de cada cambio
+         * de volante gira MENOS de lo que dice el plan y el desvio se acumula: en la salida al
+         * reves, 12-15 arcos acababan 3 cm y 10 grados cruzados, el controlador abortaba el plan y
+         * la correccion costaba una repasada mas. Se le da el volante con el coche quieto y asi el
+         * arco que empieza es el del plan. Solo al entrar: la salida va sobrada (su meta es una
+         * region) y no merece pagar 1,5 s de asentamientos; la entrada si. */
+        const bool entry_settle = !exiting && c->park_symmetric;
+        if (entry_settle && c->park_settle > 0) {
+            --c->park_settle;
+            out->speed_cm_s = 0.0f;
+            out->steer_deg = c->park_arc_steer_deg;
+            out->yaw_rate_dps = 0.0f;
+            out->explicit_yaw_rate = true;
+            out->action = LOCAL_ACTION_STOP;
             return;
         }
         c->park_arc_remaining_cm -= fabsf(c->scan_ds_cm);
@@ -1462,6 +1485,19 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             const float arc_steer = (float)c->park_arc_steering[c->park_arc_index - 1] * acfg.steer_max_deg;
             c->park_arc_dtheta_deg = (float)c->park_arc_direction * acfg.step_cm *
                 tanf(arc_steer * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+            /* Volante distinto del arco anterior: se pone quieto antes de mover (ver arriba). El
+             * servo tarda ~0,1 s por cada 40 grados, asi que un cambio pequeno (0 <-> lleno) se
+             * asienta en un barrido y la inversion completa (lleno a lleno, 80 grados) en dos. */
+            const int prev_steer = c->park_arc_index >= 2 ? c->park_arc_steering[c->park_arc_index - 2] : 0;
+            if (entry_settle && c->park_arc_steering[c->park_arc_index - 1] != prev_steer) {
+                c->park_settle = fabsf((float)(c->park_arc_steering[c->park_arc_index - 1] - prev_steer)) > 1.0f ? 2 : 1;
+                out->speed_cm_s = 0.0f;
+                out->steer_deg = c->park_arc_steer_deg;
+                out->yaw_rate_dps = 0.0f;
+                out->explicit_yaw_rate = true;
+                out->action = LOCAL_ACTION_STOP;
+                return;
+            }
         }
         /* Velocidad del arco: la de la maniobra, sin el tope de 4 cm/s que habia. El final de un
          * arco NO es una parada: es donde se vuelve a planificar y se encadena el siguiente, asi
