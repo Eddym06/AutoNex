@@ -62,6 +62,7 @@ node simulator\tests\test_sim_basics.js     # geometría, sensores, dinámica, j
 node simulator\tests\test_contrato.js       # ABI firmware↔simulación, frecuencia de cámara, cajón a medida
 node simulator\tests\test_axle_encoder.js   # encoder de eje y reducción externa
 node simulator\tests\test_parking_exit.js   # salida del cajón, 6 combinaciones sentido/semilla
+node simulator\tests\test_parking_entry.js  # entrada al cajón: repasadas contadas y acotadas
 node simulator\tests\test_ui_smoke.js       # la interfaz arranca
 node simulator\tests\test_missions.js       # rondas completas (minutos)
 python simulator\sequence_simulation.py     # secuencias de visión (129 comprobaciones) -> build\sequence-simulation\report.html
@@ -115,10 +116,26 @@ margen de seguridad se reintenta **sin holgura** (si no, el planificador se nieg
 planificar y el robot se queda parado el resto de la ronda), y la meta de salida exige
 |θ| ≤ 10° para poder entrar al carril.
 
-**Entrar es más caro que salir**, y no por simetría mal resuelta: la salida termina en un
-área abierta (1 pasada), pero la entrada tiene que acabar en un hueco de 39 × 20 cm con el
-coche de 26 — holgura 13 cm a lo largo, que es un aparcamiento "apretado" (como entre dos
-coches).
+**Entrar es más caro que salir.** La simetría está bien planteada — un camino libre recorrido
+al revés también es libre, porque son las mismas poses — y con el planificador aislado se
+cumple: desde la pose donde acaba la salida, la entrada cuesta **1 repasada**, igual que la
+salida. Lo que no aguanta es **ejecutarlo** en el simulador (medido: crucero por el carril
+hasta esa pose y después la maniobra deshecha arco a arco, o un solo plan del A* desde ahí):
+
+| Intento | Repasadas ejecutadas | Qué falla |
+| --- | --- | --- |
+| arrancar donde el LiDAR ve el cajón (actual) | 4–8 | el A* gasta el carril entero en la maniobra |
+| arrancar en la pose donde acaba la salida + un plan | 3 (ronda de 62 puntos, *full*) | el plan se aborta antes de enderezar y vuelve una corrección |
+| lo mismo, sin holgura de planeo | — | el chasis roza la pared (109 contactos en una ronda) |
+| lo mismo, con la holgura de 1 cm | *parado* dentro del cajón | el planificador no encuentra plan desde la pose real |
+
+La causa es de ejecución, no de geometría: el servo tarda ~0,2 s en invertir el volante, así
+que el primer arco de cada cambio de sentido gira menos que el modelo, y los arcos medidos por
+distancia se cortan 0,2–0,3 cm pronto. Sobre 13 arcos son ~3 cm y ~10° de desvío; el planificador
+aborta el plan cuando el arco siguiente, desde la pose real, ya roza el tope. Para dejarlo en 2
+hay que atacar eso: que el A* modele el retardo del servo, o que el ejecutor mida los arcos por
+giroscopio y el plan se corte por rumbo (probado: baja el desvío de 11° a 7°, pero la salida se
+alarga de 8,1 s a 10,1 s y hay que desacoplarlo de ella). Estado en `ESTADO.md`.
 
 Para la entrada hay una **maniobra dedicada de tres tramos** (`park_ackermann_entry_maneuver`):
 *colocarse con un arco de avance → entrar girando con un arco largo de reversa → enderezar*.
