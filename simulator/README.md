@@ -116,26 +116,35 @@ margen de seguridad se reintenta **sin holgura** (si no, el planificador se nieg
 planificar y el robot se queda parado el resto de la ronda), y la meta de salida exige
 |θ| ≤ 10° para poder entrar al carril.
 
-**Entrar es más caro que salir.** La simetría está bien planteada — un camino libre recorrido
-al revés también es libre, porque son las mismas poses — y con el planificador aislado se
-cumple: desde la pose donde acaba la salida, la entrada cuesta **1 repasada**, igual que la
-salida. Lo que no aguanta es **ejecutarlo** en el simulador (medido: crucero por el carril
-hasta esa pose y después la maniobra deshecha arco a arco, o un solo plan del A* desde ahí):
+**Entrar es más caro que salir, y la asimetría está en la ejecución.** La simetría está bien
+planteada — un camino libre recorrido al revés también es libre, porque son las mismas poses — y
+el planificador aislado la cumple: desde la pose donde acaba la salida, la entrada cuesta **1
+repasada**, igual que la salida. Por eso la entrada del controlador **arranca donde acabó la
+salida** (`park_step` la recuerda al terminar `PARK_EXIT`): un crucero por el carril hasta 2 cm
+más adelante y 1,5 cm más lejos de la pared (donde la maniobra cabe con una repasada, medido en
+el planificador), y desde ahí **un solo plan** del A*.
 
-| Intento | Repasadas ejecutadas | Qué falla |
-| --- | --- | --- |
-| arrancar donde el LiDAR ve el cajón (actual) | 4–8 | el A* gasta el carril entero en la maniobra |
-| arrancar en la pose donde acaba la salida + un plan | 3 (ronda de 62 puntos, *full*) | el plan se aborta antes de enderezar y vuelve una corrección |
-| lo mismo, sin holgura de planeo | — | el chasis roza la pared (109 contactos en una ronda) |
-| lo mismo, con la holgura de 1 cm | *parado* dentro del cajón | el planificador no encuentra plan desde la pose real |
+Lo que quedaba era el **ejecutor**: el servo tarda ~0,2 s en invertir el volante, así que el
+primer arco de cada cambio de sentido gira menos que el modelo, y los arcos medidos por distancia
+se cortan 0,2–0,3 cm pronto. Sobre 15 arcos son ~3 cm y ~10° de morro; el planificador abortaba
+el plan antes de enderezar y la corrección costaba una repasada más. Para la entrada simétrica los
+arcos se cortan **por rumbo del giroscopio** (el giro exacto del plan), se vigila el avance a
+ciegas (desvío > 6 cm o > 25° = algo pasó) y la comprobación del arco se hace con media holgura.
+La salida y la demostración desde la pista se quedan con el ejecutor de siempre (la salida va
+sobrada y así sigue en 8-9 s).
 
-La causa es de ejecución, no de geometría: el servo tarda ~0,2 s en invertir el volante, así
-que el primer arco de cada cambio de sentido gira menos que el modelo, y los arcos medidos por
-distancia se cortan 0,2–0,3 cm pronto. Sobre 13 arcos son ~3 cm y ~10° de desvío; el planificador
-aborta el plan cuando el arco siguiente, desde la pose real, ya roza el tope. Para dejarlo en 2
-hay que atacar eso: que el A* modele el retardo del servo, o que el ejecutor mida los arcos por
-giroscopio y el plan se corte por rumbo (probado: baja el desvío de 11° a 7°, pero la salida se
-alarga de 8,1 s a 10,1 s y hay que desacoplarlo de ella). Estado en `ESTADO.md`.
+Medido en ronda completa (largo26, 4 casos):
+
+| Entrada | Repasadas | Tiempo | Puntos |
+| --- | --- | --- | --- |
+| arrancar donde el LiDAR ve el cajón | 8, 4, 4, 3 | 12–17 s | 62 |
+| simétrica desde la salida | **3, 3, 5, 6** | 13,7–17,5 s | 62 |
+
+Todo *full* y sin contactos en los ocho casos. Probar más fuerte (sin holgura al comprobar el
+arco) daba 2 repasadas en un caso pero el juez lo veía **parqueo parcial**: la media holgura es
+el punto. Queda bajar el 5–6 de los casos "cw": el A* cambia de 1 a 2 repasadas con 1 cm de
+diferencia en la pose de arranque (es su sensibilidad, no un error de cuenta); se mide con
+`simulator/tests/parkentry.js`.
 
 Para la entrada hay una **maniobra dedicada de tres tramos** (`park_ackermann_entry_maneuver`):
 *colocarse con un arco de avance → entrar girando con un arco largo de reversa → enderezar*.

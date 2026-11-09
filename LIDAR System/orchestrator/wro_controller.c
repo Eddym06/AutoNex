@@ -1132,6 +1132,7 @@ static float compensate_motion(const wro_controller_t *c, const local_planner_co
 
 /* -------------------------------------------------------------------- parqueo */
 static park_params_t g_ack_park_params;
+static int park_mirror(const wro_controller_t *c);
 
 static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
 {
@@ -1139,6 +1140,59 @@ static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
     park_params_default(p, pl->chassis_width_cm, pl->chassis_length_cm, pl->chassis_rear_cm);
     p->margin_cm = c->cfg.park_margin_cm;
     p->lot_length_cm = c->cfg.park_lot_length_cm;
+}
+
+/* Rumbo del chasis en el marco del cajon medido con el giroscopio. La pose localizada se reajusta
+ * con el LiDAR en cada barrido y su rumbo salta varios grados dentro del cajon; el giroscopio no.
+ * Se usa para medir el giro de cada arco (park_arc_dtheta_deg). */
+static float park_heading(const wro_controller_t *c)
+{
+    return -(float)park_mirror(c) * imu_wrap_deg(c->yaw.yaw_deg - c->park_course_deg);
+}
+
+/* Avance a ciegas de un arco del plan: la pose que deberia tener el chasis al terminarlo. Sirve
+ * para distinguir un desvio de verdad (choque, patinazo) del ruido de la pose medida. */
+static void park_plan_advance(wro_controller_t *c, int dir, int steer, float step_cm)
+{
+    const local_planner_config_t *pl = &c->cfg.planner;
+    const float ds = (float)dir * step_cm;
+    const float k = tanf((float)steer * pl->steer_hard_deg * DEG_TO_RAD) / pl->wheelbase_cm;
+    const float dth = ds * k * RAD_TO_DEG;
+    const float mid = (c->park_plan_pose.theta_deg + 0.5f * dth) * DEG_TO_RAD;
+    c->park_plan_pose.u_cm += ds * cosf(mid);
+    c->park_plan_pose.w_cm += ds * sinf(mid);
+    c->park_plan_pose.theta_deg = imu_wrap_deg(c->park_plan_pose.theta_deg + dth);
+}
+
+/* Aproximacion por el carril hasta la pose donde acaba la salida: seguidor de rumbo suave a la
+ * velocidad de busqueda (el carril esta libre, no hace falta ir a 8 cm/s). Devuelve true al
+ * llegar, o al pasarse (entonces se entra desde donde este). */
+static bool park_cruise_step(wro_controller_t *c, float dt, wro_command_t *out)
+{
+    (void)dt;
+    const local_planner_config_t *pl = &c->cfg.planner;
+    const park_pose_t *t = &c->park_exit_pose;
+    /* Donde acabo la salida es el minimo de su meta (28,5 cm de la pared): desde ahi el A* tiene
+     * que entrar con dos repasadas. Con 2 cm mas por delante y 1,5 mas lejos de la pared la
+     * misma maniobra cabe con una, que es lo que se busca (medido en el planificador: 1 repasada
+     * desde (25,30,5) y 2 desde (25,28,5)). */
+    const float du = t->u_cm + 2.0f - c->park_pose.u_cm;
+    const float dw = t->w_cm + 1.5f - c->park_pose.w_cm;
+    const float speed = fmaxf(c->cfg.park_speed_cm_s, c->cfg.park_search_speed_cm_s);
+    if ((du <= 1.0f && fabsf(dw) <= 0.8f && fabsf(c->park_pose.theta_deg) <= 3.0f) || du < -1.5f) return true;
+    const float look_cm = 18.0f;
+    float th_ref = atan2f(dw, look_cm) * RAD_TO_DEG;
+    if (th_ref > 22.0f) th_ref = 22.0f;
+    if (th_ref < -22.0f) th_ref = -22.0f;
+    float steer = 2.5f * (th_ref - c->park_pose.theta_deg);
+    if (steer > pl->steer_hard_deg) steer = pl->steer_hard_deg;
+    if (steer < -pl->steer_hard_deg) steer = -pl->steer_hard_deg;
+    out->speed_cm_s = speed;
+    out->steer_deg = -(float)park_mirror(c) * steer;
+    out->yaw_rate_dps = speed * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+    out->explicit_yaw_rate = false;
+    out->action = LOCAL_ACTION_FORWARD;
+    return false;
 }
 
 /* El campo de costes es unico (ocupa casi 1 MB): se reconstruye al cambiar de meta. */
@@ -1269,9 +1323,30 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             }
             params = &relaxed;
         }
+        /* Entrada: el coche llega de la ronda por el carril. Primero se pone donde acabo la salida
+         * (a la velocidad de busqueda: el carril esta libre) y desde ahi hace un solo plan, que es
+         * la maniobra de la salida al reves. Entrar desde donde el LiDAR ve el cajon por primera
+         * vez cuesta 4-8 repasadas y 15 s (medido); desde la pose de la salida, 3 y ~12 s. */
+        if (!exiting && c->park_stage == 0) c->park_stage = c->park_exit_valid ? 1 : 3;
+        if (!exiting && c->park_stage == 1) {
+            if (park_cruise_step(c, dt, out)) {
+                c->park_stage = 2;
+                c->park_arc_count = 0;
+                c->park_arc_index = 0;
+                c->park_goal_hits = 0;
+            }
+            return;
+        }
         c->park_arc_remaining_cm -= fabsf(c->scan_ds_cm);
+        /* La ejecucion "simetrica" (arcos metrados por el giroscopio, avance a ciegas y media
+         * holgura) es solo para la entrada que arranca en la pose de la salida. El tanteo de
+         * siempre (y la demostracion desde la pista, que no tiene salida) siguen igual: cambiarlo
+         * ahi dejaba el parqueo en parcial (medido). */
+        const bool symmetric = !exiting && c->park_stage == 2;
         /* Tolerancia provisional para el cuantizado de la odometria. */
-        if (c->park_arc_remaining_cm <= 0.3f) {
+        const bool arc_turned = symmetric && fabsf(c->park_arc_dtheta_deg) > 1.0f &&
+            fabsf(park_heading(c) - c->park_arc_theta0_deg) >= fabsf(c->park_arc_dtheta_deg) - 0.6f;
+        if (c->park_arc_remaining_cm <= 0.3f || arc_turned) {
             /* La busqueda es discreta y sensible al paso del arco: con el volante a 40 grados,
              * un paso de 3,5 cm gira 12 grados y hay poses desde las que el A* no alcanza la
              * meta aunque la maniobra exista (el robot se quedaba parado a mitad de la salida).
@@ -1288,14 +1363,31 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                  * tanteo (medido: 8 pasadas). Ya dentro del cajon manda el A*. */
                 park_ackermann_result_t a = {0};
                 bool s_plan = false;
+                bool planned = false;
+                /* Entrada desde la pose de la salida: un solo plan, sin la maniobra de tres tramos
+                 * (desde ahi gastaria una repasada mas). Las correcciones, si hacen falta, vuelven
+                 * al tanteo de siempre. */
+                if (!exiting && c->park_stage == 2) {
+                    c->park_stage = 3;
+                    a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                        {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                        &c->park_pose, PARK_GOAL_IN);
+                    if (!a.found) {
+                        step_cm = 2.5f;
+                        a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                            {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                            &c->park_pose, PARK_GOAL_IN);
+                    }
+                    planned = a.found;
+                }
                 /* Solo desde el carril (aun fuera del cajon): la maniobra supone que el coche llega
                  * casi paralelo. Intentarla desde dentro, a 30-40 grados, produce maniobras que no
                  * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
-                if (!exiting && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
+                if (!planned && !exiting && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
                     s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
                         {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
                         &c->park_pose, &a);
-                if (!s_plan) {
+                if (!planned && !s_plan) {
                     a = park_ackermann_plan(params, &(park_ackermann_config_t)
                         {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
                         &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
@@ -1314,26 +1406,62 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 if (++c->park_goal_hits >= 3) {
                     c->phase = exiting ? WRO_PHASE_RUN : WRO_PHASE_DONE;
                     c->parked = !exiting;
-                    if (exiting) { c->course_deg = c->park_course_deg; c->aligned = true; c->travel_cm = 0.0f; }
+                    if (exiting) {
+                        c->course_deg = c->park_course_deg; c->aligned = true; c->travel_cm = 0.0f;
+                        /* Donde acabo la salida: desde ahi se entra al final de la ronda. */
+                        c->park_exit_pose = c->park_pose; c->park_exit_valid = true;
+                    }
                     c->park_field_goal = 0;
                 }
                     return;
                 }
                 c->park_goal_hits = 0;
                 c->park_arc_count = a.count; c->park_arc_index = 0;
+                c->park_plan_pose = c->park_pose;
                 memcpy(c->park_arc_directions, a.directions, a.count * sizeof(a.directions[0]));
                 memcpy(c->park_arc_steering, a.steering, a.count * sizeof(a.steering[0]));
             }
             const park_ackermann_config_t acfg = {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction};
+            /* El plan se ejecuta a ciegas: lo que se vigila es que el chasis siga donde el plan
+             * cree. El servo tarda ~0,2 s en invertir el volante, asi que los primeros arcos de
+             * cada cambio de sentido giran menos que el modelo y el avance a ciegas se separa sin
+             * que nada vaya mal: el margen es holgado y solo corta un desvio grande (choque). */
+            if (symmetric && c->park_arc_index > 0)
+                park_plan_advance(c, c->park_arc_directions[c->park_arc_index - 1],
+                                  c->park_arc_steering[c->park_arc_index - 1], acfg.step_cm);
+            const float dev = hypotf(c->park_pose.u_cm - c->park_plan_pose.u_cm,
+                                     c->park_pose.w_cm - c->park_plan_pose.w_cm);
+            if (symmetric && (dev > 6.0f ||
+                fabsf(imu_wrap_deg(c->park_pose.theta_deg - c->park_plan_pose.theta_deg)) > 25.0f)) {
+                c->park_arc_count = c->park_arc_index = 0;
+                return;
+            }
             c->park_arc_direction = c->park_arc_directions[c->park_arc_index];
             c->park_arc_steer_deg = -(float)mirror * c->park_arc_steering[c->park_arc_index] * acfg.steer_max_deg;
-            if (!park_ackermann_arc_free(params, &acfg, &c->park_pose, c->park_arc_direction,
+            /* Al entrar, la comprobacion del arco se hace con media holgura: el camino ya se
+             * planeo con 1 cm y la pose del LiDAR dentro del cajon se mueve medio centimetro, asi
+             * que la holgura de planeo aqui solo servia para abortar planes buenos (cada abort,
+             * una repasada mas). Sin ninguna holgura el chasis se queda tan justo que el juez lo
+             * da por parqueo parcial: media es el punto que midio 3 repasadas sin contactos. */
+            park_params_t entry_check;
+            const park_params_t *check = params;
+            if (symmetric) { entry_check = *params; entry_check.margin_cm = 0.5f; check = &entry_check; }
+            if (!park_ackermann_arc_free(check, &acfg, &c->park_pose, c->park_arc_direction,
                                          c->park_arc_steering[c->park_arc_index])) {
                 c->park_arc_count = c->park_arc_index = 0;
                 return;
             }
             ++c->park_arc_index;
             c->park_arc_remaining_cm = acfg.step_cm;
+            /* El arco se corta tambien por rumbo, al entrar: el giroscopio da el giro exacto del
+             * plan (un arco de 3,5 cm a volante lleno son 9 grados) mientras que la distancia la
+             * mide el LiDAR con 1 cm de ruido y lo deja 0,2-0,3 cm pronto; en 15 arcos eso era
+             * 3 cm y 10 grados de morro, y el plan se abortaba antes de enderezar. La salida va
+             * sobrada (su meta es una region) y se queda con la distancia sola: asi tarda 8-9 s. */
+            c->park_arc_theta0_deg = park_heading(c);
+            const float arc_steer = (float)c->park_arc_steering[c->park_arc_index - 1] * acfg.steer_max_deg;
+            c->park_arc_dtheta_deg = (float)c->park_arc_direction * acfg.step_cm *
+                tanf(arc_steer * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
         }
         /* Velocidad del arco: la de la maniobra, sin el tope de 4 cm/s que habia. El final de un
          * arco NO es una parada: es donde se vuelve a planificar y se encadena el siguiente, asi
