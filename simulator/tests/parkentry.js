@@ -26,7 +26,7 @@ function reversals(seq) {
 async function run(profile, mode, seconds, seeds) {
   const robot = WRO.robot.PROFILES[profile];
   const rows = [];
-  for (const direction of ['ccw', 'cw']) for (const seed of seeds) {
+  for (const direction of (process.env.DIR ? [process.env.DIR] : ['ccw', 'cw'])) for (const seed of seeds) {
     const field = mode === 'ronda'
       ? F.randomLayout(seed, { direction, signs: 0, parking: true, startInLot: true })
       : F.randomLayout(seed, { direction, signs: 0, parking: true,
@@ -73,7 +73,8 @@ async function run(profile, mode, seconds, seeds) {
   const seconds = Number(process.argv[4] || 90);
   const n = Number(process.argv[5] || 3);
   const seeds = [];
-  for (let i = 1; i <= n; i++) seeds.push(i);
+  if (process.env.SEED) seeds.push(Number(process.env.SEED));
+  else for (let i = 1; i <= n; i++) seeds.push(i);
   if (profile === 'largo26' || profile === 'ackermann' || profile === 'differential17') {
     const rows = await run(profile, mode, seconds, seeds);
     for (const r of rows) console.log(JSON.stringify(r));
