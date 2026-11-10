@@ -1,0 +1,882 @@
+[
+  {
+    "direction": "cw",
+    "seed": 1,
+    "seconds": 161.12,
+    "end_reason": "finished",
+    "scans": 1597,
+    "rays": {
+      "total": 644480,
+      "eligible_after_global_pose": 573023,
+      "valid_after_global_pose": 563452
+    },
+    "range_noise_with_true_ray_pose": {
+      "walls": {
+        "n": 503206,
+        "p50_cm": 0.49,
+        "p95_cm": 3.01,
+        "max_cm": 14.43
+      },
+      "limiter0": {
+        "n": 33933,
+        "p50_cm": 0.36,
+        "p95_cm": 1.22,
+        "max_cm": 7.4
+      },
+      "limiter1": {
+        "n": 12454,
+        "p50_cm": 0.4,
+        "p95_cm": 2.04,
+        "max_cm": 9.19
+      },
+      "signs": {
+        "n": 13859,
+        "p50_cm": 0.38,
+        "p95_cm": 1.75,
+        "max_cm": 10.69
+      }
+    },
+    "walls": [
+      {
+        "index": 0,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "front": {
+            "total_bins": 304,
+            "visible_bins": 298,
+            "valid_return_bins": 298,
+            "valid_bins_with_map_near": 298,
+            "unobserved_bins": 6
+          },
+          "back": {
+            "total_bins": 304,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 304
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 298,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 1,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "front": {
+            "total_bins": 304,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 304
+          },
+          "back": {
+            "total_bins": 304,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 4
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 2,
+        "faces": {
+          "left": {
+            "total_bins": 300,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 300
+          },
+          "right": {
+            "total_bins": 300,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 3,
+        "faces": {
+          "left": {
+            "total_bins": 300,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 300,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 300
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 4,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "back": {
+            "total_bins": 100,
+            "visible_bins": 100,
+            "valid_return_bins": 100,
+            "valid_bins_with_map_near": 100,
+            "unobserved_bins": 0
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 104,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 5,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 100,
+            "visible_bins": 100,
+            "valid_return_bins": 100,
+            "valid_bins_with_map_near": 100,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 104,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 6,
+        "faces": {
+          "left": {
+            "total_bins": 100,
+            "visible_bins": 96,
+            "valid_return_bins": 96,
+            "valid_bins_with_map_near": 96,
+            "unobserved_bins": 4
+          },
+          "right": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 96,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 7,
+        "faces": {
+          "left": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "right": {
+            "total_bins": 100,
+            "visible_bins": 96,
+            "valid_return_bins": 96,
+            "valid_bins_with_map_near": 96,
+            "unobserved_bins": 4
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 96,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      }
+    ],
+    "limiters": [
+      {
+        "index": 8,
+        "faces": {
+          "left": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 42,
+          "p50_cm": 0.77,
+          "p95_cm": 1.42,
+          "max_cm": 1.71
+        },
+        "true_long_axis_ends_to_nearest_map_cm": [
+          1.5,
+          1.5
+        ]
+      },
+      {
+        "index": 9,
+        "faces": {
+          "left": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 42,
+          "p50_cm": 0.87,
+          "p95_cm": 1.5,
+          "max_cm": 1.71
+        },
+        "true_long_axis_ends_to_nearest_map_cm": [
+          1.42,
+          1.42
+        ]
+      }
+    ]
+  },
+  {
+    "direction": "ccw",
+    "seed": 3,
+    "seconds": 44.5,
+    "end_reason": "wrong-side",
+    "scans": 430,
+    "rays": {
+      "total": 178000,
+      "eligible_after_global_pose": 154370,
+      "valid_after_global_pose": 151873
+    },
+    "range_noise_with_true_ray_pose": {
+      "walls": {
+        "n": 140772,
+        "p50_cm": 0.49,
+        "p95_cm": 3.02,
+        "max_cm": 12.47
+      },
+      "limiter0": {
+        "n": 1979,
+        "p50_cm": 0.5,
+        "p95_cm": 2.96,
+        "max_cm": 7.06
+      },
+      "limiter1": {
+        "n": 4434,
+        "p50_cm": 0.41,
+        "p95_cm": 2.24,
+        "max_cm": 7.67
+      },
+      "signs": {
+        "n": 4688,
+        "p50_cm": 0.38,
+        "p95_cm": 1.65,
+        "max_cm": 8.14
+      }
+    },
+    "walls": [
+      {
+        "index": 0,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "front": {
+            "total_bins": 304,
+            "visible_bins": 298,
+            "valid_return_bins": 298,
+            "valid_bins_with_map_near": 298,
+            "unobserved_bins": 6
+          },
+          "back": {
+            "total_bins": 304,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 304
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 298,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 1,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "front": {
+            "total_bins": 304,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 304
+          },
+          "back": {
+            "total_bins": 304,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 4
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 2,
+        "faces": {
+          "left": {
+            "total_bins": 300,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 300
+          },
+          "right": {
+            "total_bins": 300,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 3,
+        "faces": {
+          "left": {
+            "total_bins": 300,
+            "visible_bins": 300,
+            "valid_return_bins": 300,
+            "valid_bins_with_map_near": 300,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 300,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 300
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 300,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 4,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "back": {
+            "total_bins": 100,
+            "visible_bins": 100,
+            "valid_return_bins": 100,
+            "valid_bins_with_map_near": 100,
+            "unobserved_bins": 0
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 104,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 5,
+        "faces": {
+          "left": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 100,
+            "visible_bins": 100,
+            "valid_return_bins": 100,
+            "valid_bins_with_map_near": 100,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 104,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 6,
+        "faces": {
+          "left": {
+            "total_bins": 100,
+            "visible_bins": 96,
+            "valid_return_bins": 96,
+            "valid_bins_with_map_near": 96,
+            "unobserved_bins": 4
+          },
+          "right": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 96,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      },
+      {
+        "index": 7,
+        "faces": {
+          "left": {
+            "total_bins": 100,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 100
+          },
+          "right": {
+            "total_bins": 100,
+            "visible_bins": 96,
+            "valid_return_bins": 96,
+            "valid_bins_with_map_near": 96,
+            "unobserved_bins": 4
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 96,
+          "p50_cm": 1.46,
+          "p95_cm": 1.77,
+          "max_cm": 1.77
+        }
+      }
+    ],
+    "limiters": [
+      {
+        "index": 8,
+        "faces": {
+          "left": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 42,
+          "p50_cm": 1.09,
+          "p95_cm": 1.64,
+          "max_cm": 1.64
+        },
+        "true_long_axis_ends_to_nearest_map_cm": [
+          1.33,
+          1.33
+        ]
+      },
+      {
+        "index": 9,
+        "faces": {
+          "left": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "right": {
+            "total_bins": 20,
+            "visible_bins": 20,
+            "valid_return_bins": 20,
+            "valid_bins_with_map_near": 20,
+            "unobserved_bins": 0
+          },
+          "front": {
+            "total_bins": 2,
+            "visible_bins": 2,
+            "valid_return_bins": 2,
+            "valid_bins_with_map_near": 2,
+            "unobserved_bins": 0
+          },
+          "back": {
+            "total_bins": 2,
+            "visible_bins": 0,
+            "valid_return_bins": 0,
+            "valid_bins_with_map_near": 0,
+            "unobserved_bins": 2
+          }
+        },
+        "valid_surface_bin_to_nearest_map": {
+          "n": 42,
+          "p50_cm": 0.97,
+          "p95_cm": 1.56,
+          "max_cm": 1.64
+        },
+        "true_long_axis_ends_to_nearest_map_cm": [
+          1.37,
+          1.37
+        ]
+      }
+    ]
+  }
+]

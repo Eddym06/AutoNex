@@ -56,6 +56,8 @@ for (const f of ['geometry', 'rng', 'field', 'sensors', 'robot', 'judge', 'core'
   sim.run(8);
   for (let i = 0; i < 6; i++) { const f = pending; pending = null; assert(f, 'se detuvo el bucle de dibujo'); f(2000 + i * 33); }
   assert(sim.cmd && sim.cmd.arena && sim.cmd.arena.valid, 'el localizador no adquirio pose');
+  assert(/\d+ celdas LiDAR/.test(cache.traceInfo.textContent), 'el mapa persistente no muestra sus datos');
+  assert(/candidato|evidencia/i.test(cache.traceParkingInfo.textContent), 'falta el diagnóstico experimental');
   assert(cache.telemetry.innerHTML.includes('Odometría (encoders)') && cache.telemetry.innerHTML.includes('Pose en el campo (LiDAR)'), 'faltan las filas de odometria y pose');
   assert(/error [0-9.]+ cm/.test(cache.telemetry.innerHTML), 'sin el error contra la verdad');
   /* El panel debe mostrar la linea aunque la mision aun no la haya calculado. */

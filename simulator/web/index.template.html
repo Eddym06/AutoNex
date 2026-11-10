@@ -73,6 +73,14 @@ textarea{width:100%;min-height:150px;font:12px ui-monospace,Consolas,monospace;r
       <div><h2>Cámara S3 (160×120)</h2><canvas id="camera" width="160" height="120" style="image-rendering:pixelated"></canvas><div id="cameraInfo" style="font-size:12px;color:var(--mute);margin-top:4px"></div></div>
       <div><h2>Mapa local del P4</h2><canvas id="local" width="300" height="300"></canvas></div>
     </div>
+    <div class="panel">
+      <h2>Trace map · observaciones recordadas</h2>
+      <canvas id="traceMap" width="400" height="400" aria-label="Mapa de retornos observados por el robot"></canvas>
+      <div id="traceInfo" style="font-size:12px;color:var(--mute);margin-top:5px">Esperando pose estimada.</div>
+      <div id="traceParkingInfo" style="font-size:12px;color:var(--mute);margin-top:5px">Candidato de parqueo: esperando cámara.</div>
+      <div class="row legend"><span>gris: LiDAR</span><span>rojo / verde: color asociado</span><span>rosa: candidato de cámara</span></div>
+      <button id="downloadTrace" type="button">Descargar mapa (.bin)</button>
+    </div>
     <div class="panel two">
       <div><h2>Controlador</h2><div class="kv" id="telemetry"></div></div>
       <div><h2>Juez (reglamento WRO)</h2><div class="kv" id="judge"></div><div id="violations" class="bad" style="margin-top:6px;font-size:12px"></div></div>

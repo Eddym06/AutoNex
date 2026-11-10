@@ -1,0 +1,230 @@
+[
+  {
+    "direction": "ccw",
+    "seed": 1,
+    "seconds": 3.07,
+    "end_reason": "wrong-side",
+    "scans": 16,
+    "cells": 684,
+    "clipped": 0,
+    "semantic": {
+      "red": {
+        "cells": 0,
+        "within_5cm": 0
+      },
+      "green": {
+        "cells": 0,
+        "within_5cm": 0
+      },
+      "magenta": {
+        "cells": 3,
+        "within_5cm": 3
+      }
+    },
+    "distance_to_nearest_true_solid_cm": {
+      "n": 684,
+      "p50": 1.25,
+      "p95": 6.25,
+      "max": 8.75,
+      "above5": 39
+    },
+    "pose_error_cm": {
+      "n": 3,
+      "p50": 0.91,
+      "p95": 1.54,
+      "max": 1.54,
+      "above5": 0
+    },
+    "wall_perimeter": {
+      "samples": 3248,
+      "near": 1251,
+      "percent": 38.52,
+      "tolerance_cm": 3.75
+    },
+    "limiter_perimeters_away_from_walls": [
+      {
+        "samples": 26,
+        "near": 20,
+        "percent": 76.92,
+        "tolerance_cm": 3.75
+      },
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      }
+    ]
+  },
+  {
+    "direction": "ccw",
+    "seed": 3,
+    "seconds": 44.5,
+    "end_reason": "wrong-side",
+    "scans": 430,
+    "cells": 4139,
+    "clipped": 0,
+    "semantic": {
+      "red": {
+        "cells": 7,
+        "within_5cm": 5
+      },
+      "green": {
+        "cells": 3,
+        "within_5cm": 3
+      },
+      "magenta": {
+        "cells": 19,
+        "within_5cm": 17
+      }
+    },
+    "distance_to_nearest_true_solid_cm": {
+      "n": 4139,
+      "p50": 3.75,
+      "p95": 9.25,
+      "max": 16.25,
+      "above5": 989
+    },
+    "pose_error_cm": {
+      "n": 44,
+      "p50": 1.75,
+      "p95": 2.89,
+      "max": 3.87,
+      "above5": 0
+    },
+    "wall_perimeter": {
+      "samples": 3248,
+      "near": 3248,
+      "percent": 100,
+      "tolerance_cm": 3.75
+    },
+    "limiter_perimeters_away_from_walls": [
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      },
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      }
+    ]
+  },
+  {
+    "direction": "cw",
+    "seed": 1,
+    "seconds": 161.12,
+    "end_reason": "finished",
+    "scans": 1597,
+    "cells": 3784,
+    "clipped": 0,
+    "semantic": {
+      "red": {
+        "cells": 3,
+        "within_5cm": 3
+      },
+      "green": {
+        "cells": 4,
+        "within_5cm": 4
+      },
+      "magenta": {
+        "cells": 48,
+        "within_5cm": 35
+      }
+    },
+    "distance_to_nearest_true_solid_cm": {
+      "n": 3784,
+      "p50": 1.75,
+      "p95": 8.75,
+      "max": 13.75,
+      "above5": 720
+    },
+    "pose_error_cm": {
+      "n": 160,
+      "p50": 1.63,
+      "p95": 3.41,
+      "max": 4.4,
+      "above5": 0
+    },
+    "wall_perimeter": {
+      "samples": 3248,
+      "near": 3248,
+      "percent": 100,
+      "tolerance_cm": 3.75
+    },
+    "limiter_perimeters_away_from_walls": [
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      },
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      }
+    ]
+  },
+  {
+    "direction": "cw",
+    "seed": 3,
+    "seconds": 9.73,
+    "end_reason": "wrong-side",
+    "scans": 83,
+    "cells": 1350,
+    "clipped": 0,
+    "semantic": {
+      "red": {
+        "cells": 2,
+        "within_5cm": 2
+      },
+      "green": {
+        "cells": 0,
+        "within_5cm": 0
+      },
+      "magenta": {
+        "cells": 8,
+        "within_5cm": 8
+      }
+    },
+    "distance_to_nearest_true_solid_cm": {
+      "n": 1350,
+      "p50": 1.25,
+      "p95": 4.25,
+      "max": 8.75,
+      "above5": 45
+    },
+    "pose_error_cm": {
+      "n": 9,
+      "p50": 0.69,
+      "p95": 1.63,
+      "max": 1.63,
+      "above5": 0
+    },
+    "wall_perimeter": {
+      "samples": 3248,
+      "near": 2053,
+      "percent": 63.21,
+      "tolerance_cm": 3.75
+    },
+    "limiter_perimeters_away_from_walls": [
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      },
+      {
+        "samples": 26,
+        "near": 26,
+        "percent": 100,
+        "tolerance_cm": 3.75
+      }
+    ]
+  }
+]

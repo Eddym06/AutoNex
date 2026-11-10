@@ -1,0 +1,67 @@
+{
+  "status": "hipotesis_no_confirmada",
+  "wall": {
+    "normal": [
+      6.123233995736766e-17,
+      1.0
+    ],
+    "offset_cm": -149.98373983739836,
+    "support_span_cm": 83.0,
+    "region_cells": 414,
+    "best_support_cells": 246,
+    "competing_orientations": 0
+  },
+  "markers": [
+    {
+      "wall_end": [
+        25.627906976744175,
+        -149.98373983739836
+      ],
+      "lane_end_nominal": [
+        25.627906976744175,
+        -129.98373983739836
+      ],
+      "evidence_start": [
+        25.627906976744175,
+        -146.35
+      ],
+      "evidence_end": [
+        25.627906976744175,
+        -130.0
+      ],
+      "support_cells": 74,
+      "visible_extent_cm": 18.0
+    },
+    {
+      "wall_end": [
+        -15.17500000000001,
+        -149.98373983739836
+      ],
+      "lane_end_nominal": [
+        -15.175000000000008,
+        -129.98373983739836
+      ],
+      "evidence_start": [
+        -15.17500000000001,
+        -146.3
+      ],
+      "evidence_end": [
+        -15.175000000000008,
+        -130.0
+      ],
+      "support_cells": 75,
+      "visible_extent_cm": 18.0
+    }
+  ],
+  "spacing_cm": 40.80290697674418,
+  "alternatives": 1,
+  "ambiguity_reasons": [],
+  "raw_returns": 41101,
+  "grid_cells": 3236,
+  "warning": "geometria candidata; no confirma identidad ni ausencia de obstáculos",
+  "geometry_assumptions_cm": {
+    "lot_length": 39.0,
+    "limiter_width": 20.0,
+    "limiter_thickness": 2.0
+  }
+}

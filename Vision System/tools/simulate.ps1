@@ -26,6 +26,8 @@ Invoke-CTest 'vision' @('-I', $vm, '-I', $shared, "$vm\vision.c", "$shared\confi
 Invoke-CTest 'vision_config_cmd' @('-I', $vm, '-I', $shared, "$vm\vision.c", "$vm\vision_config_cmd.c", "$shared\config_fields.c", "$shared\sensor_table_protocol.c", "$visionRoot\tests\test_vision_config_cmd.c")
 Invoke-CTest 'vision_table' @('-I', $vm, '-I', $shared, "$vm\vision.c", "$vm\vision_table.c", "$shared\config_fields.c", "$shared\sensor_table_protocol.c", "$visionRoot\tests\test_vision_table.c")
 Invoke-CTest 'lidar_map' @('-I', "$lidar\main", "$lidar\main\local_obstacle_map.c", "$lidar\tests\test_local_obstacle_map.c")
+Invoke-CTest 'trace_map' @('-I', "$lidar\main", "$lidar\main\trace_map.c", "$lidar\main\trace_parking.c", "$lidar\tests\test_trace_map.c")
+Invoke-CTest 'trace_parking_consistency' @('-I', "$lidar\main", "$lidar\main\trace_parking.c", "$lidar\tests\test_trace_parking.c")
 Invoke-CTest 'planner_fusion' @('-I', "$lidar\main", "$lidar\main\local_obstacle_map.c", "$lidar\tests\test_planner_fusion.c")
 Invoke-CTest 'camera_link' @('-I', "$lidar\main", '-I', "$lidar\orchestrator", '-I', $shared, "$lidar\main\camera_table_receiver.c", "$lidar\tests\test_camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$lidar\main\local_obstacle_map.c")
 Invoke-CTest 'imu_yaw' @('-I', "$lidar\main", "$lidar\main\imu_yaw.c", "$lidar\tests\test_imu_yaw.c")
@@ -35,10 +37,10 @@ Invoke-CTest 'arena_localizer' @('-I', "$lidar/main", "$lidar/main/arena_localiz
 Invoke-CTest 'race_line' @('-I', "$lidar/main", "$lidar/main/race_line.c", "$lidar/tests/test_race_line.c")
 Invoke-CTest 'park_ackermann' @('-I', "$lidar\main", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\tests\test_park_ackermann.c")
 Invoke-CTest 'park_planner' @('-I', "$lidar\main", "$lidar\main\park_planner.c", "$lidar\tests\test_park_planner.c")
-Invoke-CTest 'wro_controller' @('-I', "$lidar\main", '-I', "$lidar\orchestrator", '-I', $shared, "$lidar\orchestrator\wro_controller.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c", "$lidar\tests\test_wro_controller.c")
-Invoke-CTest 'p4_runtime' @('-I', "$lidar\main", '-I', "$lidar\orchestrator", '-I', $shared, "$lidar\orchestrator\p4_runtime.c", "$lidar\orchestrator\wro_controller.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c", "$lidar\tests\test_p4_runtime.c")
+Invoke-CTest 'wro_controller' @('-I', "$lidar\main", '-I', "$lidar\orchestrator", '-I', $shared, "$lidar\orchestrator\wro_controller.c", "$lidar\main\trace_map.c", "$lidar\main\trace_parking.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c", "$lidar\tests\test_wro_controller.c")
+Invoke-CTest 'p4_runtime' @('-I', "$lidar\main", '-I', "$lidar\orchestrator", '-I', $shared, "$lidar\orchestrator\p4_runtime.c", "$lidar\orchestrator\wro_controller.c", "$lidar\main\trace_map.c", "$lidar\main\trace_parking.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c", "$lidar\tests\test_p4_runtime.c")
 # Arranque de los motores con el codigo real del P4 (driver LEDC sustituido): gnu11 porque hw_motors.c usa M_PI de newlib.
-$motorSrc = @("$lidar\orchestrator\p4_runtime.c", "$lidar\orchestrator\wro_controller.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c")
+$motorSrc = @("$lidar\orchestrator\p4_runtime.c", "$lidar\orchestrator\wro_controller.c", "$lidar\main\trace_map.c", "$lidar\main\trace_parking.c", "$lidar\main\park_ackermann.c", "$lidar\main\park_planner.c", "$lidar\main\park_localize.c", "$lidar\main\odometry.c", "$lidar\main\arena_localizer.c", "$lidar\main\race_line.c", "$lidar\main\imu_yaw.c", "$lidar\main\local_obstacle_map.c", "$lidar\main\camera_table_receiver.c", "$shared\sensor_table_protocol.c", "$shared\config_fields.c")
 & gcc -std=gnu11 -Wall -Wextra -Wno-unused-variable -O2 -I"$lidar\tests\esp_stub" -I"$lidar\main" -I"$lidar\orchestrator" -I"$shared" -I"$lidar\p4_firmware\main" -o (Join-Path $build "motor_start.exe") "$lidar\tests\test_motor_start.c" "$lidar\tests\esp_stub\ledc_stub.c" "$lidar\p4_firmware\main\hw_motors.c" @motorSrc -lm
 if ($LASTEXITCODE -ne 0) { throw 'motor_start: la compilacion fallo' }
 & (Join-Path $build 'motor_start.exe')
@@ -73,6 +75,8 @@ if ($LASTEXITCODE -ne 0) { throw 'La salida del cajon falló' }
 if ($LASTEXITCODE -ne 0) { throw 'La entrada del cajon falló' }
 & node (Join-Path $repoRoot 'simulator\tests\test_ui_smoke.js')
 if ($LASTEXITCODE -ne 0) { throw 'La interfaz no arranca' }
+& python (Join-Path $repoRoot 'simulator\tests\test_trace_parking.py')
+if ($LASTEXITCODE -ne 0) { throw 'El detector C de trace_parking falló' }
 if (-not $Quick) {
     & node (Join-Path $repoRoot 'simulator\tests\test_missions.js')
     if ($LASTEXITCODE -ne 0) { throw 'Las rondas completas fallaron' }

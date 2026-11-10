@@ -1,0 +1,232 @@
+[
+  {
+    "direction": "ccw",
+    "seed": 1,
+    "signs": 0,
+    "t": 140.92,
+    "end": "finished",
+    "events": [
+      {
+        "t": 0.5,
+        "seen": false,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": null,
+        "bearing": null
+      },
+      {
+        "t": 2,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": -39.540443420410156,
+          "z": -100.91561889648438,
+          "theta": 92.74102020263672
+        },
+        "bearing": [
+          19.42399787902832,
+          39.42399597167969
+        ]
+      },
+      {
+        "t": 2.51,
+        "seen": true,
+        "status": 1,
+        "wallCells": 18,
+        "alternatives": 1,
+        "cameraPose": {
+          "x": -39.540443420410156,
+          "z": -100.91561889648438,
+          "theta": 92.74102020263672
+        },
+        "bearing": [
+          19.42399787902832,
+          39.42399597167969
+        ],
+        "errors_cm": [
+          1.5,
+          2.22
+        ]
+      },
+      {
+        "t": 104.9,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": -94.82096099853516,
+          "z": -91.86239624023438,
+          "theta": 149.104736328125
+        },
+        "bearing": [
+          -39.42399597167969,
+          -19.42399787902832
+        ]
+      },
+      {
+        "t": 105.9,
+        "seen": true,
+        "status": 1,
+        "wallCells": 64,
+        "alternatives": 1,
+        "cameraPose": {
+          "x": -94.82096099853516,
+          "z": -91.86239624023438,
+          "theta": 149.104736328125
+        },
+        "bearing": [
+          -39.42399597167969,
+          -19.42399787902832
+        ],
+        "errors_cm": [
+          3.95,
+          4.08
+        ]
+      }
+    ],
+    "candidate_errors": {
+      "samples": 274,
+      "p95_cm": 4.08,
+      "max_cm": 4.08
+    },
+    "memory_errors": [
+      3.95,
+      4.08
+    ]
+  },
+  {
+    "direction": "cw",
+    "seed": 1,
+    "signs": 0,
+    "t": 136.82,
+    "end": "finished",
+    "events": [
+      {
+        "t": 0.5,
+        "seen": false,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": null,
+        "bearing": null
+      },
+      {
+        "t": 29.77,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": 98.82734680175781,
+          "z": -0.30074942111968994,
+          "theta": -177.46630859375
+        },
+        "bearing": [
+          17.24744987487793,
+          37.24745178222656
+        ]
+      },
+      {
+        "t": 30.77,
+        "seen": true,
+        "status": 1,
+        "wallCells": 50,
+        "alternatives": 1,
+        "cameraPose": {
+          "x": 98.82734680175781,
+          "z": -0.30074942111968994,
+          "theta": -177.46630859375
+        },
+        "bearing": [
+          17.24744987487793,
+          37.24745178222656
+        ],
+        "errors_cm": [
+          1.28,
+          2.39
+        ]
+      },
+      {
+        "t": 64.9,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": 101.2405014038086,
+          "z": 0.1109018623828888,
+          "theta": -176.80967712402344
+        },
+        "bearing": [
+          17.24744987487793,
+          37.24745178222656
+        ]
+      },
+      {
+        "t": 65.9,
+        "seen": true,
+        "status": 2,
+        "wallCells": 50,
+        "alternatives": 3,
+        "cameraPose": {
+          "x": 101.2405014038086,
+          "z": 0.1109018623828888,
+          "theta": -176.80967712402344
+        },
+        "bearing": [
+          17.24744987487793,
+          37.24745178222656
+        ]
+      },
+      {
+        "t": 69.9,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": 77.62454223632812,
+          "z": -97.85523986816406,
+          "theta": -96.25228881835938
+        },
+        "bearing": [
+          -31.423246383666992,
+          -11.423246383666992
+        ]
+      },
+      {
+        "t": 70.9,
+        "seen": true,
+        "status": 1,
+        "wallCells": 63,
+        "alternatives": 1,
+        "cameraPose": {
+          "x": 77.62454223632812,
+          "z": -97.85523986816406,
+          "theta": -96.25228881835938
+        },
+        "bearing": [
+          -31.423246383666992,
+          -11.423246383666992
+        ],
+        "errors_cm": [
+          1.97,
+          2.96
+        ]
+      }
+    ],
+    "candidate_errors": {
+      "samples": 200,
+      "p95_cm": 2.96,
+      "max_cm": 2.96
+    },
+    "memory_errors": [
+      1.97,
+      2.09
+    ]
+  }
+]

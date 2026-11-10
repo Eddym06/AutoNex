@@ -39,7 +39,7 @@
     const imports = { wasi_snapshot_preview1: { fd_close: () => 0, fd_seek: () => 0, fd_write: () => 0 } };
     const result = await WebAssembly.instantiate(source, imports);
     const x = (result.instance || result).exports;
-    const expected = { core_abi_version: 2, core_cmd_fields: 86, core_vision_fields: 125,
+    const expected = { core_abi_version: 2, core_cmd_fields: 88, core_vision_fields: 125,
       core_debug_fields: 345, core_debug_route_points: 48, core_debug_camera_objects: 12, core_max_points: 512 };
     for (const [name, value] of Object.entries(expected)) {
       if (typeof x[name] !== 'function' || x[name]() !== value)
@@ -78,13 +78,14 @@
     }
 
     function readCommand() {
-      const o = f32(x.core_cmd_ptr(), 86).slice();
+      const o = f32(x.core_cmd_ptr(), 88).slice();
       return {
         action: ACTIONS[o[0]] || 'STOP', actionId: o[0], steer: o[1], speed: o[2], phase: PHASES[o[3]] || 'FAULT',
         done: o[4] > 0, corners: o[5], laps: o[6], direction: o[7], reversed: o[8] > 0, yaw: o[9], course: o[10],
         front: o[11], left: o[12], right: o[13], lane: o[14], pass: o[15], elapsed: o[16], lastSign: o[17],
         escapePhase: o[18], escapes: o[19], escaping: o[20] > 0, cameraHits: o[21], cameraUnmatched: o[22], cameraFresh: o[23] > 0, yawRate: o[24], explicitYawRate: o[25] > 0, freeCm: o[26], sidestep: o[32], sidestepSide: o[33], pivoting: o[34] > 0, arena: { x: o[48], z: o[49], theta: o[50], valid: o[51] > 0, inliers: o[52], used: o[53], rms: o[54], updates: o[55] }, odom: { x: o[40], y: o[41], path: o[42], slipCm: o[43], inUse: o[44] > 0, v: o[45], heading: o[46], slips: o[47] }, lapMem: { inject: o[35], anchored: o[36], live: o[37], err: o[38], off: o[39] }, park: { u: o[27], w: o[28], theta: o[29], lost: o[30], move: o[31] },
         hug: { active: o[82] > 0, cmd: o[83], target: o[84], hold: o[85] },
+        moveCm: o[86], moveId: o[87],
         race: { valid: o[56] > 0, idx: o[57], active: o[58] > 0, vLine: o[59], vCmd: o[60], lat: o[61], dist: o[62], hold: o[63], time: o[64], timeCenter: o[65], length: o[66], mix: o[67], n: o[68], tried: o[69] > 0, signs: o[70], grip: o[80], slips: o[81], refRows: o[71], ref: [o[72], o[73], o[74], o[75], o[76], o[77], o[78], o[79]] }
       };
     }
@@ -163,7 +164,44 @@
         return out;
       },
       watchdog(nowUs) { return x.core_ctrl_watchdog(nowUs) === 1 ? readCommand() : null; },
+      /* MIC: control del motor (Motor Control/MIC). El simulador lo ejecuta a 1 kHz dentro de cada paso de fisica. */
+      hasMic() { return typeof x.core_mic_init === 'function'; },
+      micInit() { x.core_mic_init(); },
+      micCmPerCount() { return x.core_mic_cm_per_count(); },
+      micRequestSpeed(v, decel) { x.core_mic_request_speed(v, decel ? 1 : 0); },
+      micStop(decel) { x.core_mic_stop(decel ? 1 : 0); },
+      micRequestMove(distCm, vCruise, vEnd, decel) { x.core_mic_request_move(distCm, vCruise, vEnd, decel ? 1 : 0); },
+      micUpdate(counts, vbat, dt) {
+        x.core_mic_update(counts, vbat, dt);
+        const o = f32(x.core_mic_ptr(), 10);
+        return { duty: o[0], brakeShort: o[1] > 0, phase: o[2], v: o[3], pos: o[4], vRef: o[5],
+                 emergency: o[6] > 0, current: o[7], done: o[8] > 0, disturbance: o[9] };
+      },
       arcClear(steerDeg, distance) { return x.core_arc_clear(steerDeg, distance) === 1; },
+      /* Objetos del mapa persistente: [{id, kind (1 pared, 2 pilar, 3 barra), color (1 rojo, 2 verde, 3 magenta), confidence, x, z, length, width, axis, cells}]. */
+      traceObjects() {
+        const n = f32(x.core_trace_objects_ptr(), 1)[0] | 0, o = f32(x.core_trace_objects_ptr(), 1 + 10 * n).slice(), out = [];
+        for (let i = 0; i < n; i++) { const p = 1 + 10 * i; out.push({ id: o[p], kind: o[p + 1], color: o[p + 2], confidence: o[p + 3], x: o[p + 4], z: o[p + 5], length: o[p + 6], width: o[p + 7], axis: o[p + 8], cells: o[p + 9] }); }
+        return out;
+      },
+      /* Plaza de parqueo del mapa: status 0 ninguna, 1 hipotesis, 2 confirmada. */
+      traceSpot() {
+        const o = f32(x.core_trace_spot_ptr(), 12).slice();
+        return { status: o[0], x: o[1], z: o[2], axis: o[3], length: o[4], width: o[5], bars: [[o[6], o[7]], [o[8], o[9]]], confidence: o[10], wall: o[11] };
+      },
+      traceMap() {
+        const size=x.core_trace_map_size();
+        return { size, cellCm:x.core_trace_map_cell_cm(), originCm:x.core_trace_map_origin_cm(),
+          bytes:x.core_trace_map_bytes(), occupied:x.core_trace_map_occupied(), scans:x.core_trace_map_scans(),
+          clipped:x.core_trace_map_clipped(), cleared:x.core_trace_map_cleared(), cells:u8(x.core_trace_map_ptr(),size*size).slice(),
+          miss:u8(x.core_trace_map_miss_ptr(),size*size).slice() };
+      },
+      traceParking() {
+        const p=f32(x.core_trace_parking_ptr(),19).slice();
+        return { seen:!!p[0],status:p[1]|0,points:[{x:p[2],z:p[3]},{x:p[4],z:p[5]}],spacing:p[6],alternatives:p[7]|0,
+          wallCells:p[8]|0,cameraPose:{x:p[9],z:p[10],theta:p[11]},bearing:[p[12],p[13]],
+          memory:p[14]?[{x:p[15],z:p[16]},{x:p[17],z:p[18]}]:null };
+      },
       mapSize() { return x.core_map_size(); },
       mapCellCm() { return x.core_map_cell_cm(); },
       map() { const n = x.core_map_size(); return u8(x.core_map_ptr(), n * n).slice(); },

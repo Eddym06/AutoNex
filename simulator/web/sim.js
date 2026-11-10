@@ -59,6 +59,14 @@
         robotCfg.wheelDiameterR = dia * (1 + encRng.range(-1, 1) * enc.diameterErrorPct / 100);
       }
       this.robot = new R.Robot(robotCfg);
+      /* MIC: la traccion pasa por el controlador del motor (Motor Control/MIC) con un motor fisico. */
+      this.mic = !!o.mic;
+      if (this.mic) {
+        if (!core.hasMic()) throw new Error('WASM sin MIC: recompilalo (simulator/wasm/build.ps1)');
+        if (this.robot.cfg.drive !== 'bicycle') throw new Error('MIC solo con el chasis Ackermann (bicycle)');
+        core.micInit();
+        this.robot.enableMotor((counts, vbat, h) => core.micUpdate(counts, vbat, h), o.motor);
+      }
       this.robot.rng = encRng;
       this.encoders = new S.Encoders(o.encoder, encRng);
       if (this.robot.cfg.drive === 'bicycle' && this.encoders.cfg.enabled && !core.hasAxleEncoder())
@@ -166,9 +174,18 @@
           this.note('fase ' + this.lastPhase + ' -> ' + cmd.phase);
           this.lastPhase = cmd.phase;
         }
-        this.schedule(this.t + this.options.cmdDelayMs / 1000, 'cmd', { steer: cmd.steer, speed: cmd.speed, yawRate: cmd.yawRate });
+        this.schedule(this.t + this.options.cmdDelayMs / 1000, 'cmd', { steer: cmd.steer, speed: cmd.speed, yawRate: cmd.yawRate, moveCm: cmd.moveCm, moveId: cmd.moveId });
       } else if (e.type === 'cmd') {
         this.robot.cmd = { steer: e.payload.steer, speed: e.payload.speed, yawRate: e.payload.yawRate };
+        if (this.mic) {
+          /* Avance exacto nuevo (move_id distinto): MIC lo ejecuta y queda parado; si no, solo velocidad. */
+          if (e.payload.moveCm && e.payload.moveId !== this.lastMoveId) {
+            this.lastMoveId = e.payload.moveId;
+            this.core.micRequestMove(e.payload.moveCm, Math.max(Math.abs(e.payload.speed), 4), 0, false);
+          } else if (!e.payload.moveCm) {
+            this.core.micRequestSpeed(e.payload.speed, false);
+          }
+        }
       } else if (e.type === 'enc') {
         if (this.robot.cfg.drive === 'bicycle') core.axleEncoder(e.payload.t * 1e6, e.payload.axle);
         else core.encoders(e.payload.t * 1e6, e.payload.left, e.payload.right);
@@ -239,6 +256,7 @@
           this.cmd = stop;
           this.queue = this.queue.filter(e => e.type !== 'cmd');
           this.robot.cmd = { steer: 0, speed: 0 };
+          if (this.mic) this.core.micStop(true);
         }
       }
       const body = this.robot.body();

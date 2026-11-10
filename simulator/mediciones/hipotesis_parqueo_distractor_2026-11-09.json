@@ -1,0 +1,69 @@
+{
+  "status": "hipotesis_ambigua",
+  "wall": {
+    "normal": [
+      6.123233995736766e-17,
+      1.0
+    ],
+    "offset_cm": -149.98206278026905,
+    "support_span_cm": 76.0,
+    "region_cells": 473,
+    "best_support_cells": 223,
+    "competing_orientations": 0
+  },
+  "markers": [
+    {
+      "wall_end": [
+        25.450381679389302,
+        -149.98206278026905
+      ],
+      "lane_end_nominal": [
+        25.450381679389302,
+        -129.98206278026905
+      ],
+      "evidence_start": [
+        25.450381679389302,
+        -146.25
+      ],
+      "evidence_end": [
+        25.450381679389302,
+        -129.75
+      ],
+      "support_cells": 76,
+      "visible_extent_cm": 18.0
+    },
+    {
+      "wall_end": [
+        -15.15432098765433,
+        -149.98206278026905
+      ],
+      "lane_end_nominal": [
+        -15.154320987654328,
+        -129.98206278026905
+      ],
+      "evidence_start": [
+        -15.15432098765433,
+        -146.25
+      ],
+      "evidence_end": [
+        -15.154320987654328,
+        -129.75
+      ],
+      "support_cells": 76,
+      "visible_extent_cm": 18.0
+    }
+  ],
+  "spacing_cm": 40.60470266704363,
+  "alternatives": 2,
+  "ambiguity_reasons": [
+    "varias parejas compatibles"
+  ],
+  "raw_returns": 51005,
+  "grid_cells": 3606,
+  "warning": "geometria candidata; no confirma identidad ni ausencia de obstáculos",
+  "geometry_assumptions_cm": {
+    "lot_length": 39.0,
+    "limiter_width": 20.0,
+    "limiter_thickness": 2.0
+  }
+}

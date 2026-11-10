@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict');const {observedGrid,observedCollision,boxDistance}=require('../tools/parking_cloud_collision.js');
+const pose={x:0,z:0,theta:0},scan={estimated_current:pose,rays:[[0,0,15,1,0],[0,0,15,1,0]]};
+const grid=observedGrid([scan],10),body={x:0,z:25,w:13,d:26,rot:0};
+assert(grid.has('0,25'));assert(observedCollision(body,grid),'retorno dentro del chasis detectado');
+assert(!observedCollision({...body,x:50},grid),'retorno lejano no bloquea');
+assert.equal(boxDistance(body,body),0);assert.equal(boxDistance(body,{...body,x:50}),37);
+assert.equal(observedGrid([{...scan,rays:[scan.rays[0]]}],10).size,0,'un retorno aislado no crea evidencia repetida');
+assert(!observedCollision(body,new Set()),'una celda desconocida no genera un retorno inventado');
+console.log('PASS: comprobación experimental de retornos en la huella');

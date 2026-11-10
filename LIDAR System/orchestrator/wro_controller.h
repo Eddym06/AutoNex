@@ -14,6 +14,8 @@
 #include "park_planner.h"
 #include "park_ackermann.h"
 #include "race_line.h"
+#include "trace_map.h"
+#include "trace_parking.h"
 
 /* Controlador de la mision del P4 (WRO Future Engineers, reto con obstaculos).
  *
@@ -43,6 +45,7 @@ typedef enum {
     WRO_PHASE_PARK_EXIT       /* arranco dentro del cajon: salir al carril (reglamento 2026: 7 puntos) */
 } wro_phase_t;
 
+#define PARK_TRACE_MAX 160
 typedef struct {
     local_planner_config_t planner;
 
@@ -134,6 +137,7 @@ typedef struct {
      * Se desactiva por defecto: el robot no puede saber si la pista tiene cajon. */
     bool parking_enabled;           /* al terminar las vueltas, buscar el cajon y aparcar */
     bool park_ackermann;            /* maniobras con avance y reversa, sin pivote */
+    bool park_exact_moves;          /* cada arco del parqueo se pide a MIC como avance exacto */
     bool start_in_lot;              /* arranca dentro del cajon: primero sale a la pista */
     float park_speed_cm_s;          /* avance/retroceso en las maniobras */
     float park_rot_dps;             /* giro en el sitio, maximo */
@@ -180,6 +184,10 @@ typedef struct {
      * explicit_yaw_rate. Un robot diferencial reparte velocidad y giro entre sus dos ruedas. */
     float yaw_rate_dps;
     bool explicit_yaw_rate;
+    /* Avance exacto (cm, con signo; 0 = ninguno) que el control del motor (MIC) debe ejecutar y dejar parado.
+     * move_id cambia con cada avance nuevo y se repite mientras dura. speed_cm_s es la velocidad de crucero. */
+    float move_cm;
+    uint32_t move_id;
 } wro_command_t;
 
 typedef struct {
@@ -227,6 +235,14 @@ typedef struct {
      * la linea de carrera. */
     struct { float x_cm, z_cm, fx_cm, fz_cm; uint8_t color, hits; bool used; } world_signs[16];
     size_t live_colored;            /* objetos con color de este escaneo que vienen de la camara (no de la memoria) */
+    trace_map_t trace_map;          /* mapa persistente: espacio ocupado/libre, objetos con color y plaza (ver trace_map.h) */
+    trace_parking_observation_t trace_park_observation;
+    trace_parking_result_t trace_park_result;
+    trace_parking_result_t trace_park_last_candidate;
+    trace_parking_result_t trace_park_first_candidate;
+    bool trace_park_seen;
+    bool trace_park_has_memory;
+    uint64_t trace_park_observation_us;
     arena_loc_t arena;              /* pose en el campo (odometria corregida con el LiDAR) */
     float arena_yaw_off;            /* rumbo del campo = rumbo del giroscopio + esto */
     float map_lead_cm, map_lead_deg;   /* el mapa del planificador esta adelantado a la hora en que la orden hace efecto: avance y giro que lleva sobre la pose del campo */
@@ -268,6 +284,17 @@ typedef struct {
     bool park_symmetric;            /* la entrada de esta ronda arranca donde acabo la salida */
     park_pose_t park_exit_pose;     /* donde acabo la salida, medido en esta ronda */
     bool park_exit_valid;
+    float park_move_cm;             /* avance exacto del arco en curso (0 = el arco se mide por odometria) */
+    uint32_t move_id;               /* contador de avances exactos pedidos */
+    float park_trace_dt, park_trace_steer_deg;   /* periodo del barrido y ultimo volante puesto (marco del cajon) */
+    bool park_twin_ok;              /* el filtro de la pose ya tiene una pose previa */
+    /* Traza real de la salida (pose estimada cada ~0,8 cm), para recorrerla al reves al entrar. */
+    float park_trace_u[PARK_TRACE_MAX], park_trace_w[PARK_TRACE_MAX], park_trace_th[PARK_TRACE_MAX];
+    float park_trace_kappa[PARK_TRACE_MAX];   /* curvatura (1/cm) del tramo que llego a este punto */
+    int8_t park_trace_dir[PARK_TRACE_MAX];     /* sentido de ese tramo */
+    unsigned park_trace_n;
+    int park_trace_k, park_trace_cur_dir, park_trace_hold, park_trace_extra;
+    bool park_trace_done;
     park_pose_t park_plan_pose;     /* pose que toca segun el plan (avance a ciegas de sus arcos) */
     float park_arc_theta0_deg, park_arc_dtheta_deg;   /* rumbo al empezar el arco y giro que le toca */
     int park_settle;                /* barridos quieto con el volante ya puesto (ver park_step) */

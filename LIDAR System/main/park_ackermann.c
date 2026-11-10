@@ -24,6 +24,15 @@
 #define PARK_REVERSE_COST 12.0f
 #define RAD (PI_F / 180.0f)
 #define NEVER 1.0e20f
+#ifndef PARK_GOAL_TH_IN_DEG
+#define PARK_GOAL_TH_IN_DEG 4.0f
+#endif
+#ifndef PARK_CLEAR_PENALTY
+#define PARK_CLEAR_PENALTY 1.0f      /* cm de coste por subpaso a menos de margen+extra de un obstaculo */
+#endif
+#ifndef PARK_CLEAR_EXTRA_CM
+#define PARK_CLEAR_EXTRA_CM 1.5f
+#endif
 
 typedef struct { float u, w, theta, cost; int32_t parent; int8_t dir, steer; } node_t;
 typedef struct { float score; int32_t id; } heap_item_t;
@@ -62,7 +71,10 @@ static heap_item_t pop(void)
 }
 static bool goal_reached(const park_params_t *p, const park_pose_t *s, park_goal_t goal)
 {
-    if (fabsf(wrap(s->theta_deg)) > 10.0f) return false;
+    /* Al entrar, el juez da 'completo' con |sen(rumbo)| x batalla <= 2 cm (6,2 grados para esta batalla).
+     * La meta aceptaba hasta 10 grados y el error de rumbo estimado es ~1 grado: 3 de 24 rondas acababan
+     * en 6,2-6,6 grados, dentro del cajon pero 'parcial' (medido). */
+    if (fabsf(wrap(s->theta_deg)) > (goal == PARK_GOAL_IN ? PARK_GOAL_TH_IN_DEG : 10.0f)) return false;
     if (goal == PARK_GOAL_OUT) return s->w_cm >= p->lot_width_cm + p->robot_width_cm * 0.5f + 2.0f;
     const float len = p->lot_length_cm > 0 ? p->lot_length_cm : 1.5f * p->robot_length_cm;
     float c[4][2]; park_body_corners(p, s, c);
@@ -76,19 +88,27 @@ static float heuristic(const park_params_t *p, const park_pose_t *s, park_goal_t
     const float target_u = goal == PARK_GOAL_OUT ? s->u_cm : -(p->robot_length_cm * 0.5f - p->rear_overhang_cm);
     return 2.5f * hypotf(s->u_cm - target_u, s->w_cm - target_w) + fabsf(wrap(s->theta_deg)) * 0.12f;
 }
-static bool travel(const park_params_t *p, const park_ackermann_config_t *cfg, const park_pose_t *in,
-                   int dir, int steer, park_pose_t *out)
+static bool travel_pen(const park_params_t *p, const park_params_t *wide, const park_ackermann_config_t *cfg,
+                       const park_pose_t *in, int dir, int steer, park_pose_t *out, int *pen)
 {
     *out = *in;
     const float ds = dir * cfg->step_cm / 6.0f;
     const float curvature = tanf(steer * cfg->steer_max_deg * RAD) / cfg->wheelbase_cm;
+    int v = 0;
     for (int i = 0; i < 6; ++i) {
         const float dtheta = ds * curvature, mid = out->theta_deg * RAD + dtheta * 0.5f;
         out->u_cm += ds * cosf(mid); out->w_cm += ds * sinf(mid);
         out->theta_deg = wrap(out->theta_deg + dtheta / RAD);
         if (!park_pose_free(p, out)) return false;
+        if (wide && !park_pose_free(wide, out)) ++v;
     }
+    if (pen) *pen = v;
     return true;
+}
+static bool travel(const park_params_t *p, const park_ackermann_config_t *cfg, const park_pose_t *in,
+                   int dir, int steer, park_pose_t *out)
+{
+    return travel_pen(p, NULL, cfg, in, dir, steer, out, NULL);
 }
 
 bool park_ackermann_arc_free(const park_params_t *p, const park_ackermann_config_t *cfg,
@@ -117,6 +137,12 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
     cells[start_cell] = start_id;
     nodes[start_id] = (node_t){start->u_cm, start->w_cm, wrap(start->theta_deg), 0, -1, (int8_t)cfg->previous_direction, 0};
     push(start_id, heuristic(p, start, goal));
+    /* Coste suave de holgura (solo al entrar): las soluciones del A* con exactamente la holgura de
+     * planeo rozan el tope y el error de pose (~0,5-1 cm) las aborta; las que tienen 1-2 cm de mas
+     * se ejecutan enteras (medido en 16 rondas). Se prefieren sin prohibir las apretadas. */
+    park_params_t wide = *p;
+    wide.margin_cm += PARK_CLEAR_EXTRA_CM;
+    const bool use_wide = goal == PARK_GOAL_IN && PARK_CLEAR_PENALTY > 0.0f;
     int end = -1;
     while (heap_n && result.expanded < MAX_NODES) {
         heap_item_t item = pop(); node_t cur = nodes[item.id];
@@ -126,7 +152,8 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
         if (goal_reached(p, &pose, goal)) { end = item.id; break; }
         for (int dir = -1; dir <= 1; dir += 2) for (int steer = -1; steer <= 1; ++steer) {
             park_pose_t next;
-            if (!travel(p, cfg, &pose, dir, steer, &next)) continue;
+            int pen = 0;
+            if (!travel_pen(p, use_wide ? &wide : NULL, cfg, &pose, dir, steer, &next, &pen)) continue;
             int cell = index_of(next.u_cm, next.w_cm, next.theta_deg);
             if (cell < 0) continue;
             int id = cells[cell];
@@ -135,7 +162,7 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
              * costaba lo mismo que un arco de 3,5 cm y el plan salia a base de repasadas
              * (10 dentro del cajon). Cada repasada es tiempo y desgaste: se penaliza mas. */
             float cost = cur.cost + cfg->step_cm * (dir < 0 ? 1.1f : 1.0f) +
-                         (cur.dir && cur.dir != dir ? PARK_REVERSE_COST : 0.0f);
+                         (cur.dir && cur.dir != dir ? PARK_REVERSE_COST : 0.0f) + (float)pen * PARK_CLEAR_PENALTY;
             if (id >= 0 && cost >= nodes[id].cost) continue;
             if (id < 0) {
                 if (node_n >= MAX_NODES) continue;

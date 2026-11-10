@@ -973,6 +973,7 @@ static const float *plan_ref_v;
 static int plan_ref_rows;
 /* El corredor como polilinea desde el robot, para puntuar rutas contra el. */
 static float corridor_px[PLAN_ROWS + 1], corridor_pf[PLAN_ROWS + 1];
+static float corridor_tangent[PLAN_ROWS + 1];
 static int path_n;
 
 static void plan_corridor_margin(float reference_rad, float lane_cm, float margin_cm)
@@ -1085,6 +1086,12 @@ static void plan_corridor_margin(float reference_rad, float lane_cm, float margi
     corridor_px[0] = 0.0f; corridor_pf[0] = 0.0f;
     for (int k = 0; k <= last_row; ++k) { corridor_px[k + 1] = corridor.x[k]; corridor_pf[k + 1] = corridor.f[k]; }
     path_n = last_row + 2;
+    /* La tangente depende solo del corredor, no de las 343 rutas evaluadas. */
+    for (int i = 0; i < path_n; ++i) {
+        const int j = i + 1 < path_n ? i : i - 1;
+        corridor_tangent[i] = atan2f(corridor_px[j + 1] - corridor_px[j],
+                                     corridor_pf[j + 1] - corridor_pf[j]);
+    }
 }
 
 /* Con sitio se pasa con holgura (el seguimiento con acciones discretas no mantiene el centimetro: un paso planeado
@@ -1179,9 +1186,7 @@ static local_route_t route_cost(const uint8_t *actions, uint8_t camera_action,
                 const float d2 = dx * dx + df * df;
                 if (d2 < best_d2) { best_d2 = d2; nearest = pi; }
             }
-            const int pj = nearest + 1 < path_n ? nearest : nearest - 1;
-            const float tangent = atan2f(corridor_px[pj + 1] - corridor_px[pj],
-                                         corridor_pf[pj + 1] - corridor_pf[pj]);
+            const float tangent = corridor_tangent[nearest];
             const float dn = sqrtf(best_d2) / g->plan_path_scale_cm;
             lateral += weight * g->plan_w_path * dn * dn;
             float dth = theta - tangent;

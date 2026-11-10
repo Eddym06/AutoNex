@@ -17,8 +17,37 @@
 #include "vision_table.h"
 #include "wro_controller.h"
 #include "p4_runtime.h"
+#include "mic.h"
 
 #define EXPORT(name) __attribute__((export_name(name)))
+
+/* ------------------------------------------------------------------ MIC (control del motor) */
+static mic_t g_mic;
+static float g_mic_out[12];
+EXPORT("core_mic_init") void core_mic_init(void)
+{
+    mic_cfg_t cfg; mic_cfg_jgb37_520_1000rpm(&cfg); mic_init(&g_mic, &cfg);
+}
+EXPORT("core_mic_ptr") float *core_mic_ptr(void) { return g_mic_out; }
+EXPORT("core_mic_cm_per_count") float core_mic_cm_per_count(void) { return g_mic.cm_per_count; }
+EXPORT("core_mic_request_speed") void core_mic_request_speed(float v_cm_s, int decel)
+{
+    if (fabsf(v_cm_s) < 0.5f) mic_request_stop(&g_mic, decel ? MIC_DECEL_AGGRESSIVE : MIC_DECEL_PROGRESSIVE);
+    else mic_request_speed(&g_mic, v_cm_s, decel ? MIC_DECEL_AGGRESSIVE : MIC_DECEL_PROGRESSIVE);
+}
+EXPORT("core_mic_request_move") void core_mic_request_move(float dist_cm, float v_cruise, float v_end, int decel)
+{
+    mic_request_move(&g_mic, dist_cm, v_cruise, v_end, decel ? MIC_DECEL_AGGRESSIVE : MIC_DECEL_PROGRESSIVE);
+}
+EXPORT("core_mic_stop") void core_mic_stop(int decel) { mic_request_stop(&g_mic, decel ? MIC_DECEL_AGGRESSIVE : MIC_DECEL_PROGRESSIVE); }
+EXPORT("core_mic_update") void core_mic_update(int counts, float vbat, float dt)
+{
+    mic_in_t in = {.counts = counts, .vbat = vbat}; mic_out_t o;
+    mic_update(&g_mic, &in, dt, &o);
+    g_mic_out[0] = o.duty; g_mic_out[1] = o.brake_short ? 1.0f : 0.0f; g_mic_out[2] = (float)o.phase;
+    g_mic_out[3] = o.v_cm_s; g_mic_out[4] = o.pos_cm; g_mic_out[5] = o.v_ref_cm_s; g_mic_out[6] = o.emergency ? 1.0f : 0.0f;
+    g_mic_out[7] = o.i_est_a; g_mic_out[8] = o.done ? 1.0f : 0.0f; g_mic_out[9] = o.disturbance_ms2;
+}
 
 /* ------------------------------------------------------------------ vision */
 static uint8_t g_frame[VISION_WIDTH * VISION_HEIGHT * 2];
@@ -105,7 +134,7 @@ static camera_table_decoder_t g_decoder;
 static local_lidar_point_t g_points[LOCAL_MAP_MAX_POINTS];
 static float g_points_in[LOCAL_MAP_MAX_POINTS * 4];
 static wro_command_t g_cmd;
-#define CMD_FIELDS 86
+#define CMD_FIELDS 88
 static float g_cmd_out[CMD_FIELDS];
 /* Linea de carrera: n, y despues x, z, v de cada estacion. */
 static float g_race_out[2 + 3 * RACE_MAX_STATIONS + 3 * RACE_MAX_SIGNS];
@@ -132,6 +161,50 @@ EXPORT("core_park_dbg_ptr") float *core_park_dbg_ptr(void) { return g_park_dbg; 
 EXPORT("core_park_plan_ptr") float *core_park_plan_ptr(void) { return g_park_plan; }
 EXPORT("core_cmd_ptr") float *core_cmd_ptr(void) { return g_cmd_out; }
 EXPORT("core_map_ptr") uint8_t *core_map_ptr(void) { return g_map_cells; }
+/* Objetos del mapa persistente: [n, luego 10 floats por objeto: id, tipo, color, confianza, x, z, largo, ancho, eje, celdas]. */
+static float g_trace_objects[1 + 10 * TRACE_MAP_MAX_OBJECTS];
+/* Plaza: [estado, x, z, eje, largo, ancho, tope0 x, tope0 z, tope1 x, tope1 z, confianza, pared]. */
+static float g_trace_spot[12];
+EXPORT("core_trace_objects_ptr") float *core_trace_objects_ptr(void)
+{
+    size_t n; const trace_object_t *o = trace_map_objects(&g_ctrl.trace_map, &n);
+    g_trace_objects[0] = (float)n;
+    for (size_t i = 0; i < n; ++i) {
+        float *p = &g_trace_objects[1 + 10 * i];
+        p[0] = o[i].id; p[1] = o[i].kind; p[2] = o[i].color; p[3] = o[i].confidence; p[4] = o[i].x_cm; p[5] = o[i].z_cm;
+        p[6] = o[i].length_cm; p[7] = o[i].width_cm; p[8] = o[i].axis_deg; p[9] = o[i].cells;
+    }
+    return g_trace_objects;
+}
+EXPORT("core_trace_spot_ptr") float *core_trace_spot_ptr(void)
+{
+    const trace_spot_t *s = trace_map_spot(&g_ctrl.trace_map);
+    g_trace_spot[0] = (float)s->status; g_trace_spot[1] = s->x_cm; g_trace_spot[2] = s->z_cm; g_trace_spot[3] = s->axis_deg;
+    g_trace_spot[4] = s->length_cm; g_trace_spot[5] = s->width_cm; g_trace_spot[6] = s->bar_x_cm[0]; g_trace_spot[7] = s->bar_z_cm[0];
+    g_trace_spot[8] = s->bar_x_cm[1]; g_trace_spot[9] = s->bar_z_cm[1]; g_trace_spot[10] = s->confidence; g_trace_spot[11] = s->wall_side;
+    return g_trace_spot;
+}
+EXPORT("core_trace_map_cleared") int core_trace_map_cleared(void) { return (int)g_ctrl.trace_map.cleared_cells; }
+EXPORT("core_trace_map_miss_ptr") uint8_t *core_trace_map_miss_ptr(void) { return &g_ctrl.trace_map.miss[0][0]; }
+EXPORT("core_trace_map_ptr") uint8_t *core_trace_map_ptr(void) { return &g_ctrl.trace_map.cells[0][0]; }
+EXPORT("core_trace_map_size") int core_trace_map_size(void) { return TRACE_MAP_SIZE; }
+EXPORT("core_trace_map_cell_cm") float core_trace_map_cell_cm(void) { return TRACE_MAP_CELL_CM; }
+EXPORT("core_trace_map_origin_cm") float core_trace_map_origin_cm(void) { return TRACE_MAP_ORIGIN_CM; }
+EXPORT("core_trace_map_bytes") int core_trace_map_bytes(void) { return (int)sizeof(g_ctrl.trace_map); }
+EXPORT("core_trace_map_occupied") int core_trace_map_occupied(void) { return (int)g_ctrl.trace_map.occupied_cells; }
+EXPORT("core_trace_map_scans") int core_trace_map_scans(void) { return (int)g_ctrl.trace_map.scans; }
+EXPORT("core_trace_map_clipped") int core_trace_map_clipped(void) { return (int)g_ctrl.trace_map.clipped_points; }
+EXPORT("core_trace_parking_ptr") float *core_trace_parking_ptr(void) {
+    static float out[19];const trace_parking_result_t *r=&g_ctrl.trace_park_result;
+    out[0]=g_ctrl.trace_park_seen?1.0f:0.0f;out[1]=(float)r->status;
+    out[2]=r->wall_x[0];out[3]=r->wall_z[0];out[4]=r->wall_x[1];out[5]=r->wall_z[1];
+    out[6]=r->spacing_cm;out[7]=(float)r->alternatives;out[8]=(float)r->wall_cells;
+    out[9]=g_ctrl.trace_park_observation.camera_pose.x_cm;out[10]=g_ctrl.trace_park_observation.camera_pose.z_cm;
+    out[11]=g_ctrl.trace_park_observation.camera_pose.theta_deg;out[12]=g_ctrl.trace_park_observation.min_bearing_deg;
+    out[13]=g_ctrl.trace_park_observation.max_bearing_deg;out[14]=g_ctrl.trace_park_has_memory?1.0f:0.0f;
+    const trace_parking_result_t *m=&g_ctrl.trace_park_last_candidate;
+    out[15]=m->wall_x[0];out[16]=m->wall_z[0];out[17]=m->wall_x[1];out[18]=m->wall_z[1];return out;
+}
 EXPORT("core_map_size") int core_map_size(void) { return LOCAL_MAP_SIZE; }
 EXPORT("core_map_cell_cm") float core_map_cell_cm(void) { return LOCAL_MAP_CELL_CM; }
 EXPORT("core_debug_ptr") float *core_debug_ptr(void) { return g_debug_out; }
@@ -266,6 +339,7 @@ static void export_command(void)
     for (int k = 0; k < 8; ++k) o[72 + k] = g_ctrl.planner_state.ref_v_cm[3 * k];
     o[80] = g_ctrl.race_grip; o[81] = (float)g_ctrl.odom.slip_count;
     o[82] = g_ctrl.hug_active ? 1.0f : 0.0f; o[83] = g_ctrl.hug_cmd_cm; o[84] = g_ctrl.hug_target_cm; o[85] = g_ctrl.hug_hold_s;
+    o[86] = c->move_cm; o[87] = (float)c->move_id;
     if (g_ctrl.race.valid) {
         g_race_out[0] = (float)g_ctrl.race.n;
         for (int i = 0; i < g_ctrl.race.n; ++i) {

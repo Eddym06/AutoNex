@@ -1,0 +1,65 @@
+[
+  {
+    "direction": "ccw",
+    "seed": 2,
+    "signs": 0,
+    "t": 137.32,
+    "end": "finished",
+    "events": [
+      {
+        "t": 0.5,
+        "seen": false,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": null,
+        "bearing": null
+      },
+      {
+        "t": 33.81,
+        "seen": true,
+        "status": 0,
+        "wallCells": 0,
+        "alternatives": 0,
+        "cameraPose": {
+          "x": -96.16901397705078,
+          "z": -91.36579132080078,
+          "theta": 150.52349853515625
+        },
+        "bearing": [
+          -40.82537078857422,
+          -20.82537078857422
+        ]
+      },
+      {
+        "t": 34.83,
+        "seen": true,
+        "status": 1,
+        "wallCells": 71,
+        "alternatives": 1,
+        "cameraPose": {
+          "x": -96.16901397705078,
+          "z": -91.36579132080078,
+          "theta": 150.52349853515625
+        },
+        "bearing": [
+          -40.82537078857422,
+          -20.82537078857422
+        ],
+        "errors_cm": [
+          1.76,
+          1.34
+        ]
+      }
+    ],
+    "candidate_errors": {
+      "samples": 205,
+      "p95_cm": 1.76,
+      "max_cm": 1.76
+    },
+    "memory_errors": [
+      1.29,
+      1.68
+    ]
+  }
+]

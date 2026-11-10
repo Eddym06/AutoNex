@@ -90,3 +90,29 @@ fidelidad equivalente y sus diferencias no se deben sumar.
 arrancar una ronda. `simulator/tools/profile_controller.c` es el programa de la
 prueba nativa en Windows: se compila con GCC junto al controlador, planificador,
 localizador, odometría, mapa y protocolos. Ninguna de estas pruebas usa GPU.
+
+## Perfil por etapas y prueba de presupuesto (9 de noviembre de 2026)
+
+En Windows, ejecutar `powershell -File simulator/tools/profile_controller.ps1` con
+GCC disponible. El ejecutable se guarda en la carpeta temporal. El enlazador
+instrumenta las llamadas del controlador sin cambiar el firmware. Se registran
+p50, p95 y máximo por llamada; el barrido sintético repetido no representa una
+ronda completa. El escenario usa 360 retornos y desactiva el parqueo: por eso no
+produce muestras del localizador del cajón. Para A* se incluyen 40 llamadas
+separadas a cuatro poses fijas (no son tiempos observados dentro de una ronda).
+La instrumentación añade una pequeña sobrecarga. No mide WASM ni el ESP32-P4.
+
+Una ejecución local con 150 barridos dio: barrido p50/p95 **7,95/9,20 ms**;
+mapa **0,063/0,074 ms**; planificador local **7,75/8,90 ms**; localizador de
+arena **0,068/0,094 ms**. El A* de las cuatro poses dio p50/p95
+**29,7/53,8 ms**. Son cifras orientativas, no límites universales ni una suma
+válida de percentiles. En este escenario el mapa no es el cuello de botella;
+no hay base para recomendar una actualización incremental como primera mejora.
+
+Para detectar regresiones en una máquina de referencia se pueden fijar límites
+explícitos en milisegundos con `AUTONEX_SCAN_P95_MS` y
+`AUTONEX_PLANNER_P95_MS`. El comando falla si se supera alguno; sin esas
+variables informa sin imponer un umbral dependiente del equipo. Ejemplo en
+PowerShell: `$env:AUTONEX_SCAN_P95_MS=15; ./simulator/tools/profile_controller.ps1`.
+Para una comparación útil hay que usar el mismo equipo, compilador, carga y
+escenario. Faltan escenarios reales de entrada/salida instrumentados y medir en P4.

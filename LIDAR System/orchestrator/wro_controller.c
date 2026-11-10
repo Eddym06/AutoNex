@@ -282,7 +282,7 @@ static const cf_field_t FIELDS[] = {
     CF("pivot_enabled", CF_BOOL, pivot_enabled), CF("pivot_after_s", CF_F32, pivot_after_s),
     CF("pivot_rot_dps", CF_F32, pivot_rot_dps), CF("pivot_margin_cm", CF_F32, pivot_margin_cm), CF("corner_max_heading_deg", CF_F32, corner_max_heading_deg),
     CF("motion_comp", CF_BOOL, motion_comp), CF("latency_s", CF_F32, latency_s),
-    CF("parking_enabled", CF_BOOL, parking_enabled), CF("park_ackermann", CF_BOOL, park_ackermann), CF("start_in_lot", CF_BOOL, start_in_lot),
+    CF("parking_enabled", CF_BOOL, parking_enabled), CF("park_ackermann", CF_BOOL, park_ackermann), CF("park_exact_moves", CF_BOOL, park_exact_moves), CF("start_in_lot", CF_BOOL, start_in_lot),
     CF("park_speed_cm_s", CF_F32, park_speed_cm_s), CF("park_rot_dps", CF_F32, park_rot_dps),
     CF("park_margin_cm", CF_F32, park_margin_cm), CF("park_lot_length_cm", CF_F32, park_lot_length_cm),
     CF("park_lane_w_cm", CF_F32, park_lane_w_cm), CF("park_search_speed_cm_s", CF_F32, park_search_speed_cm_s),
@@ -1132,6 +1132,14 @@ static float compensate_motion(const wro_controller_t *c, const local_planner_co
 
 /* -------------------------------------------------------------------- parqueo */
 static park_params_t g_ack_park_params;
+/* Entrada por el camino real de la salida, recorrido al reves (experimental, apagado: en 8 rondas
+ * llega a 1-2 repasadas en 4 de ellas, pero el tramo final no es robusto y otras suben a 7). */
+#ifndef PARK_LOST_MAX_SCANS
+#define PARK_LOST_MAX_SCANS 30
+#endif
+#ifndef PARK_RETRACE_ENABLED
+#define PARK_RETRACE_ENABLED 0
+#endif
 static int park_mirror(const wro_controller_t *c);
 
 static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
@@ -1176,12 +1184,20 @@ static bool park_cruise_step(wro_controller_t *c, float dt, wro_command_t *out)
      * que entrar con dos repasadas. Con 2 cm mas por delante y 1,5 mas lejos de la pared la
      * misma maniobra cabe con una, que es lo que se busca (medido en el planificador: 1 repasada
      * desde (25,30,5) y 2 desde (25,28,5)). */
-    const float du = t->u_cm + 2.0f - c->park_pose.u_cm;
-    const float dw = t->w_cm + 1.5f - c->park_pose.w_cm;
+    const bool retrace = PARK_RETRACE_ENABLED && c->park_trace_n > 8;
+    const float du = t->u_cm + (retrace ? 0.0f : 2.0f) - c->park_pose.u_cm;
+    const float dw = t->w_cm + (retrace ? 0.0f : 1.5f) - c->park_pose.w_cm;
     const float speed = fmaxf(c->cfg.park_speed_cm_s, c->cfg.park_search_speed_cm_s);
-    if ((du <= 1.0f && fabsf(dw) <= 0.8f && fabsf(c->park_pose.theta_deg) <= 3.0f) || du < -1.5f) return true;
+    const float th_goal = retrace ? t->theta_deg : 0.0f;
+    if ((du <= 1.0f && fabsf(dw) <= 0.8f && fabsf(imu_wrap_deg(c->park_pose.theta_deg - th_goal)) <= (retrace ? 1.2f : 3.0f)) || du < -1.5f) return true;
     const float look_cm = 18.0f;
     float th_ref = atan2f(dw, look_cm) * RAD_TO_DEG;
+    if (retrace) {
+        /* El camino de vuelta empieza con el rumbo con que acabo la salida: un error de unos grados
+         * ahi se arrastra hasta el cajon (con el volante al tope no se puede corregir despues). */
+        const float wgt = fminf(fmaxf(1.0f - du / 15.0f, 0.0f), 1.0f);
+        th_ref = (1.0f - wgt) * th_ref + wgt * (th_goal + 0.5f * th_ref);
+    }
     if (th_ref > 22.0f) th_ref = 22.0f;
     if (th_ref < -22.0f) th_ref = -22.0f;
     float steer = 2.5f * (th_ref - c->park_pose.theta_deg);
@@ -1257,10 +1273,145 @@ static void park_command(wro_controller_t *c, const park_decision_t *d, float th
 }
 
 /* Un barrido en el cajon: localiza, decide y ordena. Entrar (PARKING) o salir (PARK_EXIT). */
+/* ---- Traza de la salida y recorrido al reves (la entrada sigue el camino real de la salida). ---- */
+#ifndef PARK_PROJECT_ENABLED
+#define PARK_PROJECT_ENABLED 0
+#endif
+#define PARK_LATENCY_S 0.12f
+#define TRACE_GAIN_TH 0.20f   /* 1/cm por rad */
+#ifndef PARK_END_BIAS_W_CM
+#define PARK_END_BIAS_W_CM 1.6f
+#define PARK_END_BIAS_TH_DEG 1.0f
+#endif
+#define PARK_END_TH_AIM_DEG 1.5f   /* rumbo final apuntado: la meta pide casi 0 o negativo */
+#define PARK_END_TH_TOL_DEG 0.5f
+#define TRACE_GAIN_Y 0.010f   /* 1/cm^2 */
+#define TRACE_TURN_STOP_CM 0.6f  /* se para antes del punto de giro: el motor sigue ~0,15 s */
+static void park_trace_record(wro_controller_t *c, float wheelbase_cm)
+{
+    if (!PARK_RETRACE_ENABLED || c->park_trace_n >= PARK_TRACE_MAX || c->park_arc_direction == 0) return;
+    const unsigned n = c->park_trace_n;
+    if (n > 0 && hypotf(c->park_pose.u_cm - c->park_trace_u[n-1], c->park_pose.w_cm - c->park_trace_w[n-1]) < 0.8f) return;
+    c->park_trace_u[n] = c->park_pose.u_cm; c->park_trace_w[n] = c->park_pose.w_cm;
+    c->park_trace_th[n] = c->park_pose.theta_deg;
+    const float s_park = -(float)park_mirror(c) * c->park_arc_steer_deg;   /* volante en el marco del cajon */
+    c->park_trace_kappa[n] = tanf(s_park * DEG_TO_RAD) / wheelbase_cm;
+    c->park_trace_dir[n] = (int8_t)c->park_arc_direction;
+    ++c->park_trace_n;
+}
+
+/* Sigue la traza al reves: devuelve false si debe cederse al A* (desvio grande o fin del camino). */
+static bool park_retrace_step(wro_controller_t *c, const park_params_t *params, wro_command_t *out)
+{
+    const local_planner_config_t *pl = &c->cfg.planner;
+    int k = c->park_trace_k;
+    park_pose_t p = c->park_pose;
+    /* Gemelo: la orden de este barrido actua ~PARK_LATENCY_S despues (barrido, servo y motor); el
+     * seguimiento se calcula sobre la pose proyectada con la velocidad medida y el volante puesto. */
+    if (PARK_PROJECT_ENABLED && c->park_trace_dt > 0.0f) {
+        const float v = c->scan_ds_cm / c->park_trace_dt;   /* con signo, cm/s */
+        const float ds = v * PARK_LATENCY_S, tt = p.theta_deg * DEG_TO_RAD;
+        p.u_cm += ds * cosf(tt); p.w_cm += ds * sinf(tt);
+        p.theta_deg = imu_wrap_deg(p.theta_deg + ds * tanf(c->park_trace_steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG);
+    }
+    float ex = 0.0f, ey = 0.0f, eth = 0.0f, ref_th = 0.0f;
+    /* El punto mas cercano de la traza, siempre hacia atras (la traza vuelve sobre si misma en el
+     * cambio de sentido, asi que no se busca fuera de la ventana). Las poses estimadas tienen ~0,5 cm
+     * de ruido: la direccion entre dos vecinos no sirve, el rumbo guardado si. */
+    /* Punto de giro: el primer punto por delante donde el sentido cambia. No se cruza de largo (el
+     * coche se pasaria al tope): se llega a el por proyeccion sobre su rumbo y se para. */
+    const int dir_k = -c->park_trace_dir[k > 0 ? k : 0];
+    int turn = 0;
+    for (int j = k - 1; j > 0; --j) if (-c->park_trace_dir[j] != dir_k) { turn = j; break; }
+    while (k > turn && k > 0 && hypotf(p.u_cm - c->park_trace_u[k-1], p.w_cm - c->park_trace_w[k-1]) <=
+                    hypotf(p.u_cm - c->park_trace_u[k], p.w_cm - c->park_trace_w[k])) --k;
+    if (turn > 0 && k > turn) {
+        const float th = c->park_trace_th[turn] * DEG_TO_RAD;
+        const float proj = ((p.u_cm - c->park_trace_u[turn]) * cosf(th) + (p.w_cm - c->park_trace_w[turn]) * sinf(th)) * (float)dir_k;
+        if (proj >= -TRACE_TURN_STOP_CM) k = turn;
+    }
+    c->park_trace_k = k;
+    /* Tras el ultimo cambio de sentido: en cuanto el chasis esta dentro del cajon y paralelo (la meta
+     * de siempre), se cede al A* para que lo confirme; seguir hasta el ultimo punto lo sacaba de ella. */
+    if (turn == 0 && c->park_trace_cur_dir != 0 && k < (int)c->park_trace_n - 2) {
+        const park_ackermann_result_t g = park_ackermann_plan(params, &(park_ackermann_config_t)
+            {pl->wheelbase_cm, pl->steer_hard_deg, 3.5f, c->park_trace_cur_dir}, &p, PARK_GOAL_IN);
+        if (g.at_goal) return false;
+    }
+    if (k <= 0) {
+        /* Llego a la pose de partida de la salida pero con el rumbo aun unos grados corrido (el
+         * volante ya iba al tope): unos centimetros mas, con el mismo sentido, lo cierran. */
+        const float e0 = imu_wrap_deg(p.theta_deg - (c->park_trace_th[0] - PARK_END_TH_AIM_DEG));
+        if (e0 > PARK_END_TH_TOL_DEG && c->park_trace_extra < 8 && c->park_trace_cur_dir != 0) {
+            ++c->park_trace_extra;
+            const float sg = (float)c->park_trace_cur_dir;
+            const float sd = -sg * pl->steer_hard_deg;   /* hacia rumbo menor */
+            out->speed_cm_s = sg * fminf(c->cfg.park_speed_cm_s, 3.0f);
+            out->steer_deg = -(float)park_mirror(c) * sd;
+            out->yaw_rate_dps = out->speed_cm_s * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+            out->explicit_yaw_rate = false;
+            out->action = sg > 0 ? LOCAL_ACTION_FORWARD : LOCAL_ACTION_REVERSE;
+            return true;
+        }
+        c->park_trace_done = true; return false;
+    }
+    ref_th = c->park_trace_th[k];
+    float ru = c->park_trace_u[k], rw = c->park_trace_w[k];
+    /* La meta del cajon deja ~1 cm y ~1 grado (la nariz roza el borde del lado del carril): el tramo
+     * final se apunta un poco hacia la pared y con el rumbo algo cerrado. */
+    if (turn == 0 && c->park_trace_cur_dir != 0) { rw -= PARK_END_BIAS_W_CM; ref_th -= PARK_END_BIAS_TH_DEG; }
+    const float rt = ref_th * DEG_TO_RAD;
+    ex = p.u_cm - ru; ey = -sinf(rt) * ex + cosf(rt) * (p.w_cm - rw);
+    eth = imu_wrap_deg(p.theta_deg - ref_th) * DEG_TO_RAD;
+    if (fabsf(ey) > 3.0f || fabsf(eth) > 20.0f * DEG_TO_RAD || !park_pose_free(params, &p)) return false;
+    const int dir = -c->park_trace_dir[k];
+    const float kappa_rec = c->park_trace_kappa[k];
+    float kappa = kappa_rec - (float)dir * TRACE_GAIN_TH * eth - TRACE_GAIN_Y * ey;
+    c->park_plan_expanded = k; c->park_plan_count = (int)(c->park_trace_kappa[k] * 1000.0f); c->park_plan_step = (int)(ey * 10.0f); c->park_plan_found = (int)(eth * 57.3f * 10.0f);
+    float s_deg = atanf(kappa * pl->wheelbase_cm) * RAD_TO_DEG;
+    if (s_deg > pl->steer_hard_deg) s_deg = pl->steer_hard_deg;
+    if (s_deg < -pl->steer_hard_deg) s_deg = -pl->steer_hard_deg;
+    const float steer_out = -(float)park_mirror(c) * s_deg;
+    /* Cambio de sentido o primer tramo: parado, con el volante ya puesto (el servo tarda ~0,2 s). */
+    if (dir != c->park_trace_cur_dir) {
+        if (c->park_trace_hold < 2) {
+            ++c->park_trace_hold;
+            out->speed_cm_s = 0.0f; out->steer_deg = steer_out; out->yaw_rate_dps = 0.0f;
+            out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
+            return true;
+        }
+        c->park_trace_cur_dir = dir; c->park_trace_hold = 0;
+    }
+    float speed = c->cfg.park_speed_cm_s;
+    /* Frenar antes de un cambio de sentido, para no pasarse. */
+    if (turn > 0) {
+        const float remain = hypotf(p.u_cm - c->park_trace_u[turn], p.w_cm - c->park_trace_w[turn]);
+        const float tail = fmaxf(2.0f, 1.0f * remain + 1.0f);
+        if (speed > tail) speed = tail;
+    }
+    c->park_trace_steer_deg = s_deg;
+    out->speed_cm_s = (float)dir * speed;
+    out->steer_deg = steer_out;
+    out->yaw_rate_dps = out->speed_cm_s * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+    out->explicit_yaw_rate = false;
+    out->action = dir > 0 ? LOCAL_ACTION_FORWARD : LOCAL_ACTION_REVERSE;
+    return true;
+}
+
+#ifndef PARK_TWIN_ENABLED
+#define PARK_TWIN_ENABLED 0
+#endif
+#ifndef PARK_TWIN_K_POS
+#define PARK_TWIN_K_POS 0.35f
+#endif
+#ifndef PARK_TWIN_K_TH
+#define PARK_TWIN_K_TH 0.35f
+#endif
+#define PARK_TWIN_JUMP_CM 3.0f
 static void park_step(wro_controller_t *c, const local_lidar_point_t *points, size_t count, float dt,
                       const perception_t *per, wro_command_t *out)
 {
-    (void)dt;
+    c->park_trace_dt = dt;
     const bool exiting = c->phase == WRO_PHASE_PARK_EXIT;
     const local_planner_config_t *pl = &c->cfg.planner;
     if (exiting && !c->park_init) {
@@ -1293,7 +1444,18 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
     prior.w_cm += c->scan_ds_cm * sinf(th);
     park_fix_t fix;
     if (park_localize_track(&loc, points, count, &prior, &fix)) {
-        c->park_pose = fix.pose;
+        /* Gemelo del coche: la odometria y el giroscopio predicen la pose (prior), el LiDAR la
+         * corrige. Antes la pose era el ajuste del LiDAR a secas, con ~0,5-0,9 cm de ruido por
+         * barrido, tanto como la holgura de la meta. Se mezcla con una ganancia fija: el ruido
+         * de cada barrido se promedia y la dinamica entre barridos aporta lo que el LiDAR no. */
+        if (PARK_TWIN_ENABLED && c->park_twin_ok && hypotf(fix.pose.u_cm - prior.u_cm, fix.pose.w_cm - prior.w_cm) < PARK_TWIN_JUMP_CM) {
+            c->park_pose.u_cm = prior.u_cm + PARK_TWIN_K_POS * (fix.pose.u_cm - prior.u_cm);
+            c->park_pose.w_cm = prior.w_cm + PARK_TWIN_K_POS * (fix.pose.w_cm - prior.w_cm);
+            c->park_pose.theta_deg = imu_wrap_deg(prior.theta_deg + PARK_TWIN_K_TH * imu_wrap_deg(fix.pose.theta_deg - prior.theta_deg));
+        } else {
+            c->park_pose = fix.pose;
+        }
+        c->park_twin_ok = true;
         c->park_lost = 0;
         const float measured = imu_wrap_deg(c->yaw.yaw_deg + (float)mirror * fix.pose.theta_deg);
         c->park_course_deg = imu_wrap_deg(c->park_course_deg + 0.5f * imu_wrap_deg(measured - c->park_course_deg));
@@ -1301,7 +1463,11 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
         c->park_pose = prior;
         ++c->park_lost;
     }
-    if (c->park_lost > 8) {            /* sin pared ni topes a la vista: parado, no a ciegas */
+    /* Sin pared ni topes a la vista: se sigue unos barridos con la pose de odometria y giroscopio
+     * (precisa a corto plazo) antes de parar. Parar en cuanto se pierde (8 barridos) dejaba al coche
+     * quieto con 30 grados en la boca del cajon, sin ver nada, para siempre: ccw 12 y 17 acababan
+     * 'stalled' en parcial (medido). Quieto no vuelve a ver; moviendose si. */
+    if (c->park_lost > PARK_LOST_MAX_SCANS) {   /* parado, no a ciegas */
         c->park_prev = PARK_MOVE_NONE;
         c->park_arc_remaining_cm = 0.0f;
         c->park_arc_count = c->park_arc_index = 0;
@@ -1336,7 +1502,8 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
         }
         if (!exiting && c->park_stage == 1) {
             if (park_cruise_step(c, dt, out)) {
-                c->park_stage = 2;
+                c->park_stage = (PARK_RETRACE_ENABLED && c->park_trace_n > 8) ? 4 : 2;
+                c->park_trace_k = (int)c->park_trace_n - 1; c->park_trace_cur_dir = 0; c->park_trace_hold = 0; c->park_trace_extra = 0;
                 c->park_arc_count = 0;
                 c->park_arc_index = 0;
                 c->park_goal_hits = 0;
@@ -1350,6 +1517,15 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
          * la correccion costaba una repasada mas. Se le da el volante con el coche quieto y asi el
          * arco que empieza es el del plan. Solo al entrar: la salida va sobrada (su meta es una
          * region) y no merece pagar 1,5 s de asentamientos; la entrada si. */
+        if (!exiting && c->park_stage == 4) {
+            if (park_retrace_step(c, params, out)) return;
+            /* Fin del camino o desvio: el A* de siempre termina (y corrige) desde donde este. */
+            c->park_stage = 3; c->park_arc_count = 0; c->park_arc_index = 0; c->park_goal_hits = 0;
+            c->park_symmetric = false;
+            out->speed_cm_s = 0.0f; out->steer_deg = 0.0f; out->yaw_rate_dps = 0.0f;
+            out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
+            return;
+        }
         const bool entry_settle = !exiting && c->park_symmetric;
         if (entry_settle && c->park_settle > 0) {
             --c->park_settle;
@@ -1365,6 +1541,9 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
          * holgura) es solo para la entrada que arranca en la pose de la salida. El tanteo de
          * siempre (y la demostracion desde la pista, que no tiene salida) siguen igual: cambiarlo
          * ahi dejaba el parqueo en parcial (medido). */
+        if (!exiting && c->park_stage == 2 && c->park_arc_count > 0 &&
+            c->park_arc_index >= c->park_arc_count && c->park_arc_remaining_cm <= 0.3f)
+            c->park_stage = 3; /* El plan inicial termino; las correcciones usan el tanteo. */
         const bool symmetric = !exiting && c->park_stage == 2;
         /* Tolerancia provisional para el cuantizado de la odometria. */
         const bool arc_turned = symmetric && fabsf(c->park_arc_dtheta_deg) > 1.0f &&
@@ -1391,7 +1570,6 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                  * (desde ahi gastaria una repasada mas). Las correcciones, si hacen falta, vuelven
                  * al tanteo de siempre. */
                 if (!exiting && c->park_stage == 2) {
-                    c->park_stage = 3;
                     a = park_ackermann_plan(params, &(park_ackermann_config_t)
                         {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
                         &c->park_pose, PARK_GOAL_IN);
@@ -1468,7 +1646,12 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
              * da por parqueo parcial: media es el punto que midio 3 repasadas sin contactos. */
             park_params_t entry_check;
             const park_params_t *check = params;
-            if (symmetric) { entry_check = *params; entry_check.margin_cm = 0.5f; check = &entry_check; }
+            if (symmetric) {
+                /* Nunca mas estricto que el plan: si el coche esta a menos de la holgura de planeo, el plan
+                 * se hizo con margen 0 (arriba) y comprobar el arco con 0,5 lo rechazaba cada barrido para
+                 * siempre (ccw 12: parado 20 s con un plan valido, 'stalled' y parqueo parcial). */
+                entry_check = *params; entry_check.margin_cm = fminf(params->margin_cm, 0.5f); check = &entry_check;
+            }
             if (!park_ackermann_arc_free(check, &acfg, &c->park_pose, c->park_arc_direction,
                                          c->park_arc_steering[c->park_arc_index])) {
                 c->park_arc_count = c->park_arc_index = 0;
@@ -1476,6 +1659,22 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             }
             ++c->park_arc_index;
             c->park_arc_remaining_cm = acfg.step_cm;
+            /* Avance exacto: MIC recorre acfg.step_cm con el encoder y queda parado en el punto (sin la cola de
+             * 0,6-1 cm que dejaba el rodar tras la orden). El arco sigue acabando por odometria/giroscopio. */
+            if (c->cfg.park_exact_moves) {
+                /* Solo tramos rectos (el volante a 0): los arcos con volante se cortan por rumbo del giroscopio. Los arcos
+                 * rectos seguidos del mismo sentido forman un solo avance de n x paso, sin parar entre ellos. */
+                const int idx = (int)c->park_arc_index;   /* ya incrementado: el arco actual es idx-1 */
+                const int st = c->park_arc_steering[idx - 1];
+                if (st != 0) {
+                    c->park_move_cm = 0.0f;
+                } else if (!(idx >= 2 && c->park_arc_steering[idx - 2] == 0 && c->park_arc_directions[idx - 2] == c->park_arc_direction && c->park_move_cm != 0.0f)) {
+                    int n = 0;
+                    for (int j = idx - 1; j < (int)c->park_arc_count && c->park_arc_steering[j] == 0 && c->park_arc_directions[j] == c->park_arc_direction; ++j) ++n;
+                    c->park_move_cm = (float)c->park_arc_direction * (float)n * acfg.step_cm;
+                    ++c->move_id;
+                }
+            }
             /* El arco se corta tambien por rumbo, al entrar: el giroscopio da el giro exacto del
              * plan (un arco de 3,5 cm a volante lleno son 9 grados) mientras que la distancia la
              * mide el LiDAR con 1 cm de ruido y lo deja 0,2-0,3 cm pronto; en 15 arcos eso era
@@ -1516,6 +1715,8 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
         out->yaw_rate_dps = out->speed_cm_s * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
         out->explicit_yaw_rate = false;
         out->action = c->park_arc_direction > 0 ? LOCAL_ACTION_FORWARD : LOCAL_ACTION_REVERSE;
+        if (c->cfg.park_exact_moves && c->park_move_cm != 0.0f) { out->move_cm = c->park_move_cm; out->move_id = c->move_id; }
+        if (exiting) park_trace_record(c, pl->wheelbase_cm);
         return;
     }
     const park_decision_t d = park_field_decide(&c->park_pose, c->park_prev);
@@ -1801,6 +2002,61 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         c->camera_seen ? objects : NULL, object_count,
         c->camera.received_timestamp_us, &imu);
     c->live_colored = c->map.colored_count;
+    /* Solo se proyecta en campo cuando existe pose; el mapa no interviene en
+     * las decisiones del planificador y se reinicia al inicializar la mision. */
+    if (c->arena.valid && c->arena.rms_cm <= 3.5f && c->phase != WRO_PHASE_IDLE) {
+        /* Los puntos ya estan expresados en la pose adelantada por compensate_motion,
+         * independientemente de la opcion de adelanto del mapa del planificador. */
+        arena_pose_t tp = c->arena.pose;
+        const float th = tp.theta_deg * DEG_TO_RAD;
+        tp.x_cm += c->map_lead_cm * sinf(th);
+        tp.z_cm += c->map_lead_cm * cosf(th);
+        tp.theta_deg = imu_wrap_deg(tp.theta_deg + c->map_lead_deg);
+        trace_map_update(&c->trace_map, points, count, &c->map, &tp, pc->lidar_forward_cm);
+        /* Objetos y plaza: cada 10 barridos (0,05 ms en PC). El espaciado entre topes es el largo del cajon mas el grosor de un tope. */
+        if (c->trace_map.scans % 10u == 0u) {
+            c->trace_map.spot_spacing_cm = (c->cfg.park_lot_length_cm > 0.0f ? c->cfg.park_lot_length_cm : 1.5f * pc->chassis_length_cm) + 2.0f;
+            trace_map_refresh(&c->trace_map);
+        }
+        /* Diagnóstico experimental: una sola detección magenta inicia la búsqueda.
+         * Se usa la pose disponible al recibirla (no la pose exacta de captura).
+         * El resultado NO se utiliza para dirigir o aparcar. */
+        const bool retry_trace_camera = !c->trace_park_seen ||
+            (c->trace_park_result.status != TRACE_PARK_CANDIDATE &&
+             t_us >= c->trace_park_observation_us && t_us-c->trace_park_observation_us >= 5000000u);
+        if (retry_trace_camera && c->phase == WRO_PHASE_RUN && c->camera.valid &&
+            c->map.camera_fresh && c->camera.received_timestamp_us <= t_us &&
+            (!c->trace_park_seen || c->camera.received_timestamp_us > c->trace_park_observation_us)) {
+            for (size_t i=0; i<c->camera.object_count && i<LOCAL_MAP_MAX_CAMERA_OBJECTS; ++i) {
+                const local_camera_object_t *o=&c->camera.objects[i];
+                if (!o->valid || o->color!=3 || !isfinite(o->distance_cm) || o->distance_cm<=0 || !isfinite(o->bearing_deg)) continue;
+                trace_parking_observation_t *v=&c->trace_park_observation;
+                v->camera_pose=c->arena.pose;
+                v->camera_forward_cm=pc->camera_forward_cm; v->camera_lateral_cm=0.0f;
+                v->min_bearing_deg=o->bearing_deg-10.0f; v->max_bearing_deg=o->bearing_deg+10.0f;
+                v->distance_cm=o->distance_cm;
+                v->spacing_cm=(c->cfg.park_lot_length_cm>0.0f ? c->cfg.park_lot_length_cm : 1.5f*pc->chassis_length_cm)+2.0f;
+                c->trace_park_seen=true;
+                c->trace_park_observation_us=c->camera.received_timestamp_us;
+                memset(&c->trace_park_result,0,sizeof(c->trace_park_result));
+                break;
+            }
+        }
+        if (c->trace_park_seen && c->trace_map.scans%10u==0u) {
+            c->trace_park_result=trace_parking_estimate(&c->trace_map,&c->trace_park_observation);
+            if(c->trace_park_result.status==TRACE_PARK_CANDIDATE){
+                if(c->trace_park_has_memory && !trace_parking_consistent(&c->trace_park_result,&c->trace_park_first_candidate,8.0f)) {
+                    /* No sustituir un recuerdo con una pareja incompatible. Ninguna
+                     * de las dos queda confirmada por esta comparación. */
+                    c->trace_park_result.status=TRACE_PARK_AMBIGUOUS;
+                } else {
+                    if(!c->trace_park_has_memory)c->trace_park_first_candidate=c->trace_park_result;
+                    c->trace_park_last_candidate=c->trace_park_result;
+                    c->trace_park_has_memory=true;
+                }
+            }
+        }
+    }
 
     perception_t per;
     /* Rumbo del carril respecto al morro, segun el controlador. Durante una esquina

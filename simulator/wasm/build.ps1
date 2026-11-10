@@ -49,11 +49,12 @@ $lidar = Join-Path $root 'LIDAR System\main'
 $orchestrator = Join-Path $root 'LIDAR System\orchestrator'
 $vision = Join-Path $root 'Vision System\main'
 $shared = Join-Path $root 'shared'
+$mic = Join-Path $root 'Motor Control\MIC'
 $sources = @(
     (Join-Path $PSScriptRoot 'core_api.c'),
     (Join-Path $orchestrator 'p4_runtime.c'),
-    (Join-Path $lidar 'park_ackermann.c'),
-    (Join-Path $lidar 'local_obstacle_map.c'), (Join-Path $lidar 'camera_table_receiver.c'),
+    (Join-Path $lidar 'park_ackermann.c'), (Join-Path $mic 'mic.c'),
+    (Join-Path $lidar 'trace_map.c'), (Join-Path $lidar 'trace_parking.c'), (Join-Path $lidar 'local_obstacle_map.c'), (Join-Path $lidar 'camera_table_receiver.c'),
     (Join-Path $lidar 'imu_yaw.c'), (Join-Path $orchestrator 'wro_controller.c'), (Join-Path $lidar 'park_planner.c'), (Join-Path $lidar 'park_localize.c'), (Join-Path $lidar 'odometry.c'), (Join-Path $lidar 'race_line.c'), (Join-Path $lidar 'arena_localizer.c'),
     (Join-Path $vision 'vision.c'), (Join-Path $vision 'vision_table.c'),
     (Join-Path $shared 'sensor_table_protocol.c'), (Join-Path $shared 'config_fields.c')
@@ -62,7 +63,7 @@ $output = Join-Path (Split-Path $PSScriptRoot -Parent) 'web\wro_core.wasm'
 New-Item -ItemType Directory -Force -Path (Split-Path $output -Parent) | Out-Null
 $flags = @('--target=wasm32-wasi', '-O2', '-std=c11', '-Wall', '-Wextra', '-Werror', '-nostartfiles',
     '-Wl,--no-entry', '-Wl,-z,stack-size=262144', '-Wl,--strip-all',
-    '-I', $lidar, '-I', $orchestrator, '-I', $vision, '-I', $shared)
+    '-I', $lidar, '-I', $orchestrator, '-I', $vision, '-I', $shared, '-I', $mic)
 & $clang @flags @sources -o $output -lm
 if ($LASTEXITCODE -ne 0) { throw 'La compilacion a WebAssembly fallo' }
 & python (Join-Path $PSScriptRoot 'manifest.py') --write

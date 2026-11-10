@@ -324,9 +324,35 @@
       q.scenarios.map(s => `<tr><td>${s.name}</td><td>${s.frames}</td><td class="${s.ok ? 'good' : 'bad'}">${s.result}</td></tr>`).join('') + '</table>' +
       (q.failures.length ? '<ul class="bad">' + q.failures.map(x => '<li>' + x + '</li>').join('') + '</ul>' : '');
   }
-  function draw() { drawWorld(); drawLocal(); drawCamera(); drawPanels(); drawSequences(); }
+  function drawTraceMap() {
+    const canvas=$('traceMap'), g=canvas.getContext('2d');
+    g.clearRect(0,0,canvas.width,canvas.height);
+    if (!sim || !sim.cmd) { $('traceInfo').textContent='Esperando simulación.'; return; }
+    const m=core.traceMap(), scale=canvas.width/m.size;
+    for(let row=0;row<m.size;row++) for(let col=0;col<m.size;col++) {
+      const v=m.cells[row*m.size+col]; if(!v)continue;
+      g.fillStyle=(v&8)?'#ff72ed':(v&2)?'#ee2737':(v&4)?'#44d62c':'#9eb0c2';
+      g.fillRect(col*scale,canvas.height-(row+1)*scale,Math.ceil(scale),Math.ceil(scale));
+    }
+    const a=sim.cmd.arena;
+    if(a&&a.valid){ const px=(a.x-m.originCm)/m.cellCm*scale, py=canvas.height-(a.z-m.originCm)/m.cellCm*scale;
+      g.fillStyle='#57b4ff';g.beginPath();g.arc(px,py,3,0,7);g.fill(); }
+    const parking=core.traceParking();
+    $('traceParkingInfo').textContent=!parking.seen?'Candidato de parqueo: esperando cámara.':parking.status===1?'Candidato de parqueo experimental; aún no confirmado.':parking.memory?'Último candidato guardado: requiere volver a verificar.':parking.status===2?'Candidato de parqueo: evidencia ambigua.':'Candidato de parqueo: esperando evidencia LiDAR.';
+    if(parking.status===1||parking.memory) for(const p of (parking.status===1?parking.points:parking.memory)){
+      const px=(p.x-m.originCm)/m.cellCm*scale,py=canvas.height-(p.z-m.originCm)/m.cellCm*scale;
+      g.strokeStyle='#ffd24c';g.lineWidth=2;g.beginPath();g.arc(px,py,5,0,7);g.stroke();
+    }
+    $('traceInfo').textContent=m.scans ? `${m.occupied} celdas LiDAR · ${m.scans} barridos · ${m.bytes} bytes en RAM · ${m.clipped} retornos fuera · desconocido en oscuro` : `Esperando pose global válida · ${m.bytes} bytes reservados en RAM`;
+  }
+  function draw() { drawWorld(); drawLocal(); drawTraceMap(); drawCamera(); drawPanels(); drawSequences(); }
 
   /* --------------------------------------------------------------- controles */
+  $('downloadTrace').onclick = () => {
+    if (!sim) return;
+    const m=core.traceMap(), blob=new Blob([m.cells],{type:'application/octet-stream'}), link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);link.download='trace_map_160x160_2.5cm.bin';link.click();URL.revokeObjectURL(link.href);
+  };
   function nearestSeat(e) {
     const c = $('world'), r = c.getBoundingClientRect(), T = worldTransform(c);
     const x = ((e.clientX - r.left) * c.width / r.width - c.width / 2) / T.S, z = (c.height / 2 - (e.clientY - r.top) * c.height / r.height) / T.S;

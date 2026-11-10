@@ -1,0 +1,69 @@
+{
+  "status": "hipotesis_ambigua",
+  "wall": {
+    "normal": [
+      0.06975647374412523,
+      0.9975640502598242
+    ],
+    "offset_cm": -146.93804084288922,
+    "support_span_cm": 67.25533020987297,
+    "region_cells": 148,
+    "best_support_cells": 60,
+    "competing_orientations": 2
+  },
+  "markers": [
+    {
+      "wall_end": [
+        25.34858584592082,
+        -149.06939435835628
+      ],
+      "lane_end_nominal": [
+        26.743715320803325,
+        -129.1181133531598
+      ],
+      "evidence_start": [
+        25.63590391387172,
+        -144.9605545590672
+      ],
+      "evidence_end": [
+        26.66189208847283,
+        -130.28824009076362
+      ],
+      "support_cells": 45,
+      "visible_extent_cm": 16.030781277901298
+    },
+    {
+      "wall_end": [
+        -17.135164326576824,
+        -146.09864114938898
+      ],
+      "lane_end_nominal": [
+        -15.740034851694318,
+        -126.1473601441925
+      ],
+      "evidence_start": [
+        -16.878420585550774,
+        -142.4270345954758
+      ],
+      "evidence_end": [
+        -15.58968276356496,
+        -123.99722511085479
+      ],
+      "support_cells": 32,
+      "visible_extent_cm": 19.302499323657273
+    }
+  ],
+  "spacing_cm": 42.58749116052486,
+  "alternatives": 1,
+  "ambiguity_reasons": [
+    "orientaciones de pared competidoras"
+  ],
+  "raw_returns": 41135,
+  "grid_cells": 3175,
+  "warning": "geometria candidata; no confirma identidad ni ausencia de obstáculos",
+  "geometry_assumptions_cm": {
+    "lot_length": 39.0,
+    "limiter_width": 20.0,
+    "limiter_thickness": 2.0
+  }
+}

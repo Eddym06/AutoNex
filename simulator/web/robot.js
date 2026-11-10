@@ -35,11 +35,44 @@
       this.v = 0; this.steer = 0; this.yawRate = 0; this.wl = 0; this.wr = 0;
       this.cmd = { steer: 0, speed: 0 };
       this.encL = 0; this.encR = 0;           // angulo acumulado de cada rueda (grados)
+      this.axleS = 0;                         // avance del eje motriz (cm) que ve el encoder del motor (MIC)
       this.slipL = 0; this.slipR = 0;         // segundos que le quedan a la rafaga de patinaje de cada rueda
       this.travelled = 0;
       this.contacts = [];
     }
     pose() { return { x: this.x, z: this.z, yaw: this.yaw }; }
+    /* Motor fisico del JGB37-520 (R, Ke, masa, friccion, caida del L298N) gobernado por un controlador externo
+     * (MIC). Los parametros reales son DISTINTOS de los que MIC supone: ese es el punto de la prueba. */
+    enableMotor(drive, cfg) {
+      const w_nl = 1000 * 10 * 2 * Math.PI / 60, r_w = 0.033, R0 = 2.6;
+      const ke = (12 - 0.15 * R0) / w_nl;
+      const k = Object.assign({ kR: 1.10, kMass: 1.08, kFric: 1.2, kKe: 0.98, kWheel: 1.002, vbat: 11.1, vdrop: 2.0 }, cfg || {});
+      const refl = 10 / r_w;
+      this.drive = drive;
+      this.motor = {
+        r: R0 * k.kR, keLin: ke * 10 / r_w * k.kKe, kfLin: ke * 10 * 0.75 / r_w * k.kKe,
+        mass: (1.2 + 2e-6 * refl * refl) * k.kMass, fc: 0.6 * k.kFric, b: 0.5 * k.kFric,
+        vbat: k.vbat, vdrop: k.vdrop, cmPerCount: Math.PI * 6.6 / 440 * k.kWheel
+      };
+    }
+    motorStep(dt) {
+      const m = this.motor, n = Math.max(1, Math.round(dt / 0.001)), h = dt / n;
+      for (let i = 0; i < n; i++) {
+        const counts = Math.floor(this.axleS / m.cmPerCount);
+        const o = this.drive(counts, m.vbat, h);
+        const vm = o.brakeShort ? 0 : o.duty * (m.vbat - m.vdrop);
+        let v = this.v / 100;
+        const cur = (vm - m.keLin * v) / m.r, f = m.kfLin * cur;
+        const fr = m.fc * Math.tanh(v / 0.01) + m.b * v;
+        let net = f - fr;
+        if (Math.abs(v) < 1e-4 && Math.abs(f) <= m.fc) { net = 0; v = 0; }
+        let vn = v + net / m.mass * h;
+        if (v !== 0 && ((vn > 0) !== (v > 0)) && Math.abs(f) < m.fc) vn = 0;
+        this.v = vn * 100;
+        this.axleS += this.v * h;
+        this.motorCurrent = cur;
+      }
+    }
     body(pose) {
       const p = pose || this, c = this.cfg, cx = c.bodyLength / 2 - c.rearOverhang;
       return { x: p.x + Math.sin(p.yaw) * cx, z: p.z + Math.cos(p.yaw) * cx, w: c.bodyWidth, d: c.bodyLength, rot: p.yaw, h: 10, kind: 'robot' };
@@ -74,9 +107,14 @@
         const target = Math.max(-c.maxSteerDeg, Math.min(c.maxSteerDeg, this.cmd.steer));
         const err = target - this.steer, maxStep = c.steerRateDegS * dt;
         this.steer += Math.max(-maxStep, Math.min(maxStep, err * (1 - Math.exp(-dt / c.steerTauS))));
+        if (this.drive) {
+          this.axleBefore = this.axleS;
+          this.motorStep(dt);
+        } else {
         const vt = this.cmd.speed * c.speedGain;
         const dv = Math.max(-c.maxAccel * dt, Math.min(c.maxAccel * dt, (vt - this.v) * (1 - Math.exp(-dt / c.speedTauS))));
         this.v += dv;
+        }
         const steerEff = (this.steer + c.steerTrimDeg) * DEG;
         yawRate = this.v / c.wheelbase * Math.tan(steerEff);
       }
@@ -102,6 +140,7 @@
       this.encL += wheelL * dt * turnL * 360 / (Math.PI * c.wheelDiameterL);
       this.encR += wheelR * dt * turnR * 360 / (Math.PI * c.wheelDiameterR);
       if (blocked) {
+        if (this.drive) this.axleS = this.axleBefore;            // las ruedas no avanzan contra el obstaculo
         events.push({ kind: blocked.kind, box: blocked });
         /* La pared no se atraviesa, pero el chasis puede seguir haciendo algo: girar sobre
          * el sitio (diferencial) o deslizar por la cara con la que roza, quitando la

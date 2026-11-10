@@ -1,6 +1,7 @@
 /* Cuenta las repasadas (cambios de sentido) de la entrada al cajon y de la salida,
  * con la pose verdadera y la orden del firmware. Herramienta de medida y de regresion.
  *   node simulator/tests/parkentry.js [perfil] [modo] [segundos] [semillas]
+ * MAX_REVERSALS=3 exige las repasadas y resultado completo en cada ronda.
  * modo: entrada (arranca en la pista y aparca) | salida (arranca dentro del cajon) | ambos */
 const fs = require('node:fs'), path = require('node:path');
 const web = path.join(__dirname, '../web');
@@ -31,7 +32,7 @@ async function run(profile, mode, seconds, seeds) {
       ? F.randomLayout(seed, { direction, signs: 0, parking: true, startInLot: true })
       : F.randomLayout(seed, { direction, signs: 0, parking: true,
           startOnTrack: mode === 'entrada', startInLot: mode === 'salida' });
-    const sim = new WRO.sim.Simulation(core, { field, seed, robot });
+    const sim = new WRO.sim.Simulation(core, { field, seed, robot, mic: process.env.MIC === '1', ctrlConfig: process.env.EXACT === '1' ? 'park_exact_moves 1' : '' });
     const lot = field.lot, ccw = field.direction !== 'cw';
     const centre = (lot.a0 + lot.a1) / 2;
     const cmd = [], truth = [];
@@ -62,6 +63,7 @@ async function run(profile, mode, seconds, seeds) {
     rows.push({ direction, seed, cmd: reversals(cmd), truth: reversals(truth), end: r.endReason,
                 parking: r.parking, pts: r.points, t: +sim.t.toFixed(1),
                 contacts: r.contacts.wall + r.contacts.limiter + r.contacts.sign, phases: phases.join(' ') });
+    console.log(JSON.stringify(rows[rows.length - 1]));
   }
   return rows;
 }
@@ -77,7 +79,14 @@ async function run(profile, mode, seconds, seeds) {
   else for (let i = 1; i <= n; i++) seeds.push(i);
   if (profile === 'largo26' || profile === 'ackermann' || profile === 'differential17') {
     const rows = await run(profile, mode, seconds, seeds);
-    for (const r of rows) console.log(JSON.stringify(r));
+    if (process.env.MAX_REVERSALS !== undefined) {
+      const max = Number(process.env.MAX_REVERSALS);
+      if (!Number.isInteger(max) || max < 0 || mode !== 'ronda') throw new Error('MAX_REVERSALS requiere un entero no negativo y modo ronda');
+      for (const r of rows) {
+        if (r.end !== 'finished' || r.parking !== 'full' || r.pts !== 62 || r.contacts !== 0 || r.cmd > max || r.truth > max)
+          throw new Error(`${r.direction} semilla ${r.seed}: resultado o repasadas fuera de limite (${JSON.stringify(r)})`);
+      }
+    }
     console.log(`${profile}/${mode}: repasadas cmd=[${rows.map(r => r.cmd).join(',')}] verdad=[${rows.map(r => r.truth).join(',')}]`);
   } else {
     console.error('perfil: largo26 | ackermann | differential17');
