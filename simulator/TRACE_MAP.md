@@ -28,9 +28,15 @@ Tres capas, en el marco del campo (centro 0, 400 × 400 cm, celdas de 2,5 cm):
 movió (`cleared_cells`) y cada objeto que sigue en su sitio suma una vuelta en `laps_seen`. Al terminar la misión (DONE/FAULT) el controlador
 congela el mapa para poder copiarlo.
 
+## Promedio de las pasadas (superficie)
+
+Cada celda acumula un contador de retornos de 8 bits (hits, 1 por barrido); el de 4 bits de cells se satura en la primera pasada y no sirve para promediar. En 	race_map_refresh se calcula la **superficie**: una celda ocupada que tiene al menos el 30 % del peso máximo de su entorno de 5 × 5. Es la cresta del histograma de retornos: las pasadas con distinto error de pose se promedian en vez de dejar una mancha. Los objetos se buscan sobre la superficie; el centro de un letrero se corrige con la huella completa porque la superficie solo conserva la cara que ve el LiDAR (ponderar por hits empeoró el centro, de 0,7 a 1,2 cm).
+
+**Límite que no se arregla promediando:** el error de la pose del campo se repite casi igual en cada vuelta (correlación 0,983 entre la vuelta 1 y la 3, RMS 1,6 cm; solo 0,3 cm cambian de una vuelta a otra). Promediar vueltas quita la parte aleatoria, no esa. Ver MEDICION_TRACE_VUELTAS.md.
+
 ## Dónde vive en el P4 (ESP32-P4 Waveshare)
 
-- **Mapa vivo: RAM**, dentro del controlador (59 KB). Se actualiza en cada barrido sin tocar la flash; leerlo cuesta lo mismo que cualquier variable.
+- **Mapa vivo: RAM**, dentro del controlador (88 KB). Se actualiza en cada barrido sin tocar la flash; leerlo cuesta lo mismo que cualquier variable.
 - **Copia persistente: partición `tracemap` de la flash** (`p4_firmware/partitions.csv`, 128 KB = 2 ranuras de 64 KB que se alternan, así un corte
   de luz escribiendo deja la anterior intacta). Código: `p4_firmware/main/hw_mapstore.c`.
 - **Cuándo se escribe:** solo al terminar la misión. Borrar/escribir flash detiene la ejecución desde flash (el bucle de 1 ms), por eso nunca se
@@ -71,7 +77,7 @@ Misión simulada con el controlador real (5 semillas por sentido, 3 letreros, ha
 | Falsos objetos | 1 en 30 |
 | Plaza confirmada | 8 de 10 rondas; error medio 0,52 cm, máximo 1,02 cm |
 
-Coste: update 0,13 ms y refresh 0,05 ms por llamada en un PC (la P4 será unas 5-10 veces más lenta: ~1 ms por barrido a 10 Hz); RAM 59.228 bytes.
+Coste: update 0,13 ms y refresh 0,05 ms por llamada en un PC (la P4 será unas 5-10 veces más lenta: ~1 ms por barrido a 10 Hz); RAM 88.228 bytes.
 
 ## Qué no hace (todavía)
 

@@ -9,6 +9,9 @@
 #define TRACE_CARVE_MAX_CM 260.0f      /* alcance con el que se traza espacio libre */
 #define TRACE_CARVE_SKIP_CM 6.0f       /* no se traza dentro del propio coche */
 #define TRACE_MIN_SUPPORT 2u           /* retornos repetidos para que una celda cuente como objeto */
+#define TRACE_GROW_CELLS 2             /* cuanto se amplia un objeto sobre su cresta para medir centro y tamano */
+#define TRACE_SURFACE_RADIUS 2        /* entorno de 5 x 5 celdas (+-5 cm) para decidir si una celda es cresta */
+#define TRACE_SURFACE_RATIO_PCT 30u    /* peso minimo respecto al maximo del entorno */
 #define TRACE_LIST_CAP 2048
 #define TRACE_MIN_OBJECT_CELLS 4       /* un letrero de 5 cm son 4-14 celdas; menos es ruido o un resto de pared */
 #define TRACE_MIN_OBJECT_CONF 100
@@ -36,6 +39,7 @@ static void clear_cell(trace_map_t *m, int r, int c)
     if (m->cells[r][c] & TRACE_MAP_OBSERVED) { --m->occupied_cells; ++m->cleared_cells; }
     m->cells[r][c] = 0;
     m->miss[r][c] = 0;
+    m->hits[r][c] = 0;
 }
 
 static void mark(trace_map_t *m, float x, float z, uint8_t bits)
@@ -51,6 +55,7 @@ static void mark(trace_map_t *m, float x, float z, uint8_t bits)
         const unsigned i = (unsigned)(row * N + col);
         if (!bit_test_set(m->scan_seen, i)) {
             if ((*cell >> TRACE_MAP_SUPPORT_SHIFT) < 15u) *cell = (uint8_t)(*cell + 16u);
+            if (m->hits[row][col] < 255u) ++m->hits[row][col];
             m->miss[row][col] >>= 1;                  /* un retorno desmiente a los rayos que la atravesaron */
         }
     }
@@ -136,10 +141,70 @@ static int is_field(const trace_map_t *m, float x, float z)
     return 0;
 }
 
-static int qualifies(const trace_map_t *m, int r, int c)
+static int is_surface_cell(const trace_map_t *m, int r, int c)
+{
+    const unsigned i = (unsigned)(r * N + c);
+    return (m->surface[i >> 3] >> (i & 7u)) & 1u;
+}
+
+/* Cresta del histograma de retornos: promediar varias pasadas con distinto error de pose es acumular sus retornos y quedarse con la celda
+ * donde se concentran. Una celda es superficie si tiene peso y al menos TRACE_SURFACE_RATIO del peso maximo de sus vecinas (5 x 5).
+ * Maximo separable (filas y luego columnas) con un buffer de trabajo. */
+static uint8_t g_rowmax[N][N];
+static void compute_surface(trace_map_t *m)
+{
+    for (int r = 0; r < N; ++r) for (int c = 0; c < N; ++c) {
+        uint8_t mx = 0;
+        for (int k = -TRACE_SURFACE_RADIUS; k <= TRACE_SURFACE_RADIUS; ++k) {
+            const int cc = c + k;
+            if (cc >= 0 && cc < N && m->hits[r][cc] > mx) mx = m->hits[r][cc];
+        }
+        g_rowmax[r][c] = mx;
+    }
+    memset(m->surface, 0, sizeof m->surface);
+    for (int r = 0; r < N; ++r) for (int c = 0; c < N; ++c) {
+        const uint8_t h = m->hits[r][c];
+        if (!(m->cells[r][c] & TRACE_MAP_OBSERVED) || h < TRACE_MIN_SUPPORT) continue;
+        unsigned mx = 0;
+        for (int k = -TRACE_SURFACE_RADIUS; k <= TRACE_SURFACE_RADIUS; ++k) {
+            const int rr = r + k;
+            if (rr >= 0 && rr < N && g_rowmax[rr][c] > mx) mx = g_rowmax[rr][c];
+        }
+        if ((unsigned)h * 100u >= mx * TRACE_SURFACE_RATIO_PCT) { const unsigned i = (unsigned)(r * N + c); m->surface[i >> 3] |= (uint8_t)(1u << (i & 7u)); }
+    }
+}
+
+static int raw_qualifies(const trace_map_t *m, int r, int c)
 {
     const uint8_t v = m->cells[r][c];
     return (v & TRACE_MAP_OBSERVED) && (v >> TRACE_MAP_SUPPORT_SHIFT) >= TRACE_MIN_SUPPORT && !is_field(m, coord(c), coord(r));
+}
+
+/* Las semillas de un objeto son las celdas de superficie (la cresta promediada): separan bien los letreros de la mancha de las paredes. */
+static int qualifies(const trace_map_t *m, int r, int c)
+{
+    return raw_qualifies(m, r, c) && is_surface_cell(m, r, c);
+}
+
+/* Al objeto se le anaden las celdas observadas de su alrededor (+-TRACE_GROW_CELLS): la cresta solo conserva la cara que ve el LiDAR y, si el
+ * centro y el tamano salieran de ella, el letrero parecería desplazado hacia el lado desde el que se mira y mas pequeño. Medido: el centro de
+ * la huella completa da 0,7 cm de error; el de la cresta sola, 1,4 cm; ponderado por retornos, 1,2 a 1,5 cm. */
+static int grow_object(const trace_map_t *m, int n)
+{
+    static uint8_t added[N * N / 8];
+    memset(added, 0, sizeof added);
+    for (int k = 0; k < n; ++k) bit_test_set(added, g_list[k]);
+    const int seeds = n;
+    for (int k = 0; k < seeds; ++k) {
+        const int r = g_list[k] / N, c = g_list[k] % N;
+        for (int dr = -TRACE_GROW_CELLS; dr <= TRACE_GROW_CELLS; ++dr) for (int dc = -TRACE_GROW_CELLS; dc <= TRACE_GROW_CELLS; ++dc) {
+            const int rr = r + dr, cc = c + dc;
+            if (rr < 0 || rr >= N || cc < 0 || cc >= N || !raw_qualifies(m, rr, cc)) continue;
+            if (bit_test_set(added, (unsigned)(rr * N + cc))) continue;
+            if (n < TRACE_LIST_CAP) g_list[n++] = (uint16_t)(rr * N + cc);
+        }
+    }
+    return n;
 }
 
 static float heading_deg(float dx, float dz)
@@ -159,9 +224,34 @@ static float axis_diff(float a, float b)
 
 static void wall_geometry(const trace_map_t *m, const trace_object_t *o, int *side, float *along, float *perp);
 
+/* Un letrero se detecta y se mide con su cresta (separa bien de las paredes), pero la cresta solo guarda la cara que ve el LiDAR y su centro
+ * queda ~1,4 cm del lado de la mirada. El centro se corrige con la huella completa (cresta + celdas observadas a +-TRACE_GROW_CELLS), que
+ * en la medicion da 0,7 cm. Si la huella arrastra algo ajeno (otra cosa pegada) y el centro se movería mas de 3 cm, se deja el de la cresta. */
+static void refine_pillar_center(const trace_map_t *m, int n_seed, trace_object_t *o)
+{
+    const int n = grow_object(m, n_seed);
+    const float ux = sinf(o->axis_deg * RAD), uz = cosf(o->axis_deg * RAD);
+    double mx = 0, mz = 0;
+    for (int k = 0; k < n; ++k) { mx += coord(g_list[k] % N); mz += coord(g_list[k] / N); }
+    mx /= n; mz /= n;
+    float mnu = 1e9f, mxu = -1e9f, mnv = 1e9f, mxv = -1e9f;
+    for (int k = 0; k < n; ++k) {
+        const float dx = coord(g_list[k] % N) - (float)mx, dz = coord(g_list[k] / N) - (float)mz;
+        const float pu = dx * ux + dz * uz, pv = -dx * uz + dz * ux;
+        if (pu < mnu) mnu = pu;
+        if (pu > mxu) mxu = pu;
+        if (pv < mnv) mnv = pv;
+        if (pv > mxv) mxv = pv;
+    }
+    const float cu = 0.5f * (mnu + mxu), cv = 0.5f * (mnv + mxv);
+    const float cx = (float)mx + cu * ux - cv * uz, cz = (float)mz + cu * uz + cv * ux;
+    if (hypotf(cx - o->x_cm, cz - o->z_cm) <= 3.0f) { o->x_cm = cx; o->z_cm = cz; }
+}
+
 static int build_object(const trace_map_t *m, int n, trace_object_t *o)
 {
     double sx = 0, sz = 0, sxx = 0, szz = 0, sxz = 0, sup = 0;
+    const double wsum = n;
     int red = 0, green = 0, mag = 0;
     for (int k = 0; k < n; ++k) {
         const int r = g_list[k] / N, c = g_list[k] % N;
@@ -175,8 +265,8 @@ static int build_object(const trace_map_t *m, int n, trace_object_t *o)
             red += (v & TRACE_MAP_RED) != 0; green += (v & TRACE_MAP_GREEN) != 0; mag += (v & TRACE_MAP_MAGENTA_CANDIDATE) != 0;
         }
     }
-    const double mx = sx / n, mz = sz / n;
-    const double vxx = sxx / n - mx * mx, vzz = szz / n - mz * mz, vxz = sxz / n - mx * mz;
+    const double mx = sx / wsum, mz = sz / wsum;
+    const double vxx = sxx / wsum - mx * mx, vzz = szz / wsum - mz * mz, vxz = sxz / wsum - mx * mz;
     const double t = 0.5 * atan2(2.0 * vxz, vxx - vzz);
     const float ux = (float)cos(t), uz = (float)sin(t);
     float mnu = 1e9f, mxu = -1e9f, mnv = 1e9f, mxv = -1e9f;
@@ -189,7 +279,9 @@ static int build_object(const trace_map_t *m, int n, trace_object_t *o)
         if (pv < mnv) mnv = pv;
         if (pv > mxv) mxv = pv;
     }
-    o->x_cm = (float)mx; o->z_cm = (float)mz;
+    /* centro = punto medio de la huella en su eje principal (mas estable que la media cuando solo se ve una cara) */
+    const float cu = 0.5f * (mnu + mxu), cv = 0.5f * (mnv + mxv);
+    o->x_cm = (float)mx + cu * ux - cv * uz; o->z_cm = (float)mz + cu * uz + cv * ux;
     o->length_cm = (mxu - mnu) + CELL;
     o->width_cm = (mxv - mnv) + CELL;
     o->axis_deg = heading_deg(ux, uz);
@@ -295,6 +387,7 @@ void trace_map_refresh(trace_map_t *m)
     if (!m) return;
     trace_object_t found[TRACE_MAP_MAX_OBJECTS];
     int nfound = 0;
+    compute_surface(m);
     memset(g_visited, 0, sizeof g_visited);
     for (int r0 = 0; r0 < N && nfound < TRACE_MAP_MAX_OBJECTS; ++r0) {
         for (int c0 = 0; c0 < N && nfound < TRACE_MAP_MAX_OBJECTS; ++c0) {
@@ -316,6 +409,7 @@ void trace_map_refresh(trace_map_t *m)
             memset(&o, 0, sizeof o);
             build_object(m, tail, &o);
             if (o.confidence < TRACE_MIN_OBJECT_CONF) continue;
+            if (o.kind == TRACE_OBJ_PILLAR) refine_pillar_center(m, tail, &o);
             o.last_scan = m->scans;
             found[nfound++] = o;
         }
@@ -369,6 +463,13 @@ uint8_t trace_map_cell_at(const trace_map_t *m, float x, float z)
     return (c < 0 || c >= N || r < 0 || r >= N) ? 0 : m->cells[r][c];
 }
 
+int trace_map_is_surface(const trace_map_t *m, float x, float z)
+{
+    if (!m || !isfinite(x) || !isfinite(z)) return 0;
+    const int c = cell_of(x), r = cell_of(z);
+    return (c < 0 || c >= N || r < 0 || r >= N) ? 0 : is_surface_cell(m, r, c);
+}
+
 int trace_map_is_free(const trace_map_t *m, float x, float z)
 {
     if (!m || !isfinite(x) || !isfinite(z)) return 0;
@@ -415,19 +516,19 @@ size_t trace_map_save(const trace_map_t *m, uint8_t *buf, size_t cap)
     if (!m || !buf) return 0;
     size_t used = 0;
     for (int r = 0; r < N; ++r) for (int c = 0; c < N; ++c) used += m->cells[r][c] ? 1u : 0u;
-    const size_t need = 16 + used * 4 + sizeof(m->scan_seen) + 1 + sizeof(m->objects[0]) * m->object_count + sizeof(m->spot) + 2;
+    const size_t need = 16 + used * 5 + sizeof(m->scan_seen) + 1 + sizeof(m->objects[0]) * m->object_count + sizeof(m->spot) + 2;
     if (cap < need) return 0;
     size_t p = 0;
     const uint32_t magic = TRACE_MAGIC, n_used = (uint32_t)used, scans = m->scans;
     memcpy(buf + p, &magic, 4); p += 4;
-    buf[p++] = 1; buf[p++] = (uint8_t)(N & 0xFF); buf[p++] = (uint8_t)(N >> 8); buf[p++] = m->laps_mapped;
+    buf[p++] = 2; buf[p++] = (uint8_t)(N & 0xFF); buf[p++] = (uint8_t)(N >> 8); buf[p++] = m->laps_mapped;
     memcpy(buf + p, &n_used, 4); p += 4;
     memcpy(buf + p, &scans, 4); p += 4;
     for (int r = 0; r < N; ++r) for (int c = 0; c < N; ++c) {
         if (!m->cells[r][c]) continue;
         const uint16_t idx = (uint16_t)(r * N + c);
         memcpy(buf + p, &idx, 2); p += 2;
-        buf[p++] = m->cells[r][c]; buf[p++] = m->miss[r][c];
+        buf[p++] = m->cells[r][c]; buf[p++] = m->miss[r][c]; buf[p++] = m->hits[r][c];
     }
     /* espacio libre conocido: un bit por celda (rayos >= 2 y sin ocupar) */
     memset(buf + p, 0, sizeof(m->scan_seen));
@@ -450,13 +551,14 @@ int trace_map_load(trace_map_t *m, const uint8_t *buf, size_t len)
     if (crc16(buf, len - 2) != crc) return 0;
     uint32_t magic, n_used, scans;
     memcpy(&magic, buf, 4);
-    if (magic != TRACE_MAGIC || buf[4] != 1 || (buf[5] | (buf[6] << 8)) != N) return 0;
+    if (magic != TRACE_MAGIC || buf[4] != 2 || (buf[5] | (buf[6] << 8)) != N) return 0;
     memcpy(&n_used, buf + 8, 4);
     memcpy(&scans, buf + 12, 4);
     size_t p = 16;
-    if (n_used > (uint32_t)N * N || len < p + (size_t)n_used * 4 + sizeof(m->scan_seen) + 1 + sizeof m->spot + 2) return 0;
+    if (n_used > (uint32_t)N * N || len < p + (size_t)n_used * 5 + sizeof(m->scan_seen) + 1 + sizeof m->spot + 2) return 0;
     memset(m->cells, 0, sizeof m->cells);
     memset(m->miss, 0, sizeof m->miss);
+    memset(m->hits, 0, sizeof m->hits);
     m->occupied_cells = 0;
     for (uint32_t k = 0; k < n_used; ++k) {
         uint16_t idx;
@@ -464,6 +566,7 @@ int trace_map_load(trace_map_t *m, const uint8_t *buf, size_t len)
         if (idx >= N * N) return 0;
         m->cells[idx / N][idx % N] = buf[p++];
         m->miss[idx / N][idx % N] = buf[p++];
+        m->hits[idx / N][idx % N] = buf[p++];
         if (m->cells[idx / N][idx % N] & TRACE_MAP_OBSERVED) ++m->occupied_cells;
     }
     for (unsigned i = 0; i < (unsigned)(N * N); ++i)
@@ -478,6 +581,7 @@ int trace_map_load(trace_map_t *m, const uint8_t *buf, size_t len)
     m->spot_scan = scans;
     m->laps_mapped = buf[7];
     m->lap_start_scan = scans;
+    compute_surface(m);
     for (unsigned i = 0; i < n_obj; ++i) if (m->objects[i].id > m->next_id) m->next_id = m->objects[i].id;
     return 1;
 }

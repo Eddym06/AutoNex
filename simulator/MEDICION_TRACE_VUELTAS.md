@@ -68,3 +68,37 @@ datos del chasis real, no con simulador: aquí no hay ninguna ronda en la que el
 - No hay LiDAR real: el ruido, los reflejos y la pose real del chasis pueden cambiar todo.
 - La comparación de pose usa rondas sin letreros para que todas lleguen a aparcar; con letreros hay rondas que acaban antes por otras causas.
 - Las dos fuentes salen del mismo LiDAR, así que sus errores no son independientes del todo.
+
+## 4. Corrección: promedio de las pasadas (después de la sección 1)
+
+**Por qué la 3.ª vuelta no bajaba el error** (diagnose_pose_repeat.js, 16 rondas, 252 casillas de 25 cm visitadas en la vuelta 1 y en la 3):
+el error de la pose del campo (arena_localizer) tiene RMS 1,62 cm en la vuelta 1 y 1,61 cm en la 3, y la **correlación entre las dos es 0,983**: el error
+es casi idéntico en el mismo sitio en cada vuelta (diferencia RMS 0,3 cm). Es sistemático, no ruido: promediar vueltas no lo quita, solo quita esos 0,3 cm.
+Lo que sí crecía era la **mancha**: el contador de 4 bits se saturaba en la primera pasada y toda celda tocada valía igual.
+
+**Qué se cambió:** contador de retornos de 8 bits por celda (hits) y una superficie = cresta del histograma (≥ 30 % del peso máximo en 5 × 5).
+Los objetos se buscan en la superficie. Memoria del mapa: 59 KB → 88 KB.
+
+Mismas 13 rondas pareadas, antes → después:
+
+| Medida | Antes v1 → v3 | Después v1 → v3 |
+| --- | --- | --- |
+| Celdas al sólido real, media (cm) | 1,64 → 2,00 | 0,89 → 0,94 |
+| Celdas al sólido real, p95 (cm) | 4,25 → 6,75 | 3,75 → 3,75 |
+| Celdas de pared/objeto en el mapa | 30.759 → 34.458 | 17.824 → 17.808 |
+| Letreros encontrados | 31/39 → 34/39 | 39/39 → 39/39 |
+| Color correcto | 30/31 → 34/34 | 38/39 → 39/39 |
+| Error de posición del letrero, media (cm) | 0,66 → 0,72 | 0,93 → 0,87 |
+| Error de posición de la plaza, media (cm) | 1,15 → 1,11 | 0,67 → 0,88 |
+| Falsos objetos | 0 → 0 | 0 → 0 |
+
+Lectura sin adornos:
+- **La mancha ya no crece con las vueltas** (p95 3,75 cm en las dos) y hay la mitad de celdas: eso es lo que se pidió.
+- **Se encuentran los 39 letreros** en vez de 31-34, porque la superficie separa los letreros de la mancha de la pared.
+- **El error de posición del letrero no mejora, empeora algo en la media** (0,66 → 0,93 en la vuelta 1): ahora entran los 8 letreros difíciles que antes
+  no se encontraban, y el p95 sube a 2,4-2,8 cm por ellos. En los mismos letreros que antes, 0,7-0,9 cm.
+- **La vuelta 3 sigue sin ser más precisa que la 1** (plaza 0,67 → 0,88 cm, sin mejora): el error dominante es el sistemático de la pose,
+  y esto no lo arregla el mapa. Reducirlo exige mejorar rena_localizer (el modelo del campo que usa para ajustar).
+- Ponderar el centro del letrero por retornos lo empeoró (1,2 cm frente a 0,7): el LiDAR solo ve una cara y esa cara concentra los retornos.
+  Por eso el centro se corrige con la huella completa (diagnose_sign_center.js).
+- Tiempo de las mediciones: 31 s en paralelo (22 núcleos) frente a ~10 min en serie, con una línea de log por ronda (simulator/tools/par.js).

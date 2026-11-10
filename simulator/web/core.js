@@ -194,7 +194,9 @@
         return { size, cellCm:x.core_trace_map_cell_cm(), originCm:x.core_trace_map_origin_cm(),
           bytes:x.core_trace_map_bytes(), laps:x.core_trace_map_laps(), occupied:x.core_trace_map_occupied(), scans:x.core_trace_map_scans(),
           clipped:x.core_trace_map_clipped(), cleared:x.core_trace_map_cleared(), cells:u8(x.core_trace_map_ptr(),size*size).slice(),
-          miss:u8(x.core_trace_map_miss_ptr(),size*size).slice() };
+          miss:u8(x.core_trace_map_miss_ptr(),size*size).slice(),
+          hits:u8(x.core_trace_map_hits_ptr(),size*size).slice(),
+          surface:u8(x.core_trace_map_surface_ptr(),size*size/8).slice() };   /* superficie promediada: bit i = celda i (fila*size+col) */
       },
       traceParking() {
         const p=f32(x.core_trace_parking_ptr(),19).slice();

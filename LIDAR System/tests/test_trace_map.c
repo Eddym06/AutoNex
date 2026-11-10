@@ -149,6 +149,7 @@ int main(void)
     assert(bytes > 0 && trace_map_load(&loaded, buf, bytes));
     assert(loaded.object_count == map.object_count && loaded.spot.status == map.spot.status && loaded.occupied_cells == map.occupied_cells);
     assert(memcmp(loaded.cells, map.cells, sizeof map.cells) == 0);
+    assert(memcmp(loaded.hits, map.hits, sizeof map.hits) == 0);
     assert(loaded.laps_mapped == map.laps_mapped && loaded.objects[0].laps_seen == map.objects[0].laps_seen);
     buf[100] ^= 0x55;
     assert(!trace_map_load(&loaded, buf, bytes));            /* el CRC detecta un byte corrupto */

@@ -63,6 +63,12 @@ typedef struct {
 typedef struct {
     uint8_t cells[TRACE_MAP_SIZE][TRACE_MAP_SIZE];
     uint8_t miss[TRACE_MAP_SIZE][TRACE_MAP_SIZE];      /* rayos que atravesaron la celda (sin pasar de 255) */
+    /* Retornos acumulados por celda (1 por barrido, hasta 255): es el peso con que se PROMEDIAN las pasadas. El contador de 4 bits de
+     * `cells` se satura en la primera pasada y no distingue el borde de una pared de su centro; este si. */
+    uint8_t hits[TRACE_MAP_SIZE][TRACE_MAP_SIZE];
+    /* Celdas de superficie: ocupadas, con peso suficiente y con al menos el 30 % del peso maximo de su entorno (5 x 5). Quita la mancha que
+     * dejan las pasadas con distinto error de pose y deja la cresta del histograma. Se recalcula en trace_map_refresh. */
+    uint8_t surface[TRACE_MAP_SIZE * TRACE_MAP_SIZE / 8];
     /* Marca de celdas tocadas en este barrido: 1 bit por celda (un retorno / un rayo cuenta una vez por barrido). */
     uint8_t scan_seen[TRACE_MAP_SIZE * TRACE_MAP_SIZE / 8];
     uint8_t miss_seen[TRACE_MAP_SIZE * TRACE_MAP_SIZE / 8];
@@ -98,6 +104,7 @@ int trace_map_is_built(const trace_map_t *m);        /* 1 si ya hay al menos una
 const trace_object_t *trace_map_objects(const trace_map_t *m, size_t *count);
 const trace_spot_t *trace_map_spot(const trace_map_t *m);
 uint8_t trace_map_cell_at(const trace_map_t *m, float x_cm, float z_cm);       /* byte de la celda; 0 fuera del mapa */
+int trace_map_is_surface(const trace_map_t *m, float x_cm, float z_cm);        /* 1 = superficie promediada (ver `surface`) */
 int trace_map_is_free(const trace_map_t *m, float x_cm, float z_cm);           /* 1 = espacio libre conocido */
 float trace_map_clearance_cm(const trace_map_t *m, float x_cm, float z_cm, float max_cm);   /* al obstaculo observado mas cercano */
 
