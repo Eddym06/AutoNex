@@ -12,6 +12,8 @@
  * Capa 3, plaza de parqueo: el par de topes (barras perpendiculares a la pared exterior, separadas lo que mide el
  * cajon) se reconoce solo con la geometria, sin cuadro de camara; el magenta solo suma confianza.
  *
+ * Vueltas: la primera construye el mapa; en cada vuelta siguiente (trace_map_lap_complete) se refina.
+ *
  * C99 puro, una sola instancia por proceso (usa buffers de trabajo estaticos), sin asignacion dinamica.
  * RAM: unos 62 KB. No controla el vehiculo: lo consultan los niveles superiores.
  */
@@ -39,6 +41,7 @@ typedef struct {
     uint8_t color;               /* trace_color_t */
     uint8_t confidence;          /* 0..255 (repeticion de los retornos) */
     uint16_t cells;
+    uint8_t laps_seen;           /* vueltas completas en las que el objeto sigue en el mapa (1 = solo la de construccion) */
     float x_cm, z_cm;            /* centro, en el campo */
     float length_cm, width_cm;   /* extension a lo largo y a lo ancho del eje principal */
     float axis_deg;              /* direccion del eje principal, horario desde el norte (+z), en [0,180) */
@@ -74,7 +77,9 @@ typedef struct {
     uint8_t object_count;
     uint16_t next_id;
     uint32_t refreshed_scan;
-    uint32_t spot_scan;          /* barrido en que se vio por ultima vez la plaza confirmada */
+    uint8_t laps_mapped;         /* vueltas completas acumuladas: 0 = construyendo la primera, >= 1 = mapa construido */
+    uint32_t lap_start_scan;     /* barrido en que empezo la vuelta en curso */
+    uint32_t spot_scan;         /* barrido en que se vio por ultima vez la plaza confirmada */
     trace_spot_t spot;
 } trace_map_t;
 
@@ -84,6 +89,10 @@ void trace_map_update(trace_map_t *m, const local_lidar_point_t *points, size_t 
                       float lidar_forward_cm);
 /* Reconstruye la lista de objetos y la plaza. Barato (< 1 ms en PC): llamarlo cada ~10 barridos. */
 void trace_map_refresh(trace_map_t *m);
+/* Cierra una vuelta: reconstruye objetos y plaza y cuenta la vuelta. La primera construye el mapa; las siguientes lo
+ * refinan (cada pasada suma retornos, borra lo que se movio y sube `laps_seen` de los objetos que siguen en su sitio). */
+void trace_map_lap_complete(trace_map_t *m);
+int trace_map_is_built(const trace_map_t *m);        /* 1 si ya hay al menos una vuelta completa */
 
 /* Consultas. Las coordenadas son del campo, en cm. */
 const trace_object_t *trace_map_objects(const trace_map_t *m, size_t *count);

@@ -1,4 +1,4 @@
-/* Mide los objetos y la plaza del mapa persistente (trace_map v2) contra la geometria verdadera del simulador.
+/* Mide los objetos y la plaza del mapa persistente (trace_map) contra la geometria verdadera del simulador.
  *   node simulator/tools/measure_trace_objects.js [semillas=6] [segundos=140] [letreros=5]
  * DIR=cw|ccw limita el sentido. La verdad se usa solo despues, para evaluar; el controlador no la ve. */
 'use strict';

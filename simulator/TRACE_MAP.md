@@ -1,4 +1,4 @@
-# trace_map v2: mapa persistente de la pista
+# trace_map: mapa persistente de la pista
 
 Código: `LIDAR System/main/trace_map.c/.h`. Pruebas: `LIDAR System/tests/test_trace_map.c` (campo sintético),
 `simulator/tests/test_trace_map.js` (misión simulada) y `simulator/tools/measure_trace_objects.js` (error contra la verdad).
@@ -20,6 +20,24 @@ Tres capas, en el marco del campo (centro 0, 400 × 400 cm, celdas de 2,5 cm):
 3. **Plaza de parqueo** (`trace_map_spot`): el par de barras perpendiculares a la pared exterior separadas lo que mide el cajón (largo + 2 cm de tope)
    se reconoce solo con geometría. `CONFIRMED` con centro, largo, ancho, eje y posición de los dos topes; `HYPOTHESIS` con un tope magenta;
    el magenta de ambos topes suma confianza. Una plaza confirmada se conserva 300 barridos aunque los topes queden fuera de vista.
+
+## Vueltas: se construye en la primera y se refina en cada una
+
+`wro_controller` llama a `trace_map_lap_complete` cada 4 esquinas. La **1.ª vuelta construye** el mapa (`laps_mapped` pasa de 0 a 1,
+`trace_map_is_built`). En cada vuelta siguiente el mismo mapa se **refina**: cada pasada suma retornos (sube la confianza), borra lo que se
+movió (`cleared_cells`) y cada objeto que sigue en su sitio suma una vuelta en `laps_seen`. Al terminar la misión (DONE/FAULT) el controlador
+congela el mapa para poder copiarlo.
+
+## Dónde vive en el P4 (ESP32-P4 Waveshare)
+
+- **Mapa vivo: RAM**, dentro del controlador (59 KB). Se actualiza en cada barrido sin tocar la flash; leerlo cuesta lo mismo que cualquier variable.
+- **Copia persistente: partición `tracemap` de la flash** (`p4_firmware/partitions.csv`, 128 KB = 2 ranuras de 64 KB que se alternan, así un corte
+  de luz escribiendo deja la anterior intacta). Código: `p4_firmware/main/hw_mapstore.c`.
+- **Cuándo se escribe:** solo al terminar la misión. Borrar/escribir flash detiene la ejecución desde flash (el bucle de 1 ms), por eso nunca se
+  hace en marcha. La copia en PSRAM (`s_buf`) no ocupa RAM interna, y una tarea de prioridad 1 hace el trabajo (~100-300 ms con ~9 KB).
+- **Arranque:** se registra cuál fue la última copia (`hw_mapstore_load` la devuelve). **No se vuelca sola al mapa vivo**: los letreros cambian de
+  sitio entre rondas y un mapa viejo sería un obstáculo falso.
+- Tras actualizar hay que regenerar `sdkconfig` (borrar el existente o `idf.py reconfigure`) y flashear **la tabla de particiones** (`idf.py flash` lo hace).
 
 ## API
 
@@ -61,4 +79,5 @@ Coste: update 0,13 ms y refresh 0,05 ms por llamada en un PC (la P4 será unas 5
 - No distingue letreros pegados a otro obstáculo (se fusionan) ni tiene modelo de objetos móviles.
 - Asume el campo de la sede (paredes paralelas a los ejes). Otra sede exige `trace_map_t.field_*`.
 - `trace_parking.c` (estimador antiguo con una detección de cámara) se conserva por compatibilidad; la plaza del mapa lo sustituye.
-- La interfaz del simulador todavía no dibuja objetos ni plaza.
+- La interfaz del simulador dibuja objetos (círculo con su color e id) y la plaza (rectángulo amarillo), y muestra las vueltas acumuladas.
+- El guardado en flash (`hw_mapstore.c`) está escrito pero **no se ha compilado ni probado en el P4**: no hay ESP-IDF en este entorno.

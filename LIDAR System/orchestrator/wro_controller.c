@@ -2002,9 +2002,10 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         c->camera_seen ? objects : NULL, object_count,
         c->camera.received_timestamp_us, &imu);
     c->live_colored = c->map.colored_count;
-    /* Solo se proyecta en campo cuando existe pose; el mapa no interviene en
-     * las decisiones del planificador y se reinicia al inicializar la mision. */
-    if (c->arena.valid && c->arena.rms_cm <= 3.5f && c->phase != WRO_PHASE_IDLE) {
+    /* Solo se proyecta en campo cuando existe pose; el mapa se reinicia al inicializar la mision. Se congela al
+     * terminar (DONE/FAULT) para que el firmware pueda guardarlo sin que cambie mientras se copia. */
+    if (c->arena.valid && c->arena.rms_cm <= 3.5f && c->phase != WRO_PHASE_IDLE &&
+        c->phase != WRO_PHASE_DONE && c->phase != WRO_PHASE_FAULT) {
         /* Los puntos ya estan expresados en la pose adelantada por compensate_motion,
          * independientemente de la opcion de adelanto del mapa del planificador. */
         arena_pose_t tp = c->arena.pose;
@@ -2135,6 +2136,8 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
             if (fabsf(imu_wrap_deg(c->course_deg - c->yaw.yaw_deg)) <= c->cfg.corner_done_deg) {
                 c->corner_active = false;
                 ++c->corners_done;
+                /* Cada 4 esquinas es una vuelta: la 1.a construye el mapa, las siguientes lo refinan. */
+                if (c->corners_done % 4 == 0) trace_map_lap_complete(&c->trace_map);
                 c->travel_cm = 0.0f;
                 if (c->corners_done == 4) c->last_sign_color = 0; /* la regla mira la 2.a vuelta */
                 if (c->corners_done == ((int)c->cfg.laps - 1) * 4 && !c->turnaround_decided) {

@@ -20,6 +20,7 @@ idf_component_register(
         "hw_imu.c"
         "hw_pinscan.c"
         "hw_link.c"
+        "hw_mapstore.c"
         ${WRO_CORE_SRC}
         "${WRO_CORE_DIR}/trace_map.c"
         "${WRO_CORE_DIR}/trace_parking.c"
@@ -35,5 +36,5 @@ idf_component_register(
         "${WRO_ORCHESTRATOR_DIR}"
         "${WRO_SHARED_DIR}"
         "${WRO_MIC_DIR}"
-    REQUIRES driver esp_timer nvs_flash esp_driver_gpio esp_driver_ledc esp_driver_pcnt
+    REQUIRES driver esp_timer nvs_flash esp_driver_gpio esp_driver_ledc esp_driver_pcnt esp_partition
 )

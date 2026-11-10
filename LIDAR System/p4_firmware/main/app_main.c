@@ -18,6 +18,7 @@
 #include "hw_imu.h"
 #include "hw_lidar.h"
 #include "hw_link.h"
+#include "hw_mapstore.h"
 #include "hw_motors.h"
 #include "hw_steering.h"
 #include "hw_pinscan.h"
@@ -309,6 +310,12 @@ static void link_tx_task(void *arg)
     }
 }
 
+/* La mision termino (o fallo): motores a 0 y el controlador ya no toca el trace_map, asi que se puede copiar a flash. */
+static bool mission_finished(void)
+{
+    return rt.controller.phase == WRO_PHASE_DONE || rt.controller.phase == WRO_PHASE_FAULT;
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "WRO P4: motores %s (tope 12 V = %d %% de PWM, bateria %d mV), S3 por USB %s, LiDAR RX GPIO %d",
@@ -328,6 +335,7 @@ void app_main(void)
     hw_start_init();
     hw_imu_init();
     reset_runtime();
+    hw_mapstore_init(&rt.controller.trace_map, mission_finished);   /* copia del mapa en flash al terminar */
     xTaskCreate(link_tx_task, "link_tx", 6144, NULL, 2, NULL);
 
     uint64_t last_report = now_us(NULL);

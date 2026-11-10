@@ -9,7 +9,7 @@
 > - **MIC (Motor Intelligent Control):** módulo central de tracción en [`Motor Control/MIC/`](Motor%20Control/MIC/README.md): modelo del JGB37-520, observador,
 >   planificador con anticipación, frenado progresivo y agresivo. Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (**apagado**) y en el simulador (`mic: true`).
 >   Probado solo con un motor simulado. Procedimiento de calibración en [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md).
-> - **trace_map v2:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
+> - **trace_map:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
 > - **Aviso de hardware:** el lazo abierto de `hw_motors.c` usa `WRO_MOTOR_MAX_CM_S = 40`; con el motor de 1000 rpm el 100 % de ciclo son ~270 cm/s. No activar
 >   los motores sin MIC o sin recalibrar ese valor. `ACKERMANN.md` dice 600 rpm y MIC usa 1000 rpm: confirmar con la placa del motor.
 > - Nada de esto está probado en el coche real.

@@ -192,7 +192,7 @@
       traceMap() {
         const size=x.core_trace_map_size();
         return { size, cellCm:x.core_trace_map_cell_cm(), originCm:x.core_trace_map_origin_cm(),
-          bytes:x.core_trace_map_bytes(), occupied:x.core_trace_map_occupied(), scans:x.core_trace_map_scans(),
+          bytes:x.core_trace_map_bytes(), laps:x.core_trace_map_laps(), occupied:x.core_trace_map_occupied(), scans:x.core_trace_map_scans(),
           clipped:x.core_trace_map_clipped(), cleared:x.core_trace_map_cleared(), cells:u8(x.core_trace_map_ptr(),size*size).slice(),
           miss:u8(x.core_trace_map_miss_ptr(),size*size).slice() };
       },

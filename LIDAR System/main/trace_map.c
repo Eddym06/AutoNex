@@ -331,7 +331,7 @@ void trace_map_refresh(trace_map_t *m)
             const float d = hypotf(found[i].x_cm - m->objects[j].x_cm, found[i].z_cm - m->objects[j].z_cm);
             if (d < bd) { bd = d; best = j; }
         }
-        if (best >= 0) { taken[best] = 1; found[i].id = m->objects[best].id; }
+        if (best >= 0) { taken[best] = 1; found[i].id = m->objects[best].id; found[i].laps_seen = m->objects[best].laps_seen; }
         else found[i].id = ++m->next_id;
     }
     memcpy(m->objects, found, (size_t)nfound * sizeof(trace_object_t));
@@ -339,6 +339,18 @@ void trace_map_refresh(trace_map_t *m)
     m->refreshed_scan = m->scans;
     find_spot(m);
 }
+
+void trace_map_lap_complete(trace_map_t *m)
+{
+    if (!m) return;
+    trace_map_refresh(m);
+    for (int i = 0; i < m->object_count; ++i)
+        if (m->objects[i].laps_seen < 255u) ++m->objects[i].laps_seen;
+    if (m->laps_mapped < 255u) ++m->laps_mapped;
+    m->lap_start_scan = m->scans;
+}
+
+int trace_map_is_built(const trace_map_t *m) { return m && m->laps_mapped >= 1u; }
 
 /* ------------------------------------------------------------------ consultas */
 
@@ -387,7 +399,7 @@ float trace_map_clearance_cm(const trace_map_t *m, float x, float z, float max_c
 
 /* ------------------------------------------------------------------ guardado */
 
-#define TRACE_MAGIC 0x324D5254u   /* "TRM2" */
+#define TRACE_MAGIC 0x4D435254u   /* "TRCM" */
 static uint16_t crc16(const uint8_t *p, size_t n)
 {
     uint16_t crc = 0xFFFFu;
@@ -408,7 +420,7 @@ size_t trace_map_save(const trace_map_t *m, uint8_t *buf, size_t cap)
     size_t p = 0;
     const uint32_t magic = TRACE_MAGIC, n_used = (uint32_t)used, scans = m->scans;
     memcpy(buf + p, &magic, 4); p += 4;
-    buf[p++] = 1; buf[p++] = (uint8_t)(N & 0xFF); buf[p++] = (uint8_t)(N >> 8); buf[p++] = 0;
+    buf[p++] = 1; buf[p++] = (uint8_t)(N & 0xFF); buf[p++] = (uint8_t)(N >> 8); buf[p++] = m->laps_mapped;
     memcpy(buf + p, &n_used, 4); p += 4;
     memcpy(buf + p, &scans, 4); p += 4;
     for (int r = 0; r < N; ++r) for (int c = 0; c < N; ++c) {
@@ -464,6 +476,8 @@ int trace_map_load(trace_map_t *m, const uint8_t *buf, size_t len)
     memcpy(&m->spot, buf + p, sizeof m->spot);
     m->scans = scans;
     m->spot_scan = scans;
+    m->laps_mapped = buf[7];
+    m->lap_start_scan = scans;
     for (unsigned i = 0; i < n_obj; ++i) if (m->objects[i].id > m->next_id) m->next_id = m->objects[i].id;
     return 1;
 }

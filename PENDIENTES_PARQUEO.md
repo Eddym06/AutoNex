@@ -63,12 +63,12 @@ Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en
   (`mic_request_move`) y rutas en vez de solo velocidad; resolver el conflicto 600 rpm (`ACKERMANN.md`) frente a 1000 rpm.
 - Aviso: el lazo abierto actual (`WRO_MOTOR_MAX_CM_S=40`) iría ~6 veces más rápido con el motor de 1000 rpm. Motores desactivados por defecto.
 
-## 8. Avances exactos con MIC y trace_map v2 (10 nov)
+## 8. Avances exactos con MIC y trace_map (10 nov)
 
 - **Avances exactos (`park_exact_moves`, apagado):** el comando lleva `move_cm`/`move_id` y el simulador los pasa a `mic_request_move`.
   Probado dos veces con MIC en el lazo (arco a arco, y fusionando rectas): peor que MIC solo en velocidad (suma de repasadas 113-134 frente a 86; sin fallos).
   El ejecutor de arcos está afinado para una planta lenta y mide por odometría/giroscopio; hay que rediseñarlo a nivel de tramo (no arco).
   MIC solo en velocidad: 0 fallos en 40 rondas, pero con repasadas irregulares (a veces 15-17).
-- **trace_map v2:** rejilla con espacio libre, objetos con color y posición, plaza detectada por geometría, guardado y consultas. Ver `simulator/TRACE_MAP.md`.
+- **trace_map:** rejilla con espacio libre, objetos con color y posición, plaza detectada por geometría, guardado y consultas. Ver `simulator/TRACE_MAP.md`.
   Falta que el parqueo y el planificador lo consulten, dibujarlo en la interfaz y probarlo con el LiDAR real.
 

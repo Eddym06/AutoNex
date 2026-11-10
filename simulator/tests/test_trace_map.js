@@ -1,4 +1,4 @@
-/* trace_map v2 en una mision simulada con el controlador C real: acumulacion, espacio libre, objetos con color y posicion,
+/* trace_map en una mision simulada con el controlador C real: acumulacion, espacio libre, objetos con color y posicion,
  * y plaza de parqueo, medidos contra la geometria verdadera (usada solo para evaluar). */
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const web = path.join(__dirname, '../web');
@@ -39,5 +39,5 @@ require(path.join(web, 'core.js'));
   assert(Math.abs(spot.length - lot.length) < 4, `largo de la plaza ${spot.length} frente a ${lot.length}`);
   console.log(JSON.stringify({ seconds: +sim.t.toFixed(1), scans: m.scans, occupied: m.occupied, freeCells: free, cleared: m.cleared,
     objects: core.traceObjects().length, signErrMaxCm: +errMax.toFixed(2), spotErrCm: +spotErr.toFixed(2), ramBytes: m.bytes }));
-  console.log('PASS: trace_map v2 (rejilla, espacio libre, objetos, plaza) en una mision simulada');
+  console.log('PASS: trace_map (rejilla, espacio libre, objetos, plaza) en una mision simulada');
 })().catch(e => { console.error(e); process.exit(1); });

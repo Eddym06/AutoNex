@@ -14,7 +14,7 @@ const near = (a, b, tol, msg) => assert(Math.abs(a - b) <= tol, `${msg || ''} ${
   const core = await WRO.core.load(bytes);
   const raw = core.raw;
   assert.equal(raw.core_abi_version(), 2, 'version de la ABI');
-  assert.equal(raw.core_cmd_fields(), 86);
+  assert.equal(raw.core_cmd_fields(), 88);
   assert.equal(raw.core_vision_fields(), 8 + (12 + 1) * 9);
   assert.equal(raw.core_debug_fields(), 9 + 3 * 48 * 2 + 12 * 4);
   assert.equal(raw.core_max_points(), 512);

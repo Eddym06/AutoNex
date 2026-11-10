@@ -227,7 +227,7 @@ orden y usa un **motor físico del JGB37-520** (R, Ke, masa, fricción, caída d
 gobernado por MIC, que se ejecuta a 1 kHz dentro de cada paso de física (`robot.enableMotor`, `core.micUpdate`). `park_exact_moves 1` (con `EXACT=1` en `parkentry.js`) hace que cada
 arco recto se pida como avance exacto (`move_cm`); hoy empeora el parqueo (ver `PENDIENTES_PARQUEO.md`) y está apagado.
 
-## Mapa persistente (trace_map v2)
+## Mapa persistente (trace_map)
 
 `core.traceObjects()` (letreros y topes con id, tipo, color, posición, tamaño), `core.traceSpot()` (plaza de parqueo) y `core.traceMap()` (rejilla, espacio libre `miss`, celdas borradas).
 Se mide contra la verdad con `node simulator/tools/measure_trace_objects.js [semillas] [segundos] [letreros]`; la prueba es `tests/test_trace_map.js`. Ver `TRACE_MAP.md`.

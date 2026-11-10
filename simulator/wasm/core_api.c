@@ -192,6 +192,7 @@ EXPORT("core_trace_map_cell_cm") float core_trace_map_cell_cm(void) { return TRA
 EXPORT("core_trace_map_origin_cm") float core_trace_map_origin_cm(void) { return TRACE_MAP_ORIGIN_CM; }
 EXPORT("core_trace_map_bytes") int core_trace_map_bytes(void) { return (int)sizeof(g_ctrl.trace_map); }
 EXPORT("core_trace_map_occupied") int core_trace_map_occupied(void) { return (int)g_ctrl.trace_map.occupied_cells; }
+EXPORT("core_trace_map_laps") int core_trace_map_laps(void) { return (int)g_ctrl.trace_map.laps_mapped; }
 EXPORT("core_trace_map_scans") int core_trace_map_scans(void) { return (int)g_ctrl.trace_map.scans; }
 EXPORT("core_trace_map_clipped") int core_trace_map_clipped(void) { return (int)g_ctrl.trace_map.clipped_points; }
 EXPORT("core_trace_parking_ptr") float *core_trace_parking_ptr(void) {

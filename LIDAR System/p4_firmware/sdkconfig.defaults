@@ -20,3 +20,7 @@ CONFIG_ESP32P4_REV_MIN_100=y
 # Un hub USB detectado en el puerto host: habilitar hubs para llegar al S3 que cuelga de el.
 CONFIG_USB_HOST_HUBS_SUPPORTED=y
 CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
+
+# Particion propia para guardar el trace_map (ver partitions.csv y hw_mapstore.c).
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

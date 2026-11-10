@@ -1,4 +1,4 @@
-/* Prueba de trace_map v2 con un campo sintetico (paredes, bloque central, letreros, cajon con dos topes).
+/* Prueba de trace_map con un campo sintetico (paredes, bloque central, letreros, cajon con dos topes).
  *   gcc -O2 -std=c11 -Wall -Wextra -I"LIDAR System/main" "LIDAR System/main/trace_map.c" "LIDAR System/tests/test_trace_map.c" -o test_trace_map -lm */
 #include "trace_map.h"
 #include <assert.h>
@@ -104,8 +104,13 @@ int main(void)
     g_boxes[g_nbox++] = (box_t){19.5f, 21.5f, -150.0f, -130.0f};
 
     clock_t t0 = clock();
+    assert(!trace_map_is_built(&map));
     drive_lap(400, lf, 0);
+    trace_map_lap_complete(&map);                 /* 1.a vuelta: el mapa queda construido */
+    assert(trace_map_is_built(&map) && map.laps_mapped == 1);
     drive_lap(400, lf, 0);
+    trace_map_lap_complete(&map);                 /* 2.a vuelta: se refina, los objetos que siguen suman una vuelta */
+    assert(map.laps_mapped == 2);
     const double ms_update = 1000.0 * (double)(clock() - t0) / CLOCKS_PER_SEC / 800.0;
     t0 = clock();
     for (int i = 0; i < 200; ++i) trace_map_refresh(&map);
@@ -120,6 +125,7 @@ int main(void)
     size_t ir, ig;
     const trace_object_t *red = find_near(70.0f, 0.0f, 4.0f, &ir), *green = find_near(-95.0f, 40.0f, 4.0f, &ig);
     assert(red && red->kind == TRACE_OBJ_PILLAR && red->color == TRACE_COLOR_RED);
+    assert(red->laps_seen == 2);                 /* lo vio la vuelta de construccion y la de refinado */
     assert(green && green->kind == TRACE_OBJ_PILLAR && green->color == TRACE_COLOR_GREEN);
     printf("rojo (%.1f,%.1f) error %.1f cm; verde (%.1f,%.1f) error %.1f cm\n", red->x_cm, red->z_cm, hypotf(red->x_cm - 70, red->z_cm),
            green->x_cm, green->z_cm, hypotf(green->x_cm + 95, green->z_cm - 40));
@@ -143,6 +149,7 @@ int main(void)
     assert(bytes > 0 && trace_map_load(&loaded, buf, bytes));
     assert(loaded.object_count == map.object_count && loaded.spot.status == map.spot.status && loaded.occupied_cells == map.occupied_cells);
     assert(memcmp(loaded.cells, map.cells, sizeof map.cells) == 0);
+    assert(loaded.laps_mapped == map.laps_mapped && loaded.objects[0].laps_seen == map.objects[0].laps_seen);
     buf[100] ^= 0x55;
     assert(!trace_map_load(&loaded, buf, bytes));            /* el CRC detecta un byte corrupto */
 
@@ -156,6 +163,6 @@ int main(void)
 
     printf("tiempos (PC): update %.3f ms/barrido (360 rayos con espacio libre), refresh %.3f ms; guardado %zu bytes; RAM %zu bytes\n",
            ms_update, ms_refresh, bytes, sizeof map);
-    printf("PASS: trace_map v2 (objetos, color, plaza, espacio libre, borrado, guardado)\n");
+    printf("PASS: trace_map (vueltas, objetos, color, plaza, espacio libre, borrado, guardado)\n");
     return 0;
 }

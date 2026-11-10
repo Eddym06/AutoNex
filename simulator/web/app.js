@@ -334,6 +334,26 @@
       g.fillStyle=(v&8)?'#ff72ed':(v&2)?'#ee2737':(v&4)?'#44d62c':'#9eb0c2';
       g.fillRect(col*scale,canvas.height-(row+1)*scale,Math.ceil(scale),Math.ceil(scale));
     }
+    const toPx=(x,z)=>[(x-m.originCm)/m.cellCm*scale, canvas.height-(z-m.originCm)/m.cellCm*scale];
+    /* Objetos del trace_map (sin las paredes del campo): circulo con el color confirmado y el id. */
+    g.font='10px sans-serif';g.lineWidth=2;
+    for(const o of core.traceObjects()){
+      if(o.kind===1)continue;
+      const [px,py]=toPx(o.x,o.z), r=Math.max(5,o.length/m.cellCm*scale/2+2);
+      g.strokeStyle=o.color===1?'#ee2737':o.color===2?'#44d62c':o.color===3?'#ff72ed':'#ffffff';
+      g.beginPath();g.arc(px,py,r,0,7);g.stroke();
+      g.fillStyle='#ffffff';g.fillText('#'+o.id,px+r+2,py+3);
+    }
+    /* Plaza de parqueo del mapa: rectangulo entre los dos topes (confirmada) o aviso en el primer tope (hipotesis). */
+    const sp=core.traceSpot();
+    if(sp.status===2){
+      const hl=sp.length/2, hw=sp.width/2, alongX=sp.axis===0?0:1, [x0,z0]=sp.axis===0?[sp.x-hw,sp.z-hl]:[sp.x-hl,sp.z-hw];
+      const [ax,ay]=toPx(x0,z0), [bx,by]=toPx(x0+(sp.axis===0?2*hw:2*hl),z0+(sp.axis===0?2*hl:2*hw));
+      g.strokeStyle='#ffd24c';g.setLineDash([6,4]);g.strokeRect(Math.min(ax,bx),Math.min(ay,by),Math.abs(bx-ax),Math.abs(by-ay));g.setLineDash([]);
+      g.fillStyle='#ffd24c';g.fillText('plaza',Math.min(ax,bx),Math.min(ay,by)-3);
+    } else if(sp.status===1){
+      const [px,py]=toPx(sp.bars[0][0],sp.bars[0][1]);g.strokeStyle='#ffd24c';g.beginPath();g.arc(px,py,8,0,7);g.stroke();
+    }
     const a=sim.cmd.arena;
     if(a&&a.valid){ const px=(a.x-m.originCm)/m.cellCm*scale, py=canvas.height-(a.z-m.originCm)/m.cellCm*scale;
       g.fillStyle='#57b4ff';g.beginPath();g.arc(px,py,3,0,7);g.fill(); }
@@ -343,7 +363,7 @@
       const px=(p.x-m.originCm)/m.cellCm*scale,py=canvas.height-(p.z-m.originCm)/m.cellCm*scale;
       g.strokeStyle='#ffd24c';g.lineWidth=2;g.beginPath();g.arc(px,py,5,0,7);g.stroke();
     }
-    $('traceInfo').textContent=m.scans ? `${m.occupied} celdas LiDAR · ${m.scans} barridos · ${m.bytes} bytes en RAM · ${m.clipped} retornos fuera · desconocido en oscuro` : `Esperando pose global válida · ${m.bytes} bytes reservados en RAM`;
+    $('traceInfo').textContent=m.scans ? `${m.laps<1?'construyendo la 1.ª vuelta':m.laps+' vuelta(s) acumuladas'} · ${core.traceObjects().filter(o=>o.kind!==1).length} objetos · ${m.occupied} celdas LiDAR · ${m.scans} barridos · ${m.bytes} bytes en RAM · ${m.clipped} retornos fuera · desconocido en oscuro` : `Esperando pose global válida · ${m.bytes} bytes reservados en RAM`;
   }
   function draw() { drawWorld(); drawLocal(); drawTraceMap(); drawCamera(); drawPanels(); drawSequences(); }
 
