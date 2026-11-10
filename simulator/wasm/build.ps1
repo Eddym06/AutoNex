@@ -55,7 +55,7 @@ $sources = @(
     (Join-Path $orchestrator 'p4_runtime.c'),
     (Join-Path $lidar 'park_ackermann.c'), (Join-Path $mic 'mic.c'),
     (Join-Path $lidar 'trace_map.c'), (Join-Path $lidar 'trace_parking.c'), (Join-Path $lidar 'local_obstacle_map.c'), (Join-Path $lidar 'camera_table_receiver.c'),
-    (Join-Path $lidar 'imu_yaw.c'), (Join-Path $orchestrator 'wro_controller.c'), (Join-Path $lidar 'park_planner.c'), (Join-Path $lidar 'park_localize.c'), (Join-Path $lidar 'odometry.c'), (Join-Path $lidar 'race_line.c'), (Join-Path $lidar 'arena_localizer.c'),
+    (Join-Path $lidar 'imu_yaw.c'), (Join-Path $orchestrator 'wro_controller.c'), (Join-Path $lidar 'park_planner.c'), (Join-Path $lidar 'park_localize.c'), (Join-Path $lidar 'odometry.c'), (Join-Path $lidar 'race_line.c'), (Join-Path $lidar 'it_plan.c'), (Join-Path $lidar 'arena_localizer.c'),
     (Join-Path $vision 'vision.c'), (Join-Path $vision 'vision_table.c'),
     (Join-Path $shared 'sensor_table_protocol.c'), (Join-Path $shared 'config_fields.c')
 )

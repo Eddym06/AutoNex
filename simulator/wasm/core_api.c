@@ -18,6 +18,7 @@
 #include "wro_controller.h"
 #include "p4_runtime.h"
 #include "mic.h"
+#include "it_plan.h"
 
 #define EXPORT(name) __attribute__((export_name(name)))
 
@@ -47,6 +48,54 @@ EXPORT("core_mic_update") void core_mic_update(int counts, float vbat, float dt)
     g_mic_out[0] = o.duty; g_mic_out[1] = o.brake_short ? 1.0f : 0.0f; g_mic_out[2] = (float)o.phase;
     g_mic_out[3] = o.v_cm_s; g_mic_out[4] = o.pos_cm; g_mic_out[5] = o.v_ref_cm_s; g_mic_out[6] = o.emergency ? 1.0f : 0.0f;
     g_mic_out[7] = o.i_est_a; g_mic_out[8] = o.done ? 1.0f : 0.0f; g_mic_out[9] = o.disturbance_ms2;
+}
+
+/* ------------------------------------------------------------------ IT (trayectoria inteligente): banco de pruebas */
+static it_plan_t g_it;
+static it_config_t g_it_cfg;
+static it_tracker_t g_it_tr;
+static float g_it_params[24], g_it_obs[3 * IT_MAX_OBS], g_it_out[8 + 8 * IT_MAX_N], g_it_trk[8];
+EXPORT("core_it_params_ptr") float *core_it_params_ptr(void) { return g_it_params; }
+EXPORT("core_it_obs_ptr") float *core_it_obs_ptr(void) { return g_it_obs; }
+EXPORT("core_it_out_ptr") float *core_it_out_ptr(void) { return g_it_out; }
+EXPORT("core_it_trk_ptr") float *core_it_trk_ptr(void) { return g_it_trk; }
+/* params: grip, v_max, a_motor, mu, rear_weight, track_err, pose_err, lag_s, steer_rate, wheelbase, half_width, front_ext, safety,
+ * sweeps, passes, steer_max, v_min, cg_height (los que valen 0 conservan el valor por defecto). */
+EXPORT("core_it_build") int core_it_build(int direction, int n_obs)
+{
+    it_config_default(&g_it_cfg);
+    float *p = g_it_params;
+    float *dst[18] = {&g_it_cfg.grip, &g_it_cfg.v_max_cm_s, &g_it_cfg.a_motor_cm_s2, &g_it_cfg.mu, &g_it_cfg.rear_weight, &g_it_cfg.track_err_cm,
+                      &g_it_cfg.pose_err_cm, &g_it_cfg.lag_s, &g_it_cfg.steer_rate_dps, &g_it_cfg.wheelbase_cm, &g_it_cfg.half_width_cm,
+                      &g_it_cfg.front_ext_cm, &g_it_cfg.safety, NULL, NULL, &g_it_cfg.steer_max_deg, &g_it_cfg.v_min_cm_s, &g_it_cfg.cg_height_cm};
+    for (int i = 0; i < 18; ++i) if (dst[i] && p[i] > 0.0f) *dst[i] = p[i];
+    if (p[13] > 0.0f) g_it_cfg.sweeps = (int)p[13];
+    if (p[14] > 0.0f) g_it_cfg.passes = (int)p[14];
+    it_obstacle_t obs[IT_MAX_OBS];
+    if (n_obs > IT_MAX_OBS) n_obs = IT_MAX_OBS;
+    for (int i = 0; i < n_obs; ++i) { obs[i].x_cm = g_it_obs[3 * i]; obs[i].z_cm = g_it_obs[3 * i + 1]; obs[i].color = (uint8_t)g_it_obs[3 * i + 2]; }
+    const int ok = it_plan_build(&g_it, &g_it_cfg, direction, obs, n_obs);
+    g_it_out[0] = (float)g_it.n; g_it_out[1] = ok ? 1.0f : 0.0f; g_it_out[2] = g_it.time_s; g_it_out[3] = g_it.time_center_s;
+    g_it_out[4] = (float)g_it.evals; g_it_out[5] = g_it.length_cm; g_it_out[6] = g_it.violation; g_it_out[7] = (float)g_it.why;
+    for (int i = 0; i < g_it.n; ++i) {
+        float *o = &g_it_out[8 + 8 * i];
+        o[0] = g_it.x[i]; o[1] = g_it.z[i]; o[2] = g_it.v[i]; o[3] = g_it.heading_deg[i]; o[4] = g_it.kappa_s[i]; o[5] = g_it.room[i]; o[6] = g_it.margin[i]; o[7] = g_it.d[i];
+    }
+    it_tracker_reset(&g_it_tr);
+    return ok;
+}
+EXPORT("core_it_track") int core_it_track(float x, float z, float yaw_deg, float v)
+{
+    float st = 0.0f, sp = 0.0f;
+    const int ok = it_track(&g_it_tr, &g_it, x, z, yaw_deg, v, &st, &sp);
+    g_it_trk[0] = st; g_it_trk[1] = sp; g_it_trk[2] = g_it_tr.e_cm; g_it_trk[3] = (float)g_it_tr.idx; g_it_trk[4] = g_it_tr.psi_err_deg;
+    g_it_trk[5] = g_it_tr.room_cm; g_it_trk[6] = g_it_tr.v_plan_cm_s;
+    return ok;
+}
+EXPORT("core_it_adapt") float core_it_adapt(int contacts, float max_err, float min_room, float slip, int traction, float grip_max)
+{
+    it_lap_stats_t s = {.max_err_cm = max_err, .min_room_cm = min_room, .contacts = contacts, .max_slip_deg = slip, .traction_events = traction};
+    return it_adapt_grip(&g_it_cfg, &s, grip_max);
 }
 
 /* ------------------------------------------------------------------ vision */

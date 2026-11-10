@@ -177,6 +177,23 @@
         return { duty: o[0], brakeShort: o[1] > 0, phase: o[2], v: o[3], pos: o[4], vRef: o[5],
                  emergency: o[6] > 0, current: o[7], done: o[8] > 0, disturbance: o[9] };
       },
+      /* IT (banco de pruebas): planifica una vuelta sobre los obstaculos [{x, z, color}] y sigue la trayectoria. */
+      itBuild(direction, params, obstacles) {
+        const p = f32(x.core_it_params_ptr(), 24); p.fill(0);
+        ['grip', 'vMax', 'aMotor', 'mu', 'rearWeight', 'trackErr', 'poseErr', 'lag', 'steerRate', 'wheelbase', 'halfWidth', 'frontExt', 'safety',
+         'sweeps', 'passes', 'steerMax', 'vMin', 'cgHeight'].forEach((k, i) => { if (params && params[k] > 0) p[i] = params[k]; });
+        const ob = f32(x.core_it_obs_ptr(), 72);
+        obstacles.slice(0, 24).forEach((q, i) => { ob[3 * i] = q.x; ob[3 * i + 1] = q.z; ob[3 * i + 2] = q.color || 0; });
+        const ok = x.core_it_build(direction === 'cw' ? 1 : -1, Math.min(24, obstacles.length)) === 1;
+        const o = f32(x.core_it_out_ptr(), 8 + 8 * 256), n = o[0] | 0, line = [];
+        for (let i = 0; i < n; i++) { const b = 8 + 8 * i; line.push({ x: o[b], z: o[b + 1], v: o[b + 2], heading: o[b + 3], kappa: o[b + 4], room: o[b + 5], margin: o[b + 6], d: o[b + 7] }); }
+        return { ok, n, time: o[2], timeCenter: o[3], evals: o[4], length: o[5], violation: o[6], why: o[7] | 0, line };
+      },
+      itTrack(px, pz, yawDeg, v) {
+        const ok = x.core_it_track(px, pz, yawDeg, v) === 1, t = f32(x.core_it_trk_ptr(), 8);
+        return { ok, steer: t[0], speed: t[1], e: t[2], idx: t[3] | 0, psiErr: t[4], room: t[5], vPlan: t[6] };
+      },
+      itAdapt(contacts, maxErr, minRoom, slip, traction, gripMax) { return x.core_it_adapt(contacts, maxErr, minRoom, slip, traction, gripMax); },
       arcClear(steerDeg, distance) { return x.core_arc_clear(steerDeg, distance) === 1; },
       /* Objetos del mapa persistente: [{id, kind (1 pared, 2 pilar, 3 barra), color (1 rojo, 2 verde, 3 magenta), confidence, x, z, length, width, axis, cells}]. */
       traceObjects() {

@@ -11,6 +11,7 @@
   const WRO = root.WRO = root.WRO || {};
   const G = WRO.geometry || require('./geometry.js').geometry;
   const DEG = Math.PI / 180;
+  const G9 = 981;                 /* gravedad (cm/s2) */
 
   /* Perfil provisional para el 12-móvil; no son medidas oficiales ni reales.
    * Todos los valores se reemplazarán después de medir el vehículo montado. */
@@ -31,6 +32,7 @@
       this.reset({ x: 0, z: 0, yaw: 0 });
     }
     reset(pose) {
+      this.steerQ = null; this.tNow = 0; this.dvy = 0; this.dr = 0; this.vLat = 0;
       this.x = pose.x; this.z = pose.z; this.yaw = pose.yaw;
       this.v = 0; this.steer = 0; this.yawRate = 0; this.wl = 0; this.wr = 0;
       this.cmd = { steer: 0, speed: 0 };
@@ -73,6 +75,31 @@
         this.motorCurrent = cur;
       }
     }
+    /* Bicicleta dinamica con neumaticos que saturan (por unidad de masa, cm y s). Estados: velocidad lateral del centro de masa y
+     * giro. Convenio interno estandar (izquierda positiva); se devuelve el giro horario y la deriva lateral del eje trasero a
+     * la derecha. A baja velocidad (o marcha atras) es cinematico. */
+    dyn(dt, steerRight, ax) {
+      const c = this.cfg, t = c.tire, L = c.wheelbase, v = this.v;
+      const a = t.wr * L, b = L - a, k2 = (t.kz * L) * (t.kz * L);   /* a: centro de masa-eje delantero; b: -eje trasero */
+      if (this.dvy === undefined) { this.dvy = 0; this.dr = 0; }
+      if (v < t.vMin) { this.dvy = 0; this.dr = -v / L * Math.tan(steerRight); this.vLat = 0; return { yawRate: -this.dr, vLat: 0 }; }
+      const delta = -steerRight, hL = t.h / L;
+      const nf = Math.max(0.05 * G9, G9 * (1 - t.wr) - hL * ax), nr = Math.max(0.05 * G9, G9 * t.wr + hL * ax);
+      /* El eje trasero reparte su agarre entre empujar y sujetarse de lado (circulo de friccion). */
+      const lim = (mu, n, fx) => { const m = mu * n; return Math.sqrt(Math.max(0, m * m - fx * fx)); };
+      const lf = t.mu * nf, lr = lim(t.mu, nr, Math.min(Math.abs(ax), t.mu * nr));
+      const n = Math.max(1, Math.ceil(dt / 0.001)), h = dt / n;
+      let vy = this.dvy, r = this.dr;
+      for (let i = 0; i < n; i++) {
+        const af = delta - Math.atan2(vy + a * r, v), ar = -Math.atan2(vy - b * r, v);
+        const ff = lf * Math.tanh(t.kc * af * nf / Math.max(lf, 1e-6)), fr = lr * Math.tanh(t.kc * ar * nr / Math.max(lr, 1e-6));
+        vy += ((ff * Math.cos(delta) + fr) - v * r) * h;
+        r += ((a * ff * Math.cos(delta) - b * fr) / k2) * h;
+      }
+      this.dvy = vy; this.dr = r;
+      this.slipAngleDeg = Math.atan2(vy - b * r, v) / DEG;     /* del eje trasero, izquierda positiva */
+      return { yawRate: -r, vLat: -(vy - b * r) };
+    }
     body(pose) {
       const p = pose || this, c = this.cfg, cx = c.bodyLength / 2 - c.rearOverhang;
       return { x: p.x + Math.sin(p.yaw) * cx, z: p.z + Math.cos(p.yaw) * cx, w: c.bodyWidth, d: c.bodyLength, rot: p.yaw, h: 10, kind: 'robot' };
@@ -104,9 +131,19 @@
         yawRate = (this.wl - this.wr) / c.trackWidth;
         this.steer = Math.abs(this.v) > 1 ? Math.atan(yawRate * c.wheelbase / this.v) / DEG : 0;
       } else {
-        const target = Math.max(-c.maxSteerDeg, Math.min(c.maxSteerDeg, this.cmd.steer));
+        let target = Math.max(-c.maxSteerDeg, Math.min(c.maxSteerDeg, this.cmd.steer));
+        /* Servo (MG90S): la orden llega con retardo (PWM de 50 Hz + electronica) y no se mueve por debajo de su zona muerta. */
+        if (c.steerDelayS > 0) {
+          this.tNow = (this.tNow || 0) + dt;
+          const q = this.steerQ || (this.steerQ = [[-1e9, this.steer]]);
+          q.push([this.tNow, target]);
+          while (q.length > 1 && q[1][0] <= this.tNow - c.steerDelayS) q.shift();
+          target = q[0][1];
+        }
         const err = target - this.steer, maxStep = c.steerRateDegS * dt;
-        this.steer += Math.max(-maxStep, Math.min(maxStep, err * (1 - Math.exp(-dt / c.steerTauS))));
+        if (!(c.steerDeadbandDeg > 0) || Math.abs(err) > c.steerDeadbandDeg)
+          this.steer += Math.max(-maxStep, Math.min(maxStep, err * (1 - Math.exp(-dt / c.steerTauS))));
+        const vPrev = this.v;
         if (this.drive) {
           this.axleBefore = this.axleS;
           this.motorStep(dt);
@@ -116,14 +153,29 @@
         this.v += dv;
         }
         const steerEff = (this.steer + c.steerTrimDeg) * DEG;
-        yawRate = this.v / c.wheelbase * Math.tan(steerEff);
+        if (c.tire) {
+          /* Traccion trasera: el eje motriz solo agarra lo que le toca de peso, y al acelerar o frenar el peso se
+           * traslada. La rueda gira de mas (el encoder lo ve) y el coche no acelera mas que esto. */
+          const t = c.tire, L = c.wheelbase, hL = t.h / L, nr = G9 * t.wr;
+          const capAcc = t.mu * nr / (1 - t.mu * hL), capDec = t.mu * nr / (1 + t.mu * hL);
+          const ax = (this.v - vPrev) / dt;
+          this.tractionLimited = false;
+          if (this.v > 0 && ax > capAcc) { this.v = vPrev + capAcc * dt; this.tractionLimited = true; }
+          else if (this.v > 0 && ax < -capDec) { this.v = vPrev - capDec * dt; this.tractionLimited = true; }
+          const d = this.dyn(dt, steerEff, ax);
+          yawRate = d.yawRate; this.vLat = d.vLat;
+        } else {
+          yawRate = this.v / c.wheelbase * Math.tan(steerEff);
+          this.vLat = 0;
+        }
       }
       /* Velocidad de la superficie de cada rueda (cm/s) para los encoders. */
       const halfTrack = c.trackWidth / 2;
       const wheelL = c.drive === 'differential' ? this.wl : this.v + yawRate * halfTrack;
       const wheelR = c.drive === 'differential' ? this.wr : this.v - yawRate * halfTrack;
       const mid = this.yaw + yawRate * dt / 2;
-      const next = { x: this.x + this.v * Math.sin(mid) * dt, z: this.z + this.v * Math.cos(mid) * dt, yaw: this.yaw + yawRate * dt };
+      const vl = this.vLat || 0;       /* deriva lateral del eje trasero (cm/s, derecha positiva): 0 sin modelo de neumaticos */
+      const next = { x: this.x + (this.v * Math.sin(mid) + vl * Math.cos(mid)) * dt, z: this.z + (this.v * Math.cos(mid) - vl * Math.sin(mid)) * dt, yaw: this.yaw + yawRate * dt };
       const box = this.body(next);
       let blocked = null;
       for (const s of world.solids) {
@@ -205,6 +257,15 @@
     },
     /* Chasis anterior de 17 x 13 cm con traccion diferencial: los planos y las cifras
      * historicas se dibujaron para el. */
+    /* El mismo chasis con dinamica: servo MG90S (60 grados en 0,10-0,12 s sin carga a 4,8 V; cargado ~420 grados/s; el PWM de 50 Hz
+     * y la electronica suman ~20 ms; zona muerta ~0,5 grados) y neumaticos que saturan con el peso detras (62 % sobre el eje
+     * trasero). TODO provisional: mu, reparto de peso y rigidez de curva se miden con el chasis montado (ver MEDICION_*). */
+    largo26d: {
+      drive: 'bicycle', wheelbase: 18.45, bodyWidth: 13, bodyLength: 26, rearOverhang: 3.775,
+      wheelDiameterL: 6.6, wheelDiameterR: 6.6, maxSteerDeg: 40,
+      steerRateDegS: 420, steerDelayS: 0.02, steerDeadbandDeg: 0.5,
+      tire: { mu: 0.8, wr: 0.62, kc: 8, h: 4, kz: 0.38, vMin: 6 }
+    },
     differential17: {
       drive: 'differential', wheelbase: 6, bodyWidth: 13, bodyLength: 17, rearOverhang: 7,
       trackWidth: 11.5, wheelDiameterL: 5.5, wheelDiameterR: 5.5
