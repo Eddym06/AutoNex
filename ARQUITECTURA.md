@@ -111,7 +111,7 @@ A\* de poses: rejilla 121×71×36 (1 cm, 10°), primitivas `dir ∈ {−1,+1}` �
 `steer ∈ {−1,0,+1}` de 3,5 cm, coste `3,5 cm (1,1× en reversa) + 12 cm por cambio de
 sentido`, heurística `2,5·distancia + 0,12·|θ|` (no admisible), presupuesto 24 000
 nodos. Meta: entrar con las cuatro esquinas dentro del cajón (0,5 cm de holgura) y
-|θ| ≤ 10°; salir con `w ≥ ancho_cajón + ancho/2 + 2` y |θ| ≤ 10°.
+|θ| ≤ 4° (`PARK_GOAL_TH_IN_DEG`; el juez da *completo* hasta 6,2°); salir con `w ≥ ancho_cajón + ancho/2 + 2` y |θ| ≤ 10°.
 
 En `park_step` hay **un** camino para salir y **cuatro** para entrar, en este orden:
 
@@ -125,6 +125,12 @@ En `park_step` hay **un** camino para salir y **cuatro** para entrar, en este or
    **igual**) y aun corrigiéndolo no encuentra solución. Código muerto en la práctica.
 3. A\* de arcos cortos con la meta de entrar.
 4. Campo de costes (Dijkstra inverso) sólo para el chasis diferencial.
+
+Cambios del 10 nov: (a) **coste suave de holgura** en el A\* de entrada (`PARK_CLEAR_PENALTY` 1,0 por subpaso a menos de margen + 1,5 cm de un obstáculo):
+las soluciones con ≥ 1,3 cm de holgura real se ejecutan enteras y las que rozan el 1 cm de planeo se abortan por el error de pose; (b) en la entrada simétrica el
+chequeo de arco usa `min(margen del plan, 0,5 cm)` (si no, con el coche a < 1 cm de un obstáculo el plan se hacía con margen 0 y se rechazaba cada barrido para
+siempre); (c) flags experimentales **apagados**: `PARK_RETRACE_ENABLED` (entrar siguiendo al revés la traza real de la salida), `PARK_TWIN_ENABLED` (gemelo como
+filtro de pose), `PARK_PROJECT_ENABLED` y `park_exact_moves` (cada arco como avance exacto de MIC). Ver `PENDIENTES_PARQUEO.md` para los resultados.
 
 Ejecución de los arcos (`wro_controller.c:1440-1510`): el arco se corta por
 **distancia** (0,3 cm) o, al entrar, por **rumbo del giroscopio** (el giro exacto del
@@ -148,6 +154,8 @@ un extremo al otro; velocidad 8 cm/s con rampa sólo en el último centímetro.
 `explicit_yaw_rate` (la guiñada **no** se deriva de v y volante), `action`, `phase` y
 telemetría.
 
+Desde el 10 nov lleva además `move_cm` y `move_id` (avance exacto pedido a MIC; 0 si no hay): solo se rellenan con `park_exact_moves 1`.
+
 ```
 wro_controller_scan → wro_command_t        wro_controller.c:1756-2032
    → p4_runtime_step (1 ms)                p4_runtime.c:16-57
@@ -159,6 +167,7 @@ wro_controller_scan → wro_command_t        wro_controller.c:1756-2032
            → hw_steering_set (LEDC 50 Hz, 16 bits)  hw_steering.c:38-49
            → hw_motors_drive (PWM 1 kHz, 10 bits)   hw_motors.c:113-121
                 frac = |v| / MOTOR_MAX_CM_S (40)     :45
+           con CONFIG_WRO_USE_MIC=y: hw_motors_drive solo cambia la orden y un temporizador de 1 kHz ejecuta mic_update() con las cuentas del encoder
 ```
 
 Detalles: el servo se escribe **de golpe** en cada barrido (no hay rampa en
@@ -214,8 +223,9 @@ Diferencias que pueden explicar que algo funcione en el simulador y no en el rob
    260×130 con batalla 184,5: si el firmware real no lleva esos números, todo el
    estacionamiento y las esquinas se calculan con otro coche.
 2. **La entrada al cajón depende de una búsqueda sensible.** El A\* da 1 o 2 cambios de
-   sentido según 1 cm de la pose de arranque; la entrada simétrica y el asentamiento
-   del servo lo dejan en 2–4 (ver `ESTADO.md`), pero no hay garantía formal.
+   sentido según 1 cm de la pose de arranque; la entrada simétrica, el asentamiento
+   del servo y el coste de holgura la dejan en 2–5 (media ~4) con ~9 % de fallos en semillas nuevas
+   (ver `PENDIENTES_PARQUEO.md`); no hay garantía formal.
 3. **Patinaje invisible.** Con un solo encoder de eje no se puede estimar; `slip_cm`
    queda a 0 y la derivación por patinaje no actúa (`odometry.c:108-124`).
 4. **Nada vigila la frescura de la tabla de visión**: si el S3 baja de ~7 tablas/s el
@@ -240,3 +250,27 @@ mapa, planificador, controlador, P4 y motores; el contrato ABI del WASM; el simu
 de visión (129 comprobaciones) y el generador del HTML del simulador. `-Quick` se
 salta las rondas completas. Los números de parqueo se miden aparte con
 `simulator/tests/parkentry.js` (repasadas de entrada y salida, con traza por barrido).
+
+## 10. MIC: control central del motor (`Motor Control/MIC`)
+
+Un solo módulo gobierna la tracción; los niveles superiores piden velocidad, un avance exacto o una ruta con restricciones.
+
+```
+nivel 3   parqueo, curvas, rectas        mic_request_speed / _move / mic_route_*
+nivel 1   MIC                            modelo (R, Ke, masa, fricción, L298N) + observador + planificador + ley de control
+nivel 0   hw_motors (L298N, PWM)  <-  duty con signo + freno corto;   hw_encoders (PCNT x4, 440 cuentas/vuelta) -> counts
+```
+
+- **Ley de control**: dinámica inversa (aceleración deseada → fuerza → corriente → tensión) más PI de corrección; límite de 2 A del L298N.
+- **Observador de tercer orden** (posición, velocidad y aceleración no modelada), 1 kHz, 0,047 cm por cuenta.
+- **Planificador**: la ruta se convierte en un perfil `v(s)` con la aceleración y el frenado que el motor da a cada velocidad; frena lo más tarde posible.
+- **Desaceleración**: *progresiva* (tensión ≥ 0, entre rodar y freno corto) y *agresiva* (tensión inversa, solo si hace falta; escala sola a esta en emergencia).
+- **Estado**: probado contra un motor simulado (3 variantes de planta); en el simulador con `mic: true` el parqueo da 0 fallos en 40 rondas pero repasadas irregulares.
+  Apagado en el firmware (`CONFIG_WRO_USE_MIC=n`). Supuestos a medir: resistencia, masa, fricción, diámetro efectivo de la rueda, cuentas por vuelta.
+
+## 11. trace_map: mapa persistente (`LIDAR System/main/trace_map.c`)
+
+Rejilla de 400 × 400 cm (celdas de 2,5 cm) en el marco del campo con espacio ocupado, **libre** y desconocido; los objetos se agrupan con identidad estable (pilar,
+barra, pared), con color y posición; la **plaza de parqueo** se reconoce por el par de topes. Se actualiza en `wro_controller_scan` cada barrido (0,13 ms en PC)
+y se refresca cada 10. No gobierna el vehículo: es la fuente de datos para el parqueo y el planificador (todavía no lo consultan). Detalle y mediciones en
+`simulator/TRACE_MAP.md`.

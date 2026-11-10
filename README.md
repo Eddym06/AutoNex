@@ -20,6 +20,10 @@
 
 ---
 
+> **Estado y documentación técnica (10 nov 2026):** [`ESTADO.md`](ESTADO.md) (qué funciona y qué no), [`ARQUITECTURA.md`](ARQUITECTURA.md) (flujo de sensores a motores, MIC y trace_map),
+> [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md), [`Motor Control/MIC`](Motor%20Control/MIC/README.md) (control del motor) y [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md) (mapa persistente).
+> Todo está validado solo en simulación.
+
 ## Tabla de contenidos
 
 - [1. El equipo y el reto](#1-el-equipo-y-el-reto)

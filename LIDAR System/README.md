@@ -74,6 +74,10 @@ Los valores por defecto están en `local_planner_config_default` y `wro_controll
 | `main/camera_table_receiver.c/.h` | Decodificador de tablas v2 del S3 |
 | `main/park_planner.c/.h` | Campo de costes de poses para entrar y salir del cajón |
 | `main/park_localize.c/.h` | Localización respecto al cajón con el LiDAR |
+| `main/park_ackermann.c/.h` | A\* de poses del chasis Ackermann: entrar y salir del cajón, con coste suave de holgura |
+| `main/trace_map.c/.h` | Mapa persistente: espacio libre, objetos con color y posición, plaza de parqueo (ver `simulator/TRACE_MAP.md`) |
+| `main/trace_parking.c/.h` | Estimador antiguo de la plaza con una detección de cámara (diagnóstico; sustituido por la plaza de `trace_map`) |
+| `../Motor Control/MIC/` | MIC, control central del motor (ver su README); se enlaza en `p4_firmware` |
 | `orchestrator/p4_runtime.c/.h` | Bucle del P4 y tabla de funciones de hardware |
 | `../shared/` | Protocolo con CRC16 y motor de configuración |
 | `tests/` | `test_local_obstacle_map`, `test_planner_fusion`, `test_camera_table_receiver`, `test_imu_yaw`, `test_wro_controller`, `test_park_planner`, `test_p4_runtime` |

@@ -1,5 +1,19 @@
 # ESTADO del proyecto (2026-10-13)
 
+> **Actualización del 10 nov 2026 (léela primero).** Todo lo de abajo que habla del parqueo de entrada es anterior. Lo nuevo:
+>
+> - **Parqueo (simulación, chasis `largo26`):** la entrada completa al cajón queda en 2-5 repasadas (media ~4, 16-17 s) y 0 fallos en las semillas 1-8; en las
+>   semillas 9-32 hay 5 fallos de 56 (9 %, antes 17 %). La meta de entrada pide rumbo ≤ 4° (el juez da *completo* hasta 6,2°), el A\* tiene un coste suave de
+>   holgura y el chequeo de arco nunca es más estricto que el plan. Causa de las repasadas de más: el plan va con ~1 cm de holgura real y el error de
+>   ejecución más el de pose es del mismo orden. Detalle, experimentos descartados y límites abiertos en [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md).
+> - **MIC (Motor Intelligent Control):** módulo central de tracción en [`Motor Control/MIC/`](Motor%20Control/MIC/README.md): modelo del JGB37-520, observador,
+>   planificador con anticipación, frenado progresivo y agresivo. Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (**apagado**) y en el simulador (`mic: true`).
+>   Probado solo con un motor simulado. Procedimiento de calibración en [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md).
+> - **trace_map v2:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
+> - **Aviso de hardware:** el lazo abierto de `hw_motors.c` usa `WRO_MOTOR_MAX_CM_S = 40`; con el motor de 1000 rpm el 100 % de ciclo son ~270 cm/s. No activar
+>   los motores sin MIC o sin recalibrar ese valor. `ACKERMANN.md` dice 600 rpm y MIC usa 1000 rpm: confirmar con la placa del motor.
+> - Nada de esto está probado en el coche real.
+
 > **Cambio de chasis, 7 nov 2026:** la configuración diferencial descrita abajo
 > es histórica. El nuevo robot usa un motor trasero con encoder integrado y
 > dirección Ackermann por servo. La adaptación está incompleta; ver
@@ -125,6 +139,10 @@ node simulator\tools\arena_check.js 100 3           # error de la pose del local
 - [`LIDAR System/README.md`](LIDAR%20System/README.md): planificador, controlador, odometría, localizador, parqueo, configuración final.
 - [`simulator/README.md`](simulator/README.md): simulador, encoders, herramientas, cómo se genera `simulador.html`.
 - [`Vision System/README.md`](Vision%20System/README.md): detector de visión y protocolo.
+- [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md): estado del parqueo, flags experimentales, límites abiertos, preguntas y cómo medir.
+- [`Motor Control/MIC/README.md`](Motor%20Control/MIC/README.md) y [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md): control de tracción y su calibración.
+- [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md): mapa persistente (rejilla, objetos, plaza, guardado).
+- [`simulator/LINEA_BASE_PARQUEO_MAPA.md`](simulator/LINEA_BASE_PARQUEO_MAPA.md): mediciones de la línea base del parqueo y del mapa (9 nov).
 
 ## 6. Panel web, enlace P4-S3 y mapa (rama integracion-panel)
 

@@ -220,6 +220,28 @@ node simulator\tools\odom_check.js 100 3        # error de la odometria sola (se
 node simulator\tools\arena_check.js 100 3       # error de la pose del localizador del campo
 ```
 
+## Motor físico y MIC en el simulador
+
+Con la opción `mic: true` (`new Simulation(core, { ..., mic: true })`, o `MIC=1` en `tests/parkentry.js`) el chasis Ackermann deja de seguir la velocidad ordenada con un primer
+orden y usa un **motor físico del JGB37-520** (R, Ke, masa, fricción, caída del L298N, encoder cuantizado de 0,047 cm; parámetros *distintos* de los que MIC supone)
+gobernado por MIC, que se ejecuta a 1 kHz dentro de cada paso de física (`robot.enableMotor`, `core.micUpdate`). `park_exact_moves 1` (con `EXACT=1` en `parkentry.js`) hace que cada
+arco recto se pida como avance exacto (`move_cm`); hoy empeora el parqueo (ver `PENDIENTES_PARQUEO.md`) y está apagado.
+
+## Mapa persistente (trace_map v2)
+
+`core.traceObjects()` (letreros y topes con id, tipo, color, posición, tamaño), `core.traceSpot()` (plaza de parqueo) y `core.traceMap()` (rejilla, espacio libre `miss`, celdas borradas).
+Se mide contra la verdad con `node simulator/tools/measure_trace_objects.js [semillas] [segundos] [letreros]`; la prueba es `tests/test_trace_map.js`. Ver `TRACE_MAP.md`.
+
+## Medir el parqueo
+
+```powershell
+node simulator\tests\parkentry.js largo26 ronda 180 4        # 8 rondas (4 semillas x 2 sentidos)
+node simulator\tests\parkentry.js largo26 entrada 90 4       # arranque en la pista, sin salida previa
+$env:DIR='cw'; $env:SEED='4'; node simulator\tests\parkentry.js largo26 ronda 180 1   # una ronda
+$env:MIC='1'; node simulator\tests\parkentry.js largo26 ronda 180 4                   # con el motor físico y MIC
+```
+
+Valida siempre con semillas nuevas (21 en adelante): las 1-8 están sobreajustadas. Recompilar el WASM tras tocar el C: `bash simulator/tools/bench/rebuild_wasm.sh` o `simulator\wasm\build.ps1`.
 ## Cómo se genera `build/simulador.html`
 
 `simulator/build_simulator.py` toma `web/index.template.html`, mete dentro (en línea) todos los `.js` de `web/` y el firmware `wro_core.wasm` en base64, y escribe **un solo archivo** `build/simulador.html` que funciona sin servidor ni red. Sobrescribe el anterior cada vez. Pone en el título una marca de compilación (`fecha · fw hash`); el hash es el del `.wasm`, así que cambia solo si cambia el firmware. `Vision System/tools/simulate.ps1` lo ejecuta como último paso (después de pasar todas las pruebas); también puede lanzarse a mano con `python simulator\build_simulator.py`.
