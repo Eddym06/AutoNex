@@ -1,0 +1,712 @@
+{
+  "out": {
+    "rondas": 24,
+    "no_comparadas": 0,
+    "parqueo_completo": "22/24",
+    "plaza_ya_confirmada_al_empezar_busqueda": "24/24",
+    "error_pose_en_cajon_cm_pareado_en_PARKING": {
+      "lidar_local": {
+        "n": 1752,
+        "mean": 0.66,
+        "rms": 0.74,
+        "p50": 0.62,
+        "p95": 1.24,
+        "max": 2.57
+      },
+      "plaza_del_mapa_mas_pose_del_campo": {
+        "n": 1752,
+        "mean": 0.64,
+        "rms": 0.74,
+        "p50": 0.59,
+        "p95": 1.33,
+        "max": 1.86
+      }
+    },
+    "error_plaza_del_mapa_durante_PARK_SEARCH_cm": {
+      "n": 367,
+      "mean": 0.6,
+      "rms": 0.7,
+      "p50": 0.54,
+      "p95": 1.28,
+      "max": 1.83
+    },
+    "sesgo_con_signo_cm_media_de_u_y_w_mezclados": {
+      "lidar_local": -0.02,
+      "mapa": 0.12
+    }
+  },
+  "rows": [
+    {
+      "direction": "ccw",
+      "seed": 21,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 110,
+      "lidar": {
+        "n": 64,
+        "mean": 0.67,
+        "rms": 0.74,
+        "p50": 0.62,
+        "p95": 1.25,
+        "max": 1.3
+      },
+      "map": {
+        "n": 64,
+        "mean": 0.69,
+        "rms": 0.78,
+        "p50": 0.75,
+        "p95": 1.26,
+        "max": 1.7
+      },
+      "acquisition": {
+        "lidar": 1.23,
+        "map": 0.24
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 22,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.9,
+      "lidar": {
+        "n": 59,
+        "mean": 0.71,
+        "rms": 0.78,
+        "p50": 0.66,
+        "p95": 1.22,
+        "max": 2.07
+      },
+      "map": {
+        "n": 59,
+        "mean": 0.82,
+        "rms": 0.91,
+        "p50": 0.83,
+        "p95": 1.39,
+        "max": 1.57
+      },
+      "acquisition": {
+        "lidar": 2.07,
+        "map": 1.1
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 23,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 110.2,
+      "lidar": {
+        "n": 66,
+        "mean": 0.7,
+        "rms": 0.77,
+        "p50": 0.66,
+        "p95": 1.42,
+        "max": 2.06
+      },
+      "map": {
+        "n": 66,
+        "mean": 0.62,
+        "rms": 0.73,
+        "p50": 0.53,
+        "p95": 1.35,
+        "max": 1.41
+      },
+      "acquisition": {
+        "lidar": 0.19,
+        "map": 0.99
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 24,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 110.3,
+      "lidar": {
+        "n": 60,
+        "mean": 0.58,
+        "rms": 0.67,
+        "p50": 0.49,
+        "p95": 1.07,
+        "max": 1.59
+      },
+      "map": {
+        "n": 60,
+        "mean": 0.67,
+        "rms": 0.79,
+        "p50": 0.6,
+        "p95": 1.36,
+        "max": 1.56
+      },
+      "acquisition": {
+        "lidar": 1.07,
+        "map": 0.58
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 25,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.5,
+      "lidar": {
+        "n": 56,
+        "mean": 0.63,
+        "rms": 0.74,
+        "p50": 0.56,
+        "p95": 1.62,
+        "max": 2.05
+      },
+      "map": {
+        "n": 56,
+        "mean": 0.67,
+        "rms": 0.82,
+        "p50": 0.56,
+        "p95": 1.61,
+        "max": 1.79
+      },
+      "acquisition": {
+        "lidar": 1.58,
+        "map": 0.51
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 26,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.5,
+      "lidar": {
+        "n": 63,
+        "mean": 0.72,
+        "rms": 0.78,
+        "p50": 0.7,
+        "p95": 1.26,
+        "max": 1.33
+      },
+      "map": {
+        "n": 63,
+        "mean": 0.75,
+        "rms": 0.84,
+        "p50": 0.8,
+        "p95": 1.41,
+        "max": 1.61
+      },
+      "acquisition": {
+        "lidar": 0.63,
+        "map": 1.14
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 27,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.4,
+      "lidar": {
+        "n": 62,
+        "mean": 0.63,
+        "rms": 0.7,
+        "p50": 0.56,
+        "p95": 1,
+        "max": 1.7
+      },
+      "map": {
+        "n": 62,
+        "mean": 0.65,
+        "rms": 0.76,
+        "p50": 0.62,
+        "p95": 1.34,
+        "max": 1.72
+      },
+      "acquisition": {
+        "lidar": 1.03,
+        "map": 0.62
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 28,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.5,
+      "lidar": {
+        "n": 59,
+        "mean": 0.67,
+        "rms": 0.74,
+        "p50": 0.64,
+        "p95": 1.12,
+        "max": 1.61
+      },
+      "map": {
+        "n": 59,
+        "mean": 0.72,
+        "rms": 0.8,
+        "p50": 0.72,
+        "p95": 1.51,
+        "max": 1.67
+      },
+      "acquisition": {
+        "lidar": 1.61,
+        "map": 0.39
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 29,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 110.4,
+      "lidar": {
+        "n": 55,
+        "mean": 0.68,
+        "rms": 0.74,
+        "p50": 0.69,
+        "p95": 1.08,
+        "max": 1.19
+      },
+      "map": {
+        "n": 55,
+        "mean": 0.73,
+        "rms": 0.83,
+        "p50": 0.65,
+        "p95": 1.49,
+        "max": 1.59
+      },
+      "acquisition": {
+        "lidar": 1.07,
+        "map": 1.22
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 30,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108.9,
+      "lidar": {
+        "n": 57,
+        "mean": 0.66,
+        "rms": 0.73,
+        "p50": 0.57,
+        "p95": 1.23,
+        "max": 1.72
+      },
+      "map": {
+        "n": 57,
+        "mean": 0.65,
+        "rms": 0.83,
+        "p50": 0.47,
+        "p95": 1.75,
+        "max": 1.86
+      },
+      "acquisition": {
+        "lidar": 0.98,
+        "map": 0.62
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 31,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.8,
+      "lidar": {
+        "n": 59,
+        "mean": 0.64,
+        "rms": 0.71,
+        "p50": 0.62,
+        "p95": 1.07,
+        "max": 1.3
+      },
+      "map": {
+        "n": 59,
+        "mean": 0.65,
+        "rms": 0.8,
+        "p50": 0.54,
+        "p95": 1.63,
+        "max": 1.78
+      },
+      "acquisition": {
+        "lidar": 0.77,
+        "map": 0.41
+      }
+    },
+    {
+      "direction": "ccw",
+      "seed": 32,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 110.2,
+      "lidar": {
+        "n": 59,
+        "mean": 0.64,
+        "rms": 0.75,
+        "p50": 0.65,
+        "p95": 1.42,
+        "max": 1.45
+      },
+      "map": {
+        "n": 59,
+        "mean": 0.68,
+        "rms": 0.81,
+        "p50": 0.65,
+        "p95": 1.48,
+        "max": 1.73
+      },
+      "acquisition": {
+        "lidar": 1.45,
+        "map": 0.18
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 21,
+      "parking": null,
+      "end": "limiter",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.6,
+      "lidar": {
+        "n": 87,
+        "mean": 0.65,
+        "rms": 0.74,
+        "p50": 0.58,
+        "p95": 1.16,
+        "max": 1.93
+      },
+      "map": {
+        "n": 87,
+        "mean": 0.68,
+        "rms": 0.77,
+        "p50": 0.67,
+        "p95": 1.26,
+        "max": 1.5
+      },
+      "acquisition": {
+        "lidar": 0.54,
+        "map": 0.47
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 22,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.4,
+      "lidar": {
+        "n": 68,
+        "mean": 0.76,
+        "rms": 0.85,
+        "p50": 0.71,
+        "p95": 1.34,
+        "max": 2.57
+      },
+      "map": {
+        "n": 68,
+        "mean": 0.73,
+        "rms": 0.81,
+        "p50": 0.75,
+        "p95": 1.34,
+        "max": 1.46
+      },
+      "acquisition": {
+        "lidar": 0.7,
+        "map": 0.41
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 23,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108.1,
+      "lidar": {
+        "n": 71,
+        "mean": 0.73,
+        "rms": 0.8,
+        "p50": 0.7,
+        "p95": 1.3,
+        "max": 1.49
+      },
+      "map": {
+        "n": 71,
+        "mean": 0.53,
+        "rms": 0.6,
+        "p50": 0.51,
+        "p95": 1.04,
+        "max": 1.37
+      },
+      "acquisition": {
+        "lidar": 0.5,
+        "map": 0.42
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 24,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.9,
+      "lidar": {
+        "n": 62,
+        "mean": 0.71,
+        "rms": 0.77,
+        "p50": 0.61,
+        "p95": 1.18,
+        "max": 1.21
+      },
+      "map": {
+        "n": 62,
+        "mean": 0.54,
+        "rms": 0.62,
+        "p50": 0.51,
+        "p95": 1.03,
+        "max": 1.36
+      },
+      "acquisition": {
+        "lidar": 0.7,
+        "map": 0.26
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 25,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108.6,
+      "lidar": {
+        "n": 88,
+        "mean": 0.7,
+        "rms": 0.78,
+        "p50": 0.64,
+        "p95": 1.41,
+        "max": 1.65
+      },
+      "map": {
+        "n": 88,
+        "mean": 0.52,
+        "rms": 0.6,
+        "p50": 0.45,
+        "p95": 1.07,
+        "max": 1.6
+      },
+      "acquisition": {
+        "lidar": 1.64,
+        "map": 0.17
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 26,
+      "parking": "partial",
+      "end": "stalled",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.8,
+      "lidar": {
+        "n": 88,
+        "mean": 0.55,
+        "rms": 0.65,
+        "p50": 0.48,
+        "p95": 1.19,
+        "max": 1.58
+      },
+      "map": {
+        "n": 88,
+        "mean": 0.46,
+        "rms": 0.54,
+        "p50": 0.4,
+        "p95": 0.96,
+        "max": 1.64
+      },
+      "acquisition": {
+        "lidar": 0.66,
+        "map": 0.43
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 27,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.9,
+      "lidar": {
+        "n": 81,
+        "mean": 0.66,
+        "rms": 0.72,
+        "p50": 0.58,
+        "p95": 1.18,
+        "max": 1.31
+      },
+      "map": {
+        "n": 81,
+        "mean": 0.51,
+        "rms": 0.59,
+        "p50": 0.49,
+        "p95": 1,
+        "max": 1.63
+      },
+      "acquisition": {
+        "lidar": 0.81,
+        "map": 0.72
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 28,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108,
+      "lidar": {
+        "n": 87,
+        "mean": 0.64,
+        "rms": 0.76,
+        "p50": 0.55,
+        "p95": 1.29,
+        "max": 2.44
+      },
+      "map": {
+        "n": 87,
+        "mean": 0.69,
+        "rms": 0.77,
+        "p50": 0.7,
+        "p95": 1.29,
+        "max": 1.74
+      },
+      "acquisition": {
+        "lidar": 0.28,
+        "map": 0.52
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 29,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 107.3,
+      "lidar": {
+        "n": 67,
+        "mean": 0.64,
+        "rms": 0.72,
+        "p50": 0.63,
+        "p95": 1.25,
+        "max": 1.29
+      },
+      "map": {
+        "n": 67,
+        "mean": 0.57,
+        "rms": 0.65,
+        "p50": 0.55,
+        "p95": 1.05,
+        "max": 1.47
+      },
+      "acquisition": {
+        "lidar": 1.24,
+        "map": 0.27
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 30,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 109.8,
+      "lidar": {
+        "n": 114,
+        "mean": 0.61,
+        "rms": 0.7,
+        "p50": 0.54,
+        "p95": 1.16,
+        "max": 2.26
+      },
+      "map": {
+        "n": 114,
+        "mean": 0.65,
+        "rms": 0.73,
+        "p50": 0.61,
+        "p95": 1.24,
+        "max": 1.65
+      },
+      "acquisition": {
+        "lidar": 1.16,
+        "map": 0.6
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 31,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108.2,
+      "lidar": {
+        "n": 95,
+        "mean": 0.65,
+        "rms": 0.74,
+        "p50": 0.59,
+        "p95": 1.37,
+        "max": 1.96
+      },
+      "map": {
+        "n": 95,
+        "mean": 0.69,
+        "rms": 0.76,
+        "p50": 0.65,
+        "p95": 1.23,
+        "max": 1.46
+      },
+      "acquisition": {
+        "lidar": 0.27,
+        "map": 0.35
+      }
+    },
+    {
+      "direction": "cw",
+      "seed": 32,
+      "parking": "full",
+      "end": "finished",
+      "spotFirst": "ya confirmada al empezar la busqueda",
+      "searchStart": 108.2,
+      "lidar": {
+        "n": 125,
+        "mean": 0.69,
+        "rms": 0.76,
+        "p50": 0.71,
+        "p95": 1.11,
+        "max": 1.55
+      },
+      "map": {
+        "n": 125,
+        "mean": 0.6,
+        "rms": 0.68,
+        "p50": 0.51,
+        "p95": 1.21,
+        "max": 1.34
+      },
+      "acquisition": {
+        "lidar": 1.54,
+        "map": 0.41
+      }
+    }
+  ]
+}

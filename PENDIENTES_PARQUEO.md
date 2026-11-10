@@ -70,5 +70,6 @@ Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en
   El ejecutor de arcos está afinado para una planta lenta y mide por odometría/giroscopio; hay que rediseñarlo a nivel de tramo (no arco).
   MIC solo en velocidad: 0 fallos en 40 rondas, pero con repasadas irregulares (a veces 15-17).
 - **trace_map:** rejilla con espacio libre, objetos con color y posición, plaza detectada por geometría, guardado y consultas. Ver `simulator/TRACE_MAP.md`.
-  Falta que el parqueo y el planificador lo consulten, dibujarlo en la interfaz y probarlo con el LiDAR real.
+  Falta probarlo con el LiDAR real. El parqueo **no** lo usa para localizar: medido en 24 rondas, la plaza del mapa da el mismo error de pose que
+  `park_localize` (0,64 frente a 0,66 cm de media), así que no aporta mejora. Ver `simulator/MEDICION_TRACE_VUELTAS.md`.
 
