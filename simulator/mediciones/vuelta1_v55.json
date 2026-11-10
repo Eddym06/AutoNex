@@ -1,0 +1,434 @@
+{
+  "summary": {
+    "rondas": 16,
+    "profile": "largo26d",
+    "config": "it_enabled 1;planner.speed_cm_s 55",
+    "fin": {
+      "wrong-side": 7,
+      "finished": 8,
+      "opposite": 1
+    },
+    "puntos_medios": 32.63,
+    "tiempo_medio_s": 48.1,
+    "vuelta1_s": 14,
+    "vuelta2_s": 11,
+    "vuelta3_s": null,
+    "v_media_cm_s": 43.7,
+    "v_max_cm_s": 150,
+    "contactos_medios": 0,
+    "deriva_trasera_max_deg": 4.1,
+    "fraccion_con_tope_de_traccion": 0
+  },
+  "res": [
+    {
+      "seed": 1,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 2.759999999999985,
+      "violations": 1,
+      "contacts": 0,
+      "parking": "partial",
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "ccw 1: wrong-side 0 pts 3 s v medio 0.0 max 0 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.00"
+    },
+    {
+      "seed": 2,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 74.91000000000142,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.9991425638431,
+      "vmean": 66.65620412627257,
+      "slipMax": 3.9872477213394513,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.29780564263322884,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 6.920894145965576
+      },
+      "laps": {
+        "1": 12.930000000000591,
+        "2": 10.600000000001657
+      },
+      "log": "ccw 2: finished 62 pts 75 s v medio 66.7 max 150 contactos 0 | IT valido true activo 30% cedio 1 () agarre 0.50"
+    },
+    {
+      "seed": 3,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 20,
+      "elapsed": 44.01999999999981,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 54.99999999999997,
+      "vmean": 23.620047989182797,
+      "slipMax": 1.1749078546812075,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 0
+      },
+      "laps": {
+        "1": 19.170000000001686
+      },
+      "log": "ccw 3: wrong-side 20 pts 44 s v medio 23.6 max 55 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.50"
+    },
+    {
+      "seed": 4,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 7.129999999999892,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "ccw 4: wrong-side 0 pts 7 s v medio 0.0 max 0 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.00"
+    },
+    {
+      "seed": 5,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 83.31000000000572,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.94935247367985,
+      "vmean": 70.06942944056006,
+      "slipMax": 4.092010979667913,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.22525597269624573,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.550000011920929,
+        "planTime": 5.362430095672607
+      },
+      "laps": {
+        "1": 12.630000000000544,
+        "2": 9.100000000001423
+      },
+      "log": "ccw 5: finished 62 pts 83 s v medio 70.1 max 150 contactos 0 | IT valido true activo 23% cedio 1 () agarre 0.55"
+    },
+    {
+      "seed": 6,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 3.519999999999969,
+      "violations": 1,
+      "contacts": 0,
+      "parking": "partial",
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "ccw 6: wrong-side 0 pts 4 s v medio 0.0 max 0 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.00"
+    },
+    {
+      "seed": 7,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 8.699999999999859,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 54.98513941193762,
+      "vmean": 41.83489792108149,
+      "slipMax": 0.9552645597820942,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "ccw 7: wrong-side 0 pts 9 s v medio 41.8 max 55 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.50"
+    },
+    {
+      "seed": 8,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 103.6100000000161,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 104.77930993920303,
+      "vmean": 42.994927280252455,
+      "slipMax": 2.9675215335689167,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.018556701030927835,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 8.207538604736328
+      },
+      "laps": {
+        "1": 18.530000000001465,
+        "2": 18.809999999998215
+      },
+      "log": "ccw 8: finished 62 pts 104 s v medio 43.0 max 105 contactos 0 | IT valido true activo 2% cedio 1 () agarre 0.50"
+    },
+    {
+      "seed": 1,
+      "direction": "cw",
+      "end": "wrong-side",
+      "points": 4,
+      "elapsed": 22.77000000000076,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 54.9999999999999,
+      "vmean": 24.536130988536573,
+      "slipMax": 1.0157107547407167,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "cw 1: wrong-side 4 pts 23 s v medio 24.5 max 55 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.50"
+    },
+    {
+      "seed": 2,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 87.81000000000802,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.99786409417575,
+      "vmean": 72.4193108366648,
+      "slipMax": 3.694829588976041,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.2714285714285714,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.550000011920929,
+        "planTime": 5.2848992347717285
+      },
+      "laps": {
+        "1": 12.280000000000587,
+        "2": 8.200000000001282
+      },
+      "log": "cw 2: finished 62 pts 88 s v medio 72.4 max 150 contactos 0 | IT valido true activo 27% cedio 1 () agarre 0.55"
+    },
+    {
+      "seed": 3,
+      "direction": "cw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 8.519999999999863,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 54.85900666621501,
+      "vmean": 39.941920853508186,
+      "slipMax": 0.4809383463986284,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "cw 3: wrong-side 0 pts 9 s v medio 39.9 max 55 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.50"
+    },
+    {
+      "seed": 4,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 70.70999999999927,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.9924566980867,
+      "vmean": 70.81300406819732,
+      "slipMax": 3.5740788422010343,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.22887323943661972,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.550000011920929,
+        "planTime": 5.279692649841309
+      },
+      "laps": {
+        "1": 12.580000000000634,
+        "2": 8.300000000001297
+      },
+      "log": "cw 4: finished 62 pts 71 s v medio 70.8 max 150 contactos 0 | IT valido true activo 23% cedio 1 () agarre 0.55"
+    },
+    {
+      "seed": 5,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 72.21000000000004,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.99632228530032,
+      "vmean": 68.61828701126531,
+      "slipMax": 3.7500201336014265,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.25249169435215946,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.550000011920929,
+        "planTime": 6.379047870635986
+      },
+      "laps": {
+        "1": 12.580000000000634,
+        "2": 9.700000000001516
+      },
+      "log": "cw 5: finished 62 pts 72 s v medio 68.6 max 150 contactos 0 | IT valido true activo 25% cedio 1 () agarre 0.55"
+    },
+    {
+      "seed": 6,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 85.31000000000674,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 147.0595252506255,
+      "vmean": 56.17795690865056,
+      "slipMax": 3.5923187536675245,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.02702702702702703,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 5.962005138397217
+      },
+      "laps": {
+        "1": 12.580000000000634,
+        "2": 14.090000000001073
+      },
+      "log": "cw 6: finished 62 pts 85 s v medio 56.2 max 147 contactos 0 | IT valido true activo 3% cedio 1 () agarre 0.50"
+    },
+    {
+      "seed": 7,
+      "direction": "cw",
+      "end": "opposite",
+      "points": 2,
+      "elapsed": 16.50999999999978,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 54.99999999999997,
+      "vmean": 48.995416844725106,
+      "slipMax": 1.015789203998718,
+      "tractionLimited": 0,
+      "it": {
+        "valid": false,
+        "activeFrac": 0,
+        "drops": 0,
+        "reasons": [],
+        "grip": 0.5,
+        "planTime": 0
+      },
+      "laps": {},
+      "log": "cw 7: opposite 2 pts 17 s v medio 49.0 max 55 contactos 0 | IT valido false activo 0% cedio 0 () agarre 0.50"
+    },
+    {
+      "seed": 8,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 77.91000000000295,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 149.98958191867584,
+      "vmean": 71.92013761090196,
+      "slipMax": 3.6346345860634734,
+      "tractionLimited": 0,
+      "it": {
+        "valid": true,
+        "activeFrac": 0.23529411764705882,
+        "drops": 1,
+        "reasons": [],
+        "grip": 0.550000011920929,
+        "planTime": 5.5220232009887695
+      },
+      "laps": {
+        "1": 12.380000000000603,
+        "2": 9.100000000001423
+      },
+      "log": "cw 8: finished 62 pts 78 s v medio 71.9 max 150 contactos 0 | IT valido true activo 24% cedio 1 () agarre 0.55"
+    }
+  ]
+}

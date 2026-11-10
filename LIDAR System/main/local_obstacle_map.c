@@ -40,7 +40,7 @@ void local_planner_config_default(local_planner_config_t *c)
     c->lidar_min_cm = 5.0f;
     /* Una vuelta de 8 m (circuito de 1 m de carril) tres veces, mas el parqueo,
      * no cabe en los 180 s de la ronda a 10 cm/s; 20 cm/s deja holgura. */
-    c->speed_cm_s = 23.0f;            /* 23 cierra 16 s antes que 20 con la misma fiabilidad (99/95 perfectas en dos bancos); 26 ya pierde fiabilidad */
+    c->speed_cm_s = 35.0f;            /* velocidad mientras construye el mapa (vuelta 1). 35 = punto medio entre 30 y 40, que dieron la misma fiabilidad que 23 con el chasis largo26d (24 rondas: 15 frente a 14-15 perfectas, 0 contactos) y la vuelta 1 baja de 29,6 a 19,4 s; a 55 ya pierde fiabilidad. Un banco anterior con otro perfil habia dado 26 como limite: revalidar con el chasis real */
     c->maneuver_speed_cm_s = 10.0f;
     c->cycle_s = 0.1f;
     c->scan_period_s = 0.1f;

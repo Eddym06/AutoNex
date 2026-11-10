@@ -118,6 +118,19 @@ Rondas en las que IT interviene (12 de 20; en las otras 8 la ronda acaba a los p
 
 La vuelta 1 (~29 s) y la última media vuelta más el parqueo siguen siendo del reactivo; ahí está ahora el tiempo. `test_it_mission.js` fija esto en dos rondas.
 
+## Velocidad de la vuelta 1 (mapeo): 35 cm/s
+
+Barrido de `planner.speed_cm_s` con IT activa (16 rondas por valor, `largo26d`, 3 letreros y cajón):
+
+| Vuelta 1 a | Vuelta 1 media | Terminan | Plan de IT válido |
+| --- | --- | --- | --- |
+| 23 cm/s | 29,2 s | 9 de 16 | 9 |
+| 30 cm/s | 22,6 s | 10 de 16 | 10 |
+| 40 cm/s | 17,6 s | 10 de 16 | 11 (0,19 contactos de media) |
+| 55 cm/s | 14,0 s | 8 de 16 | 8 (una ronda en sentido contrario) |
+
+Se fija **35 cm/s** (punto medio de 30 y 40). Comprobación en 24 rondas con la configuración exacta: 15 perfectas con 35 frente a 14-15 con 23, 0 contactos, vuelta 1 de 29,6 a 19,4 s; con IT la ronda pasa de 98,6 s a 61,4 s. Un banco anterior del equipo (otro perfil de chasis) había dado 26 cm/s como límite de fiabilidad: **revalidar con el chasis real**. No se ha medido el error de posición de los letreros en el mapa a esta velocidad. Datos: `simulator/mediciones/vuelta1_v*.json` y `v35_*.json`.
+
 ## Lo que falta (no hecho)
 
 1. **Calibración en el chasis real** (todo lo de arriba es de simulador): retardo y velocidad del servo, μ (círculo y frenada), reparto de peso, aceleración del motor, `track_err` (14, medido en la misión simulada) y `pose_err`. **Activar `it_enabled` solo después.**

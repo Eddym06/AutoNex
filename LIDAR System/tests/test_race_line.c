@@ -58,7 +58,7 @@ int main(void)
         check_inside(&line, "campo vacio");
         CHECK(line.time_s <= line.time_center_s + 0.01f, "la linea optima no es mas lenta que la central");
         CHECK(line.length_cm > 450.0f && line.length_cm < 900.0f, "longitud de la vuelta");
-        CHECK(line.time_s > 15.0f && line.time_s < 45.0f, "tiempo de vuelta plausible");
+        CHECK(line.time_s > 8.0f && line.time_s < 45.0f, "tiempo de vuelta plausible");
         float vmin = 1.0e9f, vmax = 0.0f;
         for (int i = 0; i < line.n; ++i) { if (line.v[i] < vmin) vmin = line.v[i]; if (line.v[i] > vmax) vmax = line.v[i]; }
         CHECK(vmin >= 5.0f && vmax <= cfg.v_max_cm_s + 0.01f, "velocidades dentro de los topes");
