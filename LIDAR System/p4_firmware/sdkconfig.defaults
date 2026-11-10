@@ -1,6 +1,9 @@
 # Tick de FreeRTOS a 1 kHz: el bucle de control usa vTaskDelay(1) = 1 ms.
 CONFIG_FREERTOS_HZ=1000
 
+# La localizacion experimental del parqueo añade trabajo temporal a la pila del control.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+
 # La rejilla del planificador de parqueo (~900 KB) va a la PSRAM del P4.
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y

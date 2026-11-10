@@ -7,6 +7,12 @@
 #include "esp_log.h"
 #include "wro_config.h"
 #include "hw_steering.h"
+#if CONFIG_WRO_USE_MIC
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "hw_encoders.h"
+#include "mic.h"
+#endif
 
 static const char *TAG = "motors";
 
@@ -51,6 +57,82 @@ static void drive_wheel(int fwd, int rev, float v_cm_s, bool invert)
         set_duty(rev, frac);
     }
 }
+
+#if CONFIG_WRO_USE_MIC
+/* ---- MIC: la traccion en lazo cerrado con el encoder (ver Motor Control/MIC/README.md) ----
+ * Un temporizador de 1 kHz ejecuta mic_update() con las cuentas del encoder y aplica el ciclo que devuelve.
+ * hw_motors_drive() solo cambia la orden (velocidad); hw_motors_stop() corta y se mantiene cortado hasta
+ * la siguiente orden valida. Sin encoder listo, el motor no se mueve. */
+static mic_t s_mic;
+static esp_timer_handle_t s_mic_timer;
+static portMUX_TYPE s_mic_mux = portMUX_INITIALIZER_UNLOCKED;
+static volatile bool s_mic_cut = true;
+static bool s_mic_ready;
+
+static void mic_build_cfg(mic_cfg_t *c)
+{
+    mic_cfg_jgb37_520_1000rpm(c);
+    /* La rueda va detras de la pareja de engranajes: axle = salida x dientes_motor/dientes_diferencial. */
+    const float final_ratio = (float)CONFIG_WRO_DIFF_GEAR_TEETH / (float)CONFIG_WRO_MOTOR_GEAR_TEETH;
+    c->gear_ratio = (float)CONFIG_WRO_MIC_GEAR_REDUCTION * final_ratio;
+    c->rpm_nl_out = (float)CONFIG_WRO_MIC_RPM_NOLOAD / final_ratio;     /* en la rueda */
+    c->counts_per_motor_rev = 4.0f * (float)CONFIG_WRO_MIC_ENC_PPR;
+    c->wheel_diam_cm = 0.2f * (float)CONFIG_WRO_WHEEL_RADIUS_MM;
+    c->r_ohm = 0.001f * (float)CONFIG_WRO_MIC_MOTOR_R_MOHM;
+    c->mass_kg = 0.001f * (float)CONFIG_WRO_MIC_MASS_G;
+    c->vbat_nominal = 0.00088f * (float)CONFIG_WRO_BATT_MV;           /* 12,6 V cargada -> 11,1 V nominales */
+    c->vdrop_volts = 0.001f * (float)CONFIG_WRO_MOTOR_DROP_MV;
+}
+
+static void mic_apply(const mic_out_t *o)
+{
+    if (o->brake_short || fabsf(o->duty) < 1e-3f) {            /* freno corto: las dos entradas al mismo nivel (0) */
+        set_duty(CH_LEFT_REV, 0.0f);
+        set_duty(CH_LEFT_FWD, 0.0f);
+        return;
+    }
+    float d = o->duty;
+    if (CONFIG_WRO_MOTOR_INVERT_LEFT) d = -d;
+    if (d >= 0.0f) { set_duty(CH_LEFT_REV, 0.0f); set_duty(CH_LEFT_FWD, d); }
+    else           { set_duty(CH_LEFT_FWD, 0.0f); set_duty(CH_LEFT_REV, -d); }
+}
+
+static void mic_timer_cb(void *arg)
+{
+    (void)arg;
+    static int64_t t_prev;
+    const int64_t now = esp_timer_get_time();
+    float dt = t_prev ? (float)(now - t_prev) * 1e-6f : 0.001f;
+    t_prev = now;
+    if (dt < 0.0005f) dt = 0.0005f;
+    if (dt > 0.005f) dt = 0.005f;
+    int32_t counts;
+    if (s_mic_cut || !hw_encoders_counts(&counts)) {
+        set_duty(CH_LEFT_FWD, 0.0f);
+        set_duty(CH_LEFT_REV, 0.0f);
+        return;
+    }
+    mic_in_t in = {.counts = counts, .vbat = 0.0f};              /* sin ADC de bateria: tension nominal */
+    mic_out_t out;
+    portENTER_CRITICAL(&s_mic_mux);
+    mic_update(&s_mic, &in, dt, &out);
+    portEXIT_CRITICAL(&s_mic_mux);
+    mic_apply(&out);
+}
+
+static void mic_start(void)
+{
+    mic_cfg_t cfg;
+    mic_build_cfg(&cfg);
+    mic_init(&s_mic, &cfg);
+    s_mic_ready = true;
+    const esp_timer_create_args_t args = {.callback = mic_timer_cb, .name = "mic", .dispatch_method = ESP_TIMER_TASK};
+    ESP_ERROR_CHECK(esp_timer_create(&args, &s_mic_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(s_mic_timer, 1000));
+    ESP_LOGW(TAG, "MIC activo: %.4f cm/cuenta, R=%.2f ohm, masa %.2f kg (supuestos hasta medir)",
+             s_mic.cm_per_count, cfg.r_ohm, cfg.mass_kg);
+}
+#endif
 
 /* Primera cosa al arrancar: las entradas del L298N a 0 con pull-down. Sin esto, mientras el P4 arranca (y antes
  * de configurar el PWM) los pines quedan flotando y el puente puede mover los motores solo. */
@@ -97,6 +179,9 @@ void hw_motors_init(void)
     }
     s_ready = true;
     hw_motors_stop();
+#if CONFIG_WRO_USE_MIC
+    mic_start();
+#endif
     ESP_LOGI(TAG, "L298N: PWM %d Hz en GPIO %d/%d, traccion %s", PWM_FREQ_HZ,
              s_pins[0], s_pins[1],
              CONFIG_WRO_MOTORS_ENABLED ? "HABILITADOS" : "deshabilitados (solo calculo)");
@@ -117,6 +202,15 @@ void hw_motors_drive(float speed_cm_s, float yaw_rate_dps)
         hw_motors_stop();
         return;
     }
+#if CONFIG_WRO_USE_MIC
+    /* Orden valida: se levanta el corte. La velocidad se repite cada barrido; mic_request_speed no reinicia el control. */
+    portENTER_CRITICAL(&s_mic_mux);
+    if (fabsf(speed_cm_s) < 0.5f) mic_request_stop(&s_mic, MIC_DECEL_PROGRESSIVE);
+    else mic_request_speed(&s_mic, speed_cm_s, MIC_DECEL_PROGRESSIVE);
+    portEXIT_CRITICAL(&s_mic_mux);
+    s_mic_cut = false;
+    return;
+#endif
     drive_wheel(CH_LEFT_FWD, CH_LEFT_REV, speed_cm_s, CONFIG_WRO_MOTOR_INVERT_LEFT);
 }
 
@@ -135,5 +229,13 @@ void hw_motors_last_duty(uint32_t duty[4])
 
 void hw_motors_stop(void)
 {
+#if CONFIG_WRO_USE_MIC
+    s_mic_cut = true;                 /* el corte se mantiene hasta la siguiente orden valida */
+    if (s_mic_ready) {                /* y MIC queda con orden de parar: no retoma la velocidad anterior */
+        portENTER_CRITICAL(&s_mic_mux);
+        mic_request_stop(&s_mic, MIC_DECEL_AGGRESSIVE);
+        portEXIT_CRITICAL(&s_mic_mux);
+    }
+#endif
     for (int ch = 0; ch < CH_COUNT; ++ch) set_duty(ch, 0.0f);
 }

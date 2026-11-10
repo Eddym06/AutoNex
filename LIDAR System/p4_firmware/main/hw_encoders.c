@@ -56,6 +56,14 @@ static bool axle_degrees(float *degrees)
     return true;
 }
 
+bool hw_encoders_counts(int32_t *counts)
+{
+    int c;
+    if (!s_ready || !counts || pcnt_unit_get_count(s_unit, &c) != ESP_OK) return false;
+    *counts = CONFIG_WRO_AXLE_ENCODER_INVERT ? -(int32_t)c : (int32_t)c;
+    return true;
+}
+
 void hw_encoders_set_direction(int left_dir, int right_dir)
 {
     /* La cuadratura da el sentido medido, no el sentido de la orden. */

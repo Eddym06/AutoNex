@@ -15,6 +15,9 @@ void hw_encoders_set_direction(int left_dir, int right_dir);
 /* Entrega el angulo acumulado del eje al controlador cuando esta calibrado. */
 void hw_encoders_feed(wro_controller_t *c, uint64_t t_us);
 
+/* Cuentas x4 acumuladas del eje (positivo = avance). false si el encoder no esta listo. */
+bool hw_encoders_counts(int32_t *counts);
+
 /* Diagnostico: posicion con signo de cada rueda (metros). */
 void hw_encoders_position_m(float *left_m, float *right_m);
 

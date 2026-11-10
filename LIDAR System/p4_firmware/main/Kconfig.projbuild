@@ -69,6 +69,38 @@ menu "WRO - pines y hardware del P4"
         int "Velocidad de la rueda con el PWM en su tope de 12 V (cm/s, por medir)"
         default 40
 
+    config WRO_USE_MIC
+        bool "Controlar la traccion con MIC (Motor Intelligent Control) en lazo cerrado con el encoder"
+        default n
+        help
+            Sin probar con el motor real. Requiere encoder A/B configurado y calibrado, y los parametros
+            WRO_MIC_* medidos. Desactivado, la traccion sigue en lazo abierto (velocidad ordenada -> PWM).
+
+    config WRO_MIC_GEAR_REDUCTION
+        int "Reduccion del motorreductor (JGB37-520 de 1000 rpm: 10)"
+        range 1 1000
+        default 10
+
+    config WRO_MIC_RPM_NOLOAD
+        int "rpm en vacio del eje de salida del motorreductor a 12 V (JGB37-520: 1000)"
+        range 1 20000
+        default 1000
+
+    config WRO_MIC_ENC_PPR
+        int "Pulsos por canal y por vuelta del eje del MOTOR (Hall: 11)"
+        range 1 1000
+        default 11
+
+    config WRO_MIC_MOTOR_R_MOHM
+        int "Resistencia del inducido (mOhm). SUPUESTO 2600: medir con el rotor bloqueado a baja tension"
+        range 100 50000
+        default 2600
+
+    config WRO_MIC_MASS_G
+        int "Masa del coche montado (g). SUPUESTO 1200: pesar"
+        range 100 20000
+        default 1200
+
     config WRO_TRACK_MM
         int "Separacion entre ruedas motrices (mm)"
         default 120
