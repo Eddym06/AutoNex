@@ -181,7 +181,7 @@
       itBuild(direction, params, obstacles) {
         const p = f32(x.core_it_params_ptr(), 24); p.fill(0);
         ['grip', 'vMax', 'aMotor', 'mu', 'rearWeight', 'trackErr', 'poseErr', 'lag', 'steerRate', 'wheelbase', 'halfWidth', 'frontExt', 'safety',
-         'sweeps', 'passes', 'steerMax', 'vMin', 'cgHeight'].forEach((k, i) => { if (params && params[k] > 0) p[i] = params[k]; });
+         'sweeps', 'passes', 'steerMax', 'vMin', 'cgHeight', 'ctrlMode', 'kPsi', 'kE'].forEach((k, i) => { if (params && params[k] > 0) p[i] = params[k]; });
         const ob = f32(x.core_it_obs_ptr(), 72);
         obstacles.slice(0, 24).forEach((q, i) => { ob[3 * i] = q.x; ob[3 * i + 1] = q.z; ob[3 * i + 2] = q.color || 0; });
         const ok = x.core_it_build(direction === 'cw' ? 1 : -1, Math.min(24, obstacles.length)) === 1;
@@ -194,6 +194,19 @@
         return { ok, steer: t[0], speed: t[1], e: t[2], idx: t[3] | 0, psiErr: t[4], room: t[5], vPlan: t[6] };
       },
       itAdapt(contacts, maxErr, minRoom, slip, traction, gripMax) { return x.core_it_adapt(contacts, maxErr, minRoom, slip, traction, gripMax); },
+      /* IT dentro del controlador de la mision: estado y trayectoria (para dibujarla). */
+      itFast(tUs) {
+        if (x.core_it_fast(tUs) !== 1) return null;
+        const o = f32(x.core_it_fast_ptr(), 4);
+        return { steer: o[0], speed: o[1], yawRate: o[2] };
+      },
+      itState(withLine = true) {
+        const o = f32(x.core_it_ctrl_ptr(), 16 + 3 * 256 + 1 + 72), f = o[0] | 0, n = o[2] | 0, line = [], obs = [], nb = o[16 + 3 * 256] | 0;
+        if (withLine) for (let i = 0; i < n; i++) line.push({ x: o[16 + 3 * i], z: o[17 + 3 * i], v: o[18 + 3 * i] });
+        for (let i = 0; i < nb; i++) obs.push({ x: o[16 + 3 * 256 + 1 + 3 * i], z: o[16 + 3 * 256 + 2 + 3 * i], color: o[16 + 3 * 256 + 3 + 3 * i] });
+        return { obs, enabled: !!(f & 1), valid: !!(f & 2), building: !!(f & 4), active: !!(f & 8), failed: !!(f & 16), grip: o[1], n, idx: o[3] | 0, e: o[4], vPlan: o[5], vCmd: o[6],
+                 drops: o[7] | 0, dropReason: o[8] | 0, planTime: o[9], why: o[10] | 0, lap: o[11] | 0, planLap: o[12] | 0, psiErr: o[13], timeCenter: o[14], maxErr: o[15], line };
+      },
       arcClear(steerDeg, distance) { return x.core_arc_clear(steerDeg, distance) === 1; },
       /* Objetos del mapa persistente: [{id, kind (1 pared, 2 pilar, 3 barra), color (1 rojo, 2 verde, 3 magenta), confidence, x, z, length, width, axis, cells}]. */
       traceObjects() {

@@ -10,8 +10,8 @@ require(path.join(web, 'core.js'));
 async function doJob(job) {
   const core = await W.core.load(fs.readFileSync(path.join(web, 'wro_core.wasm')));
   const field = W.field.randomLayout(job.seed, { direction: job.direction, signs: job.signs, parking: !job.noparking, startInLot: !job.noparking });
-  const sim = new W.sim.Simulation(core, { field, seed: job.seed, robot: W.robot.PROFILES[job.profile], ctrlConfig: job.config || '' });
-  const lapT = {}; let lastLap = 0, vmax = 0, vsum = 0, vn = 0, slipMax = 0, tractionLim = 0, ticks = 0;
+  const sim = new W.sim.Simulation(core, { field, seed: job.seed, robot: Object.assign({}, W.robot.PROFILES[job.profile], job.robotOver || {}), mic: !!job.mic, ctrlConfig: job.config || '' });
+  const lapT = {}; let itTicks = 0, itActive = 0, itMaxDrops = 0, itReasons = {}, itGrip = 0, itPlanTime = 0, itValid = false, lastLap = 0, vmax = 0, vsum = 0, vn = 0, slipMax = 0, tractionLim = 0, ticks = 0;
   while (sim.t < job.limit && !sim.finished) {
     sim.run(0.1);
     const c = sim.cmd;
@@ -22,13 +22,15 @@ async function doJob(job) {
       vmax = Math.max(vmax, sim.robot.v); vsum += sim.robot.v; vn++;
       slipMax = Math.max(slipMax, Math.abs(sim.robot.slipAngleDeg || 0));
       ticks++; if (sim.robot.tractionLimited) tractionLim++;
+      if (job.it) { const st = sim.core.itState(false); itTicks++; if (st.active) itActive++; itMaxDrops = st.drops; itGrip = st.grip; itPlanTime = st.planTime; itValid = itValid || st.valid; if (st.dropReason) itReasons[st.dropReason] = 1; }
     }
   }
   const r = sim.run(0.1);
   const out = { seed: job.seed, direction: job.direction, end: r.endReason, points: r.points, elapsed: sim.t, violations: r.violations.length,
     contacts: r.contacts.sign + r.contacts.wall, parking: r.parking, vmax, vmean: vn ? vsum / vn : 0, slipMax, tractionLimited: ticks ? tractionLim / ticks : 0,
+    it: job.it ? { valid: itValid, activeFrac: itTicks ? itActive / itTicks : 0, drops: itMaxDrops, reasons: Object.keys(itReasons), grip: itGrip, planTime: itPlanTime } : undefined,
     laps: Object.fromEntries(Object.entries(lapT).filter(([k]) => k !== '_t0')) };
-  out.log = `${job.direction} ${job.seed}: ${out.end} ${out.points} pts ${out.elapsed.toFixed(0)} s v medio ${out.vmean.toFixed(1)} max ${out.vmax.toFixed(0)} contactos ${out.contacts}`;
+  out.log = `${job.direction} ${job.seed}: ${out.end} ${out.points} pts ${out.elapsed.toFixed(0)} s v medio ${out.vmean.toFixed(1)} max ${out.vmax.toFixed(0)} contactos ${out.contacts}` + (out.it ? ` | IT valido ${out.it.valid} activo ${(100 * out.it.activeFrac).toFixed(0)}% cedio ${out.it.drops} (${out.it.reasons.join(',')}) agarre ${out.it.grip.toFixed(2)}` : '');
   return out;
 }
 
@@ -38,9 +40,11 @@ async function doJob(job) {
   const a = process.argv.slice(2).filter(x => !x.startsWith('--'));
   const seeds = Number(a[0] || 10), profile = a[1] || 'largo26d', config = (a[2] && a[2] !== '-' ? a[2] : '').split(';').join('\n'), outFile = a[3];
   const fl = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : d; };
+  const accel = fl('--accel', null), useIt = process.argv.includes('--it'), mic = process.argv.includes('--mic');
+  const robotOver = accel ? { maxAccel: Number(accel), speedTauS: 0.08, speedGain: 1 } : null;
   const signs = Number(fl('--signs', 3)), noparking = process.argv.includes('--noparking'), limit = Number(fl('--limit', 240));
   const jobs = [];
-  for (const direction of ['ccw', 'cw']) for (let seed = 1; seed <= seeds; seed++) jobs.push({ direction, seed, profile, config, signs, noparking, limit });
+  for (const direction of ['ccw', 'cw']) for (let seed = 1; seed <= seeds; seed++) jobs.push({ direction, seed, profile, config, signs, noparking, limit, robotOver, mic, it: useIt });
   const res = (await runJobs(__filename, jobs)).filter(r => r.result).map(r => r.result);
   const full = res.filter(r => r.points >= 0);
   const mean = (f, arr = res) => arr.length ? arr.reduce((s, r) => s + f(r), 0) / arr.length : 0;

@@ -227,6 +227,12 @@
       }
       /* Ordenes y tramas con hora <= ahora. */
       while (this.queue.length && this.queue[0].time <= t1) this.handle(this.queue.shift());
+      /* Lazo rapido de la trayectoria inteligente: cada 20 ms recalcula con encoders y giroscopio sin esperar al escaneo. */
+      if (this.started && core.itFast && t1 >= (this.nextFast || 0)) {
+        this.nextFast = t1 + 0.02;
+        const f = core.itFast(t1 * 1e6);
+        if (f) this.schedule(t1 + this.options.cmdDelayMs / 1000, 'cmd', { steer: f.steer, speed: f.speed, yawRate: f.yawRate, moveCm: 0, moveId: this.lastMoveId });
+      }
       this.prev = this.robot.pose();
       const events = this.robot.step(dt, { solids: this.solids(), signs: this.field.signs });
       const now = this.robot.pose();

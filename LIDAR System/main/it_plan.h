@@ -38,6 +38,8 @@ typedef struct {
     /* Vehiculo (la pose es el eje trasero). */
     float wheelbase_cm, half_width_cm, front_ext_cm, rear_ext_cm;   /* extensiones del chasis desde el eje trasero */
     float steer_max_deg, steer_rate_dps, lag_s;       /* lag: orden -> el volante responde (retardo + constante del servo + calculo) */
+    int ctrl_mode;               /* 0 persecucion pura, 1 anticipacion por curvatura + realimentacion */
+    float k_psi, k_e;            /* modo 1: ganancia del error de rumbo (grado/grado) y del error lateral (1/s) */
     float steer_use, rate_use;   /* fraccion del volante y de la velocidad del servo que usa el plan (el resto es reserva del seguidor) */
     /* Agarre y traccion. */
     float mu, rear_weight, cg_height_cm;
@@ -59,7 +61,8 @@ typedef struct {
 typedef struct {
     it_config_t cfg;
     bool valid;
-    uint8_t why;                 /* si no es valido: 1 volante no llega, 2 salto lateral, 4 la huella del chasis toca algo */
+    bool building;               /* it_plan_begin hecho y it_plan_step aun no ha terminado */
+    uint8_t why;                /* si no es valido: 1 volante no llega, 2 salto lateral, 4 la huella del chasis toca algo */
     int n, direction;           /* direction: +1 horario, -1 antihorario */
     float cx[IT_MAX_N], cz[IT_MAX_N], nx[IT_MAX_N], nz[IT_MAX_N];     /* linea central y normal a la derecha */
     float lo0[IT_MAX_N], hi0[IT_MAX_N];                                /* tramo libre con los margenes estaticos */
@@ -71,6 +74,7 @@ typedef struct {
     float heading_deg[IT_MAX_N];
     float v[IT_MAX_N];           /* velocidad objetivo (cm/s) */
     float vcap[IT_MAX_N];        /* tope de velocidad por estacion a que el hueco no deja margen mayor (0 = sin tope) */
+    float gap[IT_MAX_N];         /* holgura de la huella del chasis al obstaculo mas cercano, sobre el margen (cm) */
     float room[IT_MAX_N];        /* holgura lateral hasta el contacto, sobre los margenes estaticos (cm) */
     float margin[IT_MAX_N];      /* margen dinamico aplicado en la estacion */
     float length_cm, time_s, time_center_s, violation;
@@ -98,6 +102,10 @@ typedef struct {
 void it_config_default(it_config_t *c);
 bool it_config_sanitize(it_config_t *c);
 bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count);
+/* Lo mismo repartido en rebanadas (hay un solo trabajo a la vez): begin prepara el corredor (falso si no hay paso); step avanza como
+ * mucho `budget` evaluaciones (~30 us cada una en un PC) y devuelve true al terminar; p->valid dice si hay plan. */
+bool it_plan_begin(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count);
+bool it_plan_step(it_plan_t *p, int budget);
 
 void it_tracker_reset(it_tracker_t *t);
 /* Pose del eje trasero (cm, grados horario desde el norte) y velocidad medida. Devuelve false si no hay plan o el robot esta

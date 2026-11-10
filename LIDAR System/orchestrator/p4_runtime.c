@@ -54,6 +54,16 @@ void p4_runtime_step(p4_runtime_t *rt)
     } else if (scan_received) {
         h->drive(h->ctx, rt->last.steer_deg, rt->last.speed_cm_s, rt->last.yaw_rate_dps);
     }
+    else {
+        /* Entre escaneos, el lazo rapido de la trayectoria inteligente (encoders + giroscopio). */
+        wro_command_t fast;
+        if (wro_controller_it_fast(&rt->controller, now, &fast)) {
+            rt->last.steer_deg = fast.steer_deg;
+            rt->last.speed_cm_s = fast.speed_cm_s;
+            rt->last.yaw_rate_dps = fast.yaw_rate_dps;
+            h->drive(h->ctx, fast.steer_deg, fast.speed_cm_s, fast.yaw_rate_dps);
+        }
+    }
 }
 
 bool p4_runtime_guard(wro_controller_t *c, uint64_t now, wro_command_t *command)

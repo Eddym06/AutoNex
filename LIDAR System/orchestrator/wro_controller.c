@@ -55,6 +55,16 @@ void wro_controller_config_default(wro_controller_config_t *c)
     c->race_speed_enabled = true;
     c->race_lateral_enabled = false;   /* sube la ganancia de tiempo pero baja la fiabilidad (90/100 contra 97/100 en el banco): opcion */
     race_config_default(&c->race);
+    c->it_enabled = false;           /* opcional: validado solo en el simulador; activar tras calibrar el chasis (ver simulator/INTELLIGENT_TRAJECTORY.md) */
+    c->it_stop_before_end = 2;
+    c->it_step_evals = 300;
+    c->it_grip_max = 1.0f;
+    c->it_engage_dist_cm = 25.0f;
+    c->it_engage_heading_deg = 35.0f;
+    c->it_accel_cm_s2 = 250.0f;
+    c->it_hold_s = 1.0f;
+    it_config_default(&c->it);
+    c->it.grip = 0.5f;               /* agarre de partida prudente: el tiempo apenas depende de el y se aprende vuelta a vuelta */
     c->race_after_corners = 4;
     c->race_stop_before_end = 2;
     c->race_lookahead_cm = 12.0f;
@@ -161,6 +171,20 @@ static void sanitize(wro_controller_config_t *c)
     if (!(c->peek_max_heading_deg >= 0.0f)) c->peek_max_heading_deg = 0.0f;
     if (c->peek_max_heading_deg > 45.0f) c->peek_max_heading_deg = 45.0f;
     race_config_sanitize(&c->race);
+    it_config_sanitize(&c->it);
+    if (c->it_stop_before_end > 8u) c->it_stop_before_end = 8u;
+    if (c->it_step_evals < 20) c->it_step_evals = 20;
+    if (c->it_step_evals > 20000) c->it_step_evals = 20000;
+    if (!(c->it_grip_max >= 0.2f)) c->it_grip_max = 0.2f;
+    if (c->it_grip_max > 1.0f) c->it_grip_max = 1.0f;
+    if (!(c->it_engage_dist_cm >= 3.0f)) c->it_engage_dist_cm = 3.0f;
+    if (c->it_engage_dist_cm > 38.0f) c->it_engage_dist_cm = 38.0f;
+    if (!(c->it_engage_heading_deg >= 3.0f)) c->it_engage_heading_deg = 3.0f;
+    if (c->it_engage_heading_deg > 65.0f) c->it_engage_heading_deg = 65.0f;
+    if (!(c->it_accel_cm_s2 >= 20.0f)) c->it_accel_cm_s2 = 20.0f;
+    if (c->it_accel_cm_s2 > 1500.0f) c->it_accel_cm_s2 = 1500.0f;
+    if (!(c->it_hold_s >= 0.0f)) c->it_hold_s = 0.0f;
+    if (c->it_hold_s > 10.0f) c->it_hold_s = 10.0f;
     if (!(c->hug_offset_cm >= 0.0f)) c->hug_offset_cm = 0.0f;
     if (c->hug_offset_cm > 35.0f) c->hug_offset_cm = 35.0f;
     if (!(c->hug_detach_cm >= 20.0f)) c->hug_detach_cm = 20.0f;
@@ -276,6 +300,14 @@ static const cf_field_t FIELDS[] = {
     CF("race.sign_after_cm", CF_F32, race.sign_after_cm), CF("race.corner_before_cm", CF_F32, race.corner_before_cm),
     CF("race.corner_after_cm", CF_F32, race.corner_after_cm), CF("race.corner_radius_cm", CF_F32, race.corner_radius_cm), CF("race.max_offset_cm", CF_F32, race.max_offset_cm),
     CF("race_blend_before_cm", CF_F32, race_blend_before_cm), CF("race_blend_after_cm", CF_F32, race_blend_after_cm),
+    CF("it_enabled", CF_BOOL, it_enabled), CF("it_stop_before_end", CF_U8, it_stop_before_end), CF("it_step_evals", CF_INT, it_step_evals),
+    CF("it_grip_max", CF_F32, it_grip_max), CF("it_engage_dist_cm", CF_F32, it_engage_dist_cm), CF("it_engage_heading_deg", CF_F32, it_engage_heading_deg),
+    CF("it_accel_cm_s2", CF_F32, it_accel_cm_s2), CF("it_hold_s", CF_F32, it_hold_s),
+    CF("it.grip", CF_F32, it.grip), CF("it.v_max_cm_s", CF_F32, it.v_max_cm_s), CF("it.v_min_cm_s", CF_F32, it.v_min_cm_s), CF("it.mu", CF_F32, it.mu),
+    CF("it.rear_weight", CF_F32, it.rear_weight), CF("it.cg_height_cm", CF_F32, it.cg_height_cm), CF("it.a_motor_cm_s2", CF_F32, it.a_motor_cm_s2),
+    CF("it.steer_rate_dps", CF_F32, it.steer_rate_dps), CF("it.steer_use", CF_F32, it.steer_use), CF("it.rate_use", CF_F32, it.rate_use),
+    CF("it.lag_s", CF_F32, it.lag_s), CF("it.safety", CF_F32, it.safety), CF("it.pose_err_cm", CF_F32, it.pose_err_cm), CF("it.track_err_cm", CF_F32, it.track_err_cm),
+    CF("it.wall_margin_cm", CF_F32, it.wall_margin_cm), CF("it.obs_margin_cm", CF_F32, it.obs_margin_cm), CF("it.sweeps", CF_INT, it.sweeps),
     CF("race.station_cm", CF_F32, race.station_cm), CF("race.iterations", CF_INT, race.iterations),
     CF("lap_memory_enabled", CF_BOOL, lap_memory_enabled), CF("sidestep_enabled", CF_BOOL, sidestep_enabled), CF("sidestep_after_s", CF_F32, sidestep_after_s),
     CF("sidestep_cooldown_s", CF_F32, sidestep_cooldown_s), CF("sidestep_speed_cm_s", CF_F32, sidestep_speed_cm_s),
@@ -330,6 +362,9 @@ void wro_controller_init(wro_controller_t *c, const wro_controller_config_t *cfg
     c->planner_state.debug = &c->debug;
     c->phase = WRO_PHASE_IDLE;
     c->race_idx = -1;
+    c->it_plan_lap = -1;
+    c->it_grip = c->cfg.it.grip;
+    it_tracker_reset(&c->it_tr);
 }
 
 void wro_controller_set_config(wro_controller_t *c, const wro_controller_config_t *cfg)
@@ -1955,6 +1990,163 @@ static void pivot_recovery(wro_controller_t *c, uint8_t action, float dt, wro_co
     out->action = err > 0.0f ? LOCAL_ACTION_RIGHT_HARD : LOCAL_ACTION_LEFT_HARD;
 }
 
+/* ------------------------------------------------------------ trayectoria inteligente */
+
+/* Obstaculos del plan: los pilares de trace_map con su color y los topes de la plaza. Un pilar sin color impide planear (no se sabe por
+ * que lado pasar): el reactivo sigue conduciendo. */
+static bool it_collect(const wro_controller_t *c, it_obstacle_t *obs, int *count)
+{
+    size_t n = 0;
+    const trace_object_t *o = trace_map_objects(&c->trace_map, &n);
+    int k = 0;
+    for (size_t i = 0; i < n && k < IT_MAX_OBS; ++i) {
+        if (o[i].kind == TRACE_OBJ_PILLAR) {
+            const uint8_t col = o[i].color == TRACE_COLOR_RED ? 1 : o[i].color == TRACE_COLOR_GREEN ? 2 : 0;
+            if (col == 0 && o[i].color != TRACE_COLOR_MAGENTA) return false;
+            obs[k].x_cm = o[i].x_cm; obs[k].z_cm = o[i].z_cm; obs[k].color = col; ++k;
+        } else if (o[i].kind == TRACE_OBJ_BAR) {
+            obs[k].x_cm = o[i].x_cm; obs[k].z_cm = o[i].z_cm; obs[k].color = 0; ++k;
+        }
+    }
+    *count = k;
+    return true;
+}
+
+static void it_make_config(const wro_controller_t *c, it_config_t *ic)
+{
+    const local_planner_config_t *pl = &c->cfg.planner;
+    *ic = c->cfg.it;
+    ic->outer_half_cm = c->cfg.arena.outer_half_cm;
+    ic->inner_half_cm = c->cfg.arena.inner_half_cm;
+    ic->wheelbase_cm = pl->wheelbase_cm;
+    ic->half_width_cm = 0.5f * pl->chassis_width_cm;
+    ic->front_ext_cm = pl->chassis_length_cm - pl->chassis_rear_cm;
+    ic->rear_ext_cm = pl->chassis_rear_cm;
+    ic->steer_max_deg = pl->steer_hard_deg;
+    ic->side_red = pl->enforce_color_side ? (int8_t)pl->pass_side_red : 0;
+    ic->side_green = pl->enforce_color_side ? (int8_t)pl->pass_side_green : 0;
+    ic->grip = c->it_grip;
+}
+
+static int advance_station(const it_plan_t *p, int idx, float ahead_cm)
+{
+    float left = ahead_cm;
+    int i = idx < 0 ? 0 : idx % p->n;
+    for (int guard = 0; guard < p->n && left >= p->h[i]; ++guard) { left -= p->h[i]; i = (i + 1) % p->n; }
+    return i;
+}
+
+static void it_drop(wro_controller_t *c, uint8_t reason)
+{
+    if (c->it_engaged) { c->it_engaged = false; ++c->it_drops; }
+    c->it_drop_reason = reason;
+    c->it_hold_left_s = c->cfg.it_hold_s;
+    c->it_arc_bad = 0;
+}
+
+/* Cada ciclo: construye el plan por rebanadas (despues de la primera vuelta) y, al cambiar de vuelta, aprende el agarre y lo rehace. */
+static void it_manage(wro_controller_t *c)
+{
+    if (!c->cfg.it_enabled || c->phase != WRO_PHASE_RUN) return;
+    if (c->corners_done < 4 || c->direction == 0 || !c->arena.valid || !trace_map_is_built(&c->trace_map)) return;
+    const int lap = c->corners_done / 4;
+    if (lap != c->it_lap) {
+        if (c->it_lap >= 1 && c->it_plan.valid && c->it_stats_ticks > 20) {
+            c->it_stats.traction_events = c->odom.slip_count - c->it_slips0;
+            it_config_t ic;
+            it_make_config(c, &ic);
+            const float g = it_adapt_grip(&ic, &c->it_stats, c->cfg.it_grip_max);
+            if (fabsf(g - c->it_grip) > 1.0e-4f) { c->it_grip = g; c->it_rebuild = true; }
+        }
+        c->it_lap = lap;
+        c->it_failed = false;
+        memset(&c->it_stats, 0, sizeof(c->it_stats));
+        c->it_stats.min_room_cm = 1.0e9f;
+        c->it_stats_ticks = 0;
+        c->it_slips0 = c->odom.slip_count;
+    }
+    if (c->it_building) {
+        if (it_plan_step(&c->it_work, c->cfg.it_step_evals)) {
+            c->it_building = false;
+            if (c->it_work.valid) {
+                memcpy(&c->it_plan, &c->it_work, sizeof(c->it_plan));
+                c->it_plan_lap = lap;
+                it_tracker_reset(&c->it_tr);
+            } else {
+                c->it_failed = true;
+            }
+        }
+        return;
+    }
+    if (c->it_failed || (c->it_plan.valid && !c->it_rebuild)) return;
+    it_obstacle_t obs[IT_MAX_OBS];
+    int count = 0;
+    it_config_t ic;
+    it_make_config(c, &ic);
+    if (!it_collect(c, obs, &count) || !it_plan_begin(&c->it_work, &ic, c->direction, obs, count)) { c->it_failed = true; return; }
+    c->it_building = true;
+    c->it_rebuild = false;
+}
+
+/* Al final del ciclo: si el plan es valido y el robot esta sobre la trayectoria, direccion y velocidad son las del seguidor. */
+static void it_override(wro_controller_t *c, const local_planner_config_t *pc, float dt, wro_command_t *out)
+{
+    c->it_active = false;
+    if (!c->cfg.it_enabled) return;
+    if (c->it_hold_left_s > 0.0f) c->it_hold_left_s -= dt;
+    if (c->phase != WRO_PHASE_RUN || !c->it_plan.valid) { it_drop(c, 0); return; }
+    if (c->corners_done >= (int)c->cfg.laps * 4 - (int)c->cfg.it_stop_before_end) { it_drop(c, 0); return; }
+    if (!c->arena.valid || c->arena.rms_cm > 3.5f) { it_drop(c, 2); return; }
+    const float v_now = c->odom_in_use ? c->odom.v_cm_s : c->last_speed_cm_s;
+    const float th = c->arena.pose.theta_deg * DEG_TO_RAD;
+    const float x = c->arena.pose.x_cm + c->map_lead_cm * sinf(th), z = c->arena.pose.z_cm + c->map_lead_cm * cosf(th);
+    const float yaw = imu_wrap_deg(c->arena.pose.theta_deg + c->map_lead_deg);
+    float steer = 0.0f, speed = 0.0f;
+    if (!it_track(&c->it_tr, &c->it_plan, x, z, yaw, v_now, &steer, &speed)) { it_drop(c, 1); return; }
+    if (!c->it_engaged) {
+        if (c->it_hold_left_s > 0.0f || fabsf(c->it_tr.e_cm) > c->cfg.it_engage_dist_cm || fabsf(c->it_tr.psi_err_deg) > c->cfg.it_engage_heading_deg) return;
+        c->it_engaged = true;
+        c->it_v_prev = v_now > 0.0f ? v_now : 0.0f;
+        c->it_active_s = 0.0f;
+    }
+    /* Atasco: IT ordena avanzar y el robot no se mueve (un roce, un obstaculo que el mapa no tenia): el reactivo recupera el mando.
+     * El reactivo NO se usa de emergencia: ve cerrados los pasos estrechos que IT cruza a proposito. */
+    if (v_now < 3.0f && c->it_v_prev > 10.0f) { if ((c->it_stuck_s += dt) > 1.5f) { c->it_stuck_s = 0.0f; it_drop(c, 5); c->it_hold_left_s = 3.0f; return; } }
+    else c->it_stuck_s = 0.0f;
+    /* Sorpresa en el LiDAR: en una recta (sin curva en los proximos cm del plan) el arco recto que va a recorrer no esta libre y no hay
+     * ningun objeto del plan cerca de la proa. En una curva la pared de enfrente da falsos positivos, ahi no se comprueba. */
+    if (fabsf(steer) < 10.0f && v_now > 20.0f) {
+        const float look = fmaxf(30.0f, 0.5f * v_now);
+        bool straight = true, known = false;
+        for (float a = 0.0f; a <= look + 40.0f && straight; a += 5.0f)
+            if (fabsf(c->it_plan.kappa_s[advance_station(&c->it_plan, c->it_tr.idx, a)]) > 0.008f) straight = false;
+        const float fx = x + 25.0f * sinf(yaw * DEG_TO_RAD), fz = z + 25.0f * cosf(yaw * DEG_TO_RAD);
+        for (int i = 0; i < c->it_plan.obstacles; ++i)
+            if (hypotf(c->it_plan.obs[i].x_cm - fx, c->it_plan.obs[i].z_cm - fz) < 45.0f) known = true;
+        if (straight && !known && !local_planner_arc_clear(&c->map, pc, steer, look)) {
+            if (++c->it_arc_bad >= 4) { it_drop(c, 4); return; }
+        } else {
+            c->it_arc_bad = 0;
+        }
+    }
+    const float up = c->it_v_prev + c->cfg.it_accel_cm_s2 * dt;
+    const float v_cmd = speed > up ? up : speed;
+    c->it_v_prev = v_cmd;
+    c->it_active_s += dt;
+    c->it_active = true;
+    out->steer_deg = steer;
+    out->speed_cm_s = v_cmd;
+    out->explicit_yaw_rate = false;
+    out->yaw_rate_dps = v_cmd * tanf(steer * DEG_TO_RAD) / pc->wheelbase_cm * RAD_TO_DEG;
+    c->it_anchor.x_cm = x; c->it_anchor.z_cm = z; c->it_anchor.theta_deg = yaw; c->it_anchor.gyro_deg = c->yaw.yaw_deg;
+    c->it_anchor.t_us = c->last_scan_us; c->it_anchor.valid = true;
+    /* Estadisticas de la vuelta para aprender el agarre. */
+    const float ae = fabsf(c->it_tr.e_cm);
+    if (ae > c->it_stats.max_err_cm) c->it_stats.max_err_cm = ae;
+    if (c->it_tr.room_cm - ae < c->it_stats.min_room_cm) c->it_stats.min_room_cm = c->it_tr.room_cm - ae;
+    ++c->it_stats_ticks;
+}
+
 void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points, size_t count,
                          uint64_t t_us, wro_command_t *out)
 {
@@ -2243,6 +2435,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
 
     c->planner_state.lane_offset_cm = 0.0f;
     race_step(c, pc, dt);
+    it_manage(c);
     hug_step(c, pc, per.front_cm, dt);
     if (c->phase == WRO_PHASE_PARK_SEARCH) {
         if (park_search_step(c, points, count, dt)) {
@@ -2288,8 +2481,37 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         const float f = out->speed_cm_s / pc->speed_cm_s;
         out->speed_cm_s = c->race_v_cmd * (f < 1.0f ? f : 1.0f);
     }
+    it_override(c, pc, dt, out);
     c->last_speed_cm_s = out->speed_cm_s;
     fill_status(c, &per, out);
+}
+
+bool wro_controller_it_fast(wro_controller_t *c, uint64_t now_us, wro_command_t *out)
+{
+    if (!c || !out || !c->cfg.it_enabled || !c->it_active || !c->it_anchor.valid || c->phase != WRO_PHASE_RUN) return false;
+    if (now_us < c->it_anchor.t_us || now_us - c->it_anchor.t_us > 300000u) return false;
+    if (c->it_fast_us && now_us - c->it_fast_us < 20000u) return false;
+    const float dt = c->it_fast_us && now_us > c->it_fast_us ? (float)(now_us - c->it_fast_us) * 1.0e-6f : 0.02f;
+    c->it_fast_us = now_us;
+    const float since = (float)(now_us - c->it_anchor.t_us) * 1.0e-6f;
+    const float v_now = c->odom_in_use ? c->odom.v_cm_s : c->last_speed_cm_s;
+    const float ds = c->odom_have && c->odom_in_use ? c->odom_accum_cm : c->last_speed_cm_s * since;
+    const float dyaw = imu_wrap_deg(c->yaw.yaw_deg - c->it_anchor.gyro_deg);
+    const float yaw = imu_wrap_deg(c->it_anchor.theta_deg + dyaw);
+    const float mid = (c->it_anchor.theta_deg + 0.5f * dyaw) * DEG_TO_RAD;
+    const float x = c->it_anchor.x_cm + ds * sinf(mid), z = c->it_anchor.z_cm + ds * cosf(mid);
+    float steer = 0.0f, speed = 0.0f;
+    if (!it_track(&c->it_tr, &c->it_plan, x, z, yaw, v_now, &steer, &speed)) return false;
+    const float up = c->it_v_prev + c->cfg.it_accel_cm_s2 * dt;
+    const float v_cmd = speed > up ? up : speed;
+    c->it_v_prev = v_cmd;
+    c->last_speed_cm_s = v_cmd;
+    memset(out, 0, sizeof(*out));
+    out->phase = c->phase;
+    out->steer_deg = steer;
+    out->speed_cm_s = v_cmd;
+    out->yaw_rate_dps = v_cmd * tanf(steer * DEG_TO_RAD) / c->cfg.planner.wheelbase_cm * RAD_TO_DEG;
+    return true;
 }
 
 bool wro_controller_watchdog(wro_controller_t *c, uint64_t now_us, wro_command_t *out)

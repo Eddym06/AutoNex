@@ -62,6 +62,8 @@ textarea{width:100%;min-height:150px;font:12px ui-monospace,Consolas,monospace;r
       <label><input type="checkbox" id="showTrace" checked>trayectoria</label>
       <label><input type="checkbox" id="showCurtain">cortinas (rojo/verde)</label>
       <label title="Linea de carrera que calcula el robot tras la primera vuelta: verde = rapido, naranja = velocidad base, rojo = lento. La punta amarilla es donde cree estar el robot sobre ella"><input type="checkbox" id="showRace" checked>linea de carrera</label>
+      <label title="Trayectoria inteligente (IT): tras la primera vuelta el robot calcula y sigue la trayectoria mas rapida entre los letreros. Activa el chasis con dinamica (servo MG90S, neumaticos, peso trasero) y el controlador con IT. Rojo = lento, verde = rapido (hasta 150 cm/s). Se aplica al reiniciar"><input type="checkbox" id="itEnable">trayectoria inteligente (IT)</label>
+      <label><input type="checkbox" id="showIT" checked>dibujar IT</label>
       <label title="Pose que estima el robot: contorno amarillo = odometria corregida con el LiDAR; cruz magenta = solo encoders y giroscopio"><input type="checkbox" id="showPose" checked>pose estimada</label>
       <span><i class="dot" style="background:#ee2737"></i>rojo → derecha</span>
       <span><i class="dot" style="background:#44d62c"></i>verde → izquierda</span>

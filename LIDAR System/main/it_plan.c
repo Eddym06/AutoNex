@@ -17,12 +17,12 @@ void it_config_default(it_config_t *c)
     memset(c, 0, sizeof(*c));
     c->outer_half_cm = 150.0f; c->inner_half_cm = 50.0f; c->corner_radius_cm = 40.0f;
     c->wheelbase_cm = 18.45f; c->half_width_cm = 6.5f; c->front_ext_cm = 22.2f; c->rear_ext_cm = 3.8f;
-    c->steer_max_deg = 40.0f; c->steer_rate_dps = 420.0f; c->lag_s = 0.09f; c->steer_use = 0.72f; c->rate_use = 0.45f;
+    c->steer_max_deg = 40.0f; c->steer_rate_dps = 420.0f; c->lag_s = 0.09f; c->steer_use = 0.72f; c->rate_use = 0.45f; c->ctrl_mode = 0; c->k_psi = 0.6f; c->k_e = 2.0f;
     c->mu = 0.8f; c->rear_weight = 0.62f; c->cg_height_cm = 4.0f;
     c->grip = 0.7f; c->safety = 0.85f; c->a_motor_cm_s2 = 350.0f;
     c->v_max_cm_s = 150.0f; c->v_min_cm_s = 15.0f;
     c->wall_margin_cm = 1.0f; c->obs_margin_cm = 1.0f; c->obs_half_cm = 3.5f;     /* obs_half: radio circunscrito del letrero (5 cm de lado) */
-    c->pose_err_cm = 0.8f; c->track_err_cm = 6.0f;     /* error lateral de seguimiento a 100 cm/s: medido en el banco (mas bajo => roces); calibrar en el chasis */
+    c->pose_err_cm = 0.8f; c->track_err_cm = 14.0f;     /* error lateral de seguimiento a 100 cm/s dentro de la mision (escaneo a 10 Hz + lazo rapido + pose del LiDAR): 6 en el banco ideal, 14 medido en la mision completa */
     c->curtain_cm = 100.0f; c->approach_cm = 0.0f;     /* el lado se exige a la altura del letrero; cambiar de lado antes es decision del optimizador */
     c->side_red = 1; c->side_green = -1;
     c->station_cm = 5.0f; c->passes = 3; c->sweeps = 3; c->relax_iterations = 4000;
@@ -53,6 +53,9 @@ bool it_config_sanitize(it_config_t *c)
     ok &= in_range(&c->lag_s, 0.0f, 0.5f);
     ok &= in_range(&c->steer_use, 0.3f, 1.0f);
     ok &= in_range(&c->rate_use, 0.1f, 1.0f);
+    ok &= in_range(&c->k_psi, 0.0f, 3.0f);
+    ok &= in_range(&c->k_e, 0.0f, 10.0f);
+    if (c->ctrl_mode < 0 || c->ctrl_mode > 1) { c->ctrl_mode = 0; ok = false; }
     ok &= in_range(&c->mu, 0.2f, 1.5f);
     ok &= in_range(&c->rear_weight, 0.3f, 0.9f);
     ok &= in_range(&c->cg_height_cm, 0.0f, 20.0f);
@@ -204,6 +207,9 @@ static float profile(it_plan_t *p, const float *d)
         ks[i] = (la > 0.01f && lb > 0.01f && lc > 0.01f) ? -2.0f * cross / (la * lb * lc) : 0.0f;   /* derecha positiva */
         p->heading_deg[i] = atan2f(wx, wz) * RAD2DEG;
     }
+    /* Holgura de la huella del chasis (con su rumbo) en cada estacion: la que de verdad limita la velocidad cerca de una pared. */
+    for (int i = 0; i < n; ++i)
+        p->gap[i] = footprint_gap(c, p->x[i], p->z[i], p->heading_deg[i] * DEG2RAD, p->obs, p->obstacles) - c->wall_margin_cm;
     /* Una sola pasada [1 2 1] / 4 (dos escondian las ondulaciones): el optimizador las aprovechaba. El perfil usa ademas el 80 %
      * de la curvatura sin suavizar, de modo que una trayectoria ondulada cuesta velocidad. */
     for (int i = 0; i < n; ++i) kt[i] = 0.25f * ks[(i + n - 1) % n] + 0.5f * ks[i] + 0.25f * ks[(i + 1) % n];
@@ -242,7 +248,9 @@ static float profile(it_plan_t *p, const float *d)
          * trayectoria tiene: un paso estrecho se cruza despacio, y una trayectoria con holgura permite ir rapido. */
         float rl = d[i] - p->lo0[i], rr = p->hi0[i] - d[i];
         p->room[i] = rl < rr ? rl : rr;
-        const float allowed = (rl < rr ? rl : rr) - 0.3f;
+        float allowed = (rl < rr ? rl : rr);
+        if (p->gap[i] < allowed) allowed = p->gap[i];
+        allowed -= 0.3f;
         float vc = c->v_max_cm_s;
         vc = allowed <= c->pose_err_cm ? c->v_min_cm_s : 100.0f * sqrtf((allowed - c->pose_err_cm) / fmaxf(c->track_err_cm, 0.01f));
         p->vcap[i] = vc;
@@ -285,10 +293,7 @@ static float eval(it_plan_t *p, const float *d)
     const float t = profile(p, d);
     /* Huella del chasis con el rumbo de la trayectoria que se esta probando: cada cm de penetracion cuesta como una vuelta entera. */
     float clip = 0.0f;
-    for (int i = 0; i < p->n; ++i) {
-        const float g = footprint_gap(&p->cfg, p->x[i], p->z[i], p->heading_deg[i] * DEG2RAD, p->obs, p->obstacles) - p->cfg.wall_margin_cm;
-        if (g < 0.0f) clip -= g;
-    }
+    for (int i = 0; i < p->n; ++i) if (p->gap[i] < 0.0f) clip -= p->gap[i];
     p->clip = clip;
     return t + 4000.0f * clip;
 }
@@ -367,40 +372,6 @@ static void relax(it_plan_t *p, float mix, float *d)
     }
 }
 
-/* Busqueda local: jorobas suaves (coseno) de varias anchuras y amplitudes sobre d, aceptando solo lo que baja el tiempo. */
-static void optimize(it_plan_t *p, float *d, int sweeps)
-{
-    const int n = p->n;
-    static float trial[IT_MAX_N];
-    static const int W[3] = {2, 5, 10};
-    static const float A[3] = {3.0f, 1.5f, 0.6f};
-    float best = eval(p, d);
-    for (int sw = 0; sw < sweeps; ++sw) {
-        bool improved = false;
-        for (int ai = 0; ai < 3; ++ai) {
-            for (int wi = 0; wi < 3; ++wi) {
-                const int w = W[wi], step = w / 2 > 1 ? w / 2 : 1;
-                for (int i = 0; i < n; i += step) {
-                    for (int sg = -1; sg <= 1; sg += 2) {
-                        memcpy(trial, d, sizeof(float) * (size_t)n);
-                        for (int k = -w; k <= w; ++k) {
-                            const int j = ((i + k) % n + n) % n;
-                            const float wt = 0.5f * (1.0f + cosf(PI_F * (float)k / (float)(w + 1)));
-                            float v = trial[j] + (float)sg * A[ai] * wt;
-                            if (v < p->lo[j]) v = p->lo[j];
-                            if (v > p->hi[j]) v = p->hi[j];
-                            trial[j] = v;
-                        }
-                        const float t = eval(p, trial);
-                        if (t < best - 1.0e-4f) { best = t; memcpy(d, trial, sizeof(float) * (size_t)n); improved = true; }
-                    }
-                }
-            }
-        }
-        if (!improved) break;
-    }
-    eval(p, d);
-}
 
 /* Corredor libre de cada estacion (de punto). Falso si alguna estacion no tiene paso. */
 static bool compute_corridor(it_plan_t *p)
@@ -467,7 +438,16 @@ static bool compute_corridor(it_plan_t *p)
 
 /* ------------------------------------------------------------ construccion */
 
-bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count)
+/* Construccion por rebanadas: `it_plan_begin` prepara el corredor y `it_plan_step` reparte la busqueda en trozos de pocos milisegundos, de modo
+ * que el controlador puede llamarla en cada escaneo sin parar el control. Hay un solo trabajo a la vez (estado estatico). */
+static struct {
+    int stage, q, sw, ai, wi, i, sg, sweeps;
+    bool improved;
+    float best, best_t;
+} job;
+static float jd[IT_MAX_N], jbest[IT_MAX_N];
+
+bool it_plan_begin(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count)
 {
     if (!p) return false;
     memset(p, 0, sizeof(*p));
@@ -510,29 +490,71 @@ bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it
     for (int i = 0; i < n; ++i) { p->lo[i] = p->lo0[i]; p->hi[i] = p->hi0[i]; p->d[i] = fminf(fmaxf(0.0f, p->lo0[i]), p->hi0[i]); }
     eval(p, p->d);
     p->time_center_s = p->time_s;
+    memset(&job, 0, sizeof(job));
+    job.sweeps = c->sweeps * c->passes;
+    job.best_t = 1.0e18f;
+    job.sg = -1;
+    p->building = true;
+    return true;
+}
 
-    /* El corredor es el estatico: la geometria decide que trayectorias existen. El margen que exige la velocidad no lo recorta:
-     * entra en el coste como tope de velocidad por holgura (ver profile). */
-    static float d[IT_MAX_N];
-    for (int i = 0; i < n; ++i) { p->lo[i] = p->lo0[i]; p->hi[i] = p->hi0[i]; d[i] = p->d[i]; }
-    {
+/* Avanza el trabajo como mucho `budget` evaluaciones (cada una cuesta ~30 us en un PC). Devuelve true al terminar (p->valid dice si hay
+ * plan). Cada arranque de la etapa 0 cuenta como 40 evaluaciones (un relax). */
+bool it_plan_step(it_plan_t *p, int budget)
+{
+    if (!p || !p->building) return true;
+    const it_config_t *c = &p->cfg;
+    const int n = p->n;
+    static const float MIX[6] = {0.0f, 0.3f, 1.0f, 3.0f, 10.0f, 30.0f};
+    static const int W[3] = {2, 5, 10};
+    static const float A[3] = {3.0f, 1.5f, 0.6f};
+    static float trial[IT_MAX_N];
+    while (budget > 0 && job.stage == 0) {
         /* Varios arranques (de la ruta mas corta a la de curvatura minima): se parte del que da la vuelta mas rapida. */
-        static const float MIX[6] = {0.0f, 0.3f, 1.0f, 3.0f, 10.0f, 30.0f};
-        static float dtry[IT_MAX_N];
-        float best_t = 1.0e18f;
-        for (int q = 0; q < 6; ++q) {
-            for (int i = 0; i < n; ++i) dtry[i] = fminf(fmaxf(0.5f * (p->lo[i] + p->hi[i]), p->lo[i]), p->hi[i]);
-            relax(p, MIX[q], dtry);
-            const float t = eval(p, dtry);
-#ifdef IT_DEBUG
-            printf("  arranque mix %.1f: tiempo %.2f violacion %.3f\n", MIX[q], p->time_s, p->violation);
-#endif
-            if (t < best_t) { best_t = t; memcpy(d, dtry, sizeof(float) * (size_t)n); }
+        for (int i = 0; i < n; ++i) jd[i] = fminf(fmaxf(0.5f * (p->lo[i] + p->hi[i]), p->lo[i]), p->hi[i]);
+        relax(p, MIX[job.q], jd);
+        const float t = eval(p, jd);
+        if (t < job.best_t) { job.best_t = t; memcpy(jbest, jd, sizeof(float) * (size_t)n); }
+        budget -= 40;
+        if (++job.q >= 6) { memcpy(jd, jbest, sizeof(float) * (size_t)n); job.best = eval(p, jd); job.stage = 1; }
+    }
+    /* Busqueda local: jorobas suaves (coseno) de varias anchuras y amplitudes sobre d, aceptando solo lo que baja el tiempo. */
+    while (budget > 0 && job.stage == 1) {
+        const int w = W[job.wi];
+        memcpy(trial, jd, sizeof(float) * (size_t)n);
+        for (int k = -w; k <= w; ++k) {
+            const int j = ((job.i + k) % n + n) % n;
+            const float wt = 0.5f * (1.0f + cosf(PI_F * (float)k / (float)(w + 1)));
+            float v = trial[j] + (float)job.sg * A[job.ai] * wt;
+            if (v < p->lo[j]) v = p->lo[j];
+            if (v > p->hi[j]) v = p->hi[j];
+            trial[j] = v;
+        }
+        const float t = eval(p, trial);
+        --budget;
+        if (t < job.best - 1.0e-4f) { job.best = t; memcpy(jd, trial, sizeof(float) * (size_t)n); job.improved = true; }
+        job.sg += 2;
+        if (job.sg > 1) {
+            job.sg = -1;
+            job.i += W[job.wi] / 2 > 1 ? W[job.wi] / 2 : 1;
+            if (job.i >= n) {
+                job.i = 0;
+                if (++job.wi >= 3) {
+                    job.wi = 0;
+                    if (++job.ai >= 3) {
+                        job.ai = 0;
+                        ++job.sw;
+                        if (!job.improved || job.sw >= job.sweeps) job.stage = 2;
+                        job.improved = false;
+                    }
+                }
+            }
         }
     }
-    optimize(p, d, c->sweeps * c->passes);
+    if (job.stage < 2) return false;
+    eval(p, jd);
     for (int i = 0; i < n; ++i) {
-        p->d[i] = d[i];
+        p->d[i] = jd[i];
         const float vr = p->v[i] / 100.0f;
         p->margin[i] = c->pose_err_cm + c->track_err_cm * vr * vr;
     }
@@ -547,6 +569,14 @@ bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it
     p->room_min = 1.0e9f;
     for (int i = 0; i < n; ++i) if (p->room[i] < p->room_min) p->room_min = p->room[i];
     p->valid = p->why == 0;
+    p->building = false;
+    return true;
+}
+
+bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count)
+{
+    if (!it_plan_begin(p, cfg, direction, obs, count)) return false;
+    while (!it_plan_step(p, 1 << 20)) {}
     return p->valid;
 }
 
@@ -648,6 +678,14 @@ bool it_track(it_tracker_t *t, const it_plan_t *p, float x, float z, float yaw_d
     const float alpha = atan2f(rgt, fwd);
     float steer = atanf(2.0f * c->wheelbase_cm * sinf(alpha) / ldist) * RAD2DEG;
     const float smax = 0.97f * c->steer_max_deg;
+    if (c->ctrl_mode == 1) {
+        /* Anticipacion: la curvatura que el plan tendra cuando la orden haga efecto (retardo del servo), mas realimentacion del error
+         * de rumbo y del lateral. La persecucion pura solo reacciona al error y con 0,1 s de retardo llega tarde en las esquinas. */
+        float r2;
+        const int jf = advance(p, idx, vv * c->lag_s, &r2);
+        const float ff = atanf(c->wheelbase_cm * p->kappa_s[jf]) * RAD2DEG;
+        steer = ff - c->k_psi * t->psi_err_deg - atanf(c->k_e * lat / (vv + 20.0f)) * RAD2DEG;
+    }
     if (steer > smax) steer = smax;
     if (steer < -smax) steer = -smax;
     /* Velocidad del perfil unos instantes por delante; se recorta si el error lateral se come la holgura. */

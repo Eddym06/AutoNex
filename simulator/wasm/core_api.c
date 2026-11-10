@@ -65,10 +65,11 @@ EXPORT("core_it_build") int core_it_build(int direction, int n_obs)
 {
     it_config_default(&g_it_cfg);
     float *p = g_it_params;
-    float *dst[18] = {&g_it_cfg.grip, &g_it_cfg.v_max_cm_s, &g_it_cfg.a_motor_cm_s2, &g_it_cfg.mu, &g_it_cfg.rear_weight, &g_it_cfg.track_err_cm,
+    float *dst[21] = {&g_it_cfg.grip, &g_it_cfg.v_max_cm_s, &g_it_cfg.a_motor_cm_s2, &g_it_cfg.mu, &g_it_cfg.rear_weight, &g_it_cfg.track_err_cm,
                       &g_it_cfg.pose_err_cm, &g_it_cfg.lag_s, &g_it_cfg.steer_rate_dps, &g_it_cfg.wheelbase_cm, &g_it_cfg.half_width_cm,
-                      &g_it_cfg.front_ext_cm, &g_it_cfg.safety, NULL, NULL, &g_it_cfg.steer_max_deg, &g_it_cfg.v_min_cm_s, &g_it_cfg.cg_height_cm};
-    for (int i = 0; i < 18; ++i) if (dst[i] && p[i] > 0.0f) *dst[i] = p[i];
+                      &g_it_cfg.front_ext_cm, &g_it_cfg.safety, NULL, NULL, &g_it_cfg.steer_max_deg, &g_it_cfg.v_min_cm_s, &g_it_cfg.cg_height_cm, NULL, &g_it_cfg.k_psi, &g_it_cfg.k_e};
+    for (int i = 0; i < 21; ++i) if (dst[i] && p[i] > 0.0f) *dst[i] = p[i];
+    if (p[18] > 0.0f) g_it_cfg.ctrl_mode = (int)p[18] - 1;   /* 1 = persecucion pura, 2 = anticipacion */
     if (p[13] > 0.0f) g_it_cfg.sweeps = (int)p[13];
     if (p[14] > 0.0f) g_it_cfg.passes = (int)p[14];
     it_obstacle_t obs[IT_MAX_OBS];
@@ -430,4 +431,33 @@ EXPORT("core_ctrl_watchdog") int core_ctrl_watchdog(double now_us)
     const bool stopped = p4_runtime_guard(&g_ctrl, (uint64_t)now_us, &g_cmd);
     if (stopped) export_command();
     return stopped ? 1 : 0;
+}
+
+/* Estado de IT dentro del controlador: banderas, agarre, posicion en el plan y la trayectoria (x, z, v por estacion) para dibujarla. */
+static float g_itc_out[16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS];
+EXPORT("core_it_ctrl_ptr") float *core_it_ctrl_ptr(void)
+{
+    const wro_controller_t *c = &g_ctrl;
+    const it_plan_t *p = &c->it_plan;
+    g_itc_out[0] = (c->cfg.it_enabled ? 1.0f : 0.0f) + (p->valid ? 2.0f : 0.0f) + (c->it_building ? 4.0f : 0.0f) + (c->it_active ? 8.0f : 0.0f) + (c->it_failed ? 16.0f : 0.0f);
+    g_itc_out[1] = c->it_grip; g_itc_out[2] = p->valid ? (float)p->n : 0.0f; g_itc_out[3] = (float)c->it_tr.idx; g_itc_out[4] = c->it_tr.e_cm;
+    g_itc_out[5] = c->it_tr.v_plan_cm_s; g_itc_out[6] = c->it_v_prev; g_itc_out[7] = (float)c->it_drops; g_itc_out[8] = (float)c->it_drop_reason;
+    g_itc_out[9] = p->time_s; g_itc_out[10] = (float)p->why; g_itc_out[11] = (float)c->it_lap; g_itc_out[12] = (float)c->it_plan_lap;
+    g_itc_out[13] = c->it_tr.psi_err_deg; g_itc_out[14] = p->time_center_s; g_itc_out[15] = c->it_stats.max_err_cm;
+    if (p->valid) for (int i = 0; i < p->n; ++i) { g_itc_out[16 + 3 * i] = p->x[i]; g_itc_out[17 + 3 * i] = p->z[i]; g_itc_out[18 + 3 * i] = p->v[i]; }
+    const int base = 16 + 3 * IT_MAX_N;
+    g_itc_out[base] = (float)p->obstacles;
+    for (int i = 0; i < p->obstacles; ++i) { g_itc_out[base + 1 + 3 * i] = p->obs[i].x_cm; g_itc_out[base + 2 + 3 * i] = p->obs[i].z_cm; g_itc_out[base + 3 + 3 * i] = (float)p->obs[i].color; }
+    return g_itc_out;
+}
+
+/* Lazo rapido de IT: 1 si hay una orden nueva (direccion, velocidad, giro) para el instante t_us. */
+static float g_itf_out[4];
+EXPORT("core_it_fast_ptr") float *core_it_fast_ptr(void) { return g_itf_out; }
+EXPORT("core_it_fast") int core_it_fast(double t_us)
+{
+    wro_command_t c;
+    if (!wro_controller_it_fast(&g_ctrl, (uint64_t)t_us, &c)) return 0;
+    g_itf_out[0] = c.steer_deg; g_itf_out[1] = c.speed_cm_s; g_itf_out[2] = c.yaw_rate_dps;
+    return 1;
 }

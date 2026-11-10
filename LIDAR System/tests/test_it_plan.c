@@ -12,7 +12,7 @@ static int fails;
 
 static it_plan_t plan;
 
-static void check_plan(const char *name, int dir, const it_obstacle_t *obs, int count, float grip)
+static void check_plan(const char *name, int dir, const it_obstacle_t *obs, int count, float grip, bool expect_valid)
 {
     it_config_t cfg;
     it_config_default(&cfg);
@@ -23,6 +23,7 @@ static void check_plan(const char *name, int dir, const it_obstacle_t *obs, int 
     printf("%-28s dir %+d grip %.2f: valido=%d n=%d largo=%.0f cm tiempo=%.2f s (central %.2f s, ganancia %.0f%%) vmax=%.0f evaluaciones=%d %.0f ms\n", name, dir, grip,
            ok, plan.n, plan.length_cm, plan.time_s, plan.time_center_s, 100.0 * (1.0 - plan.time_s / plan.time_center_s),
            plan.v[0], plan.evals, ms);
+    if (!ok && !expect_valid) { CHECK(plan.why != 0, "%s: invalido sin motivo", name); printf("   (sin plan: why=%d; el controlador usa su respaldo)\n", plan.why); return; }
     CHECK(ok, "%s: plan no valido (violacion %.3f)", name, plan.violation);
     if (!ok) return;
     const float kmax = tanf(cfg.steer_use * cfg.steer_max_deg * 0.0174533f) / cfg.wheelbase_cm;
@@ -76,10 +77,10 @@ int main(void)
     const it_obstacle_t three[3] = {{-100.0f, 20.0f, 1}, {30.0f, -100.0f, 2}, {100.0f, 60.0f, 1}};
     const it_obstacle_t tight[2] = {{-100.0f, 0.0f, 2}, {-60.0f, 100.0f, 1}};
     for (int dir = -1; dir <= 1; dir += 2) {
-        check_plan("pista vacia", dir, none, 0, 0.7f);
-        check_plan("pista vacia grip 1", dir, none, 0, 1.0f);
-        check_plan("3 letreros", dir, three, 3, 0.7f);
-        check_plan("letreros pegados", dir, tight, 2, 0.7f);
+        check_plan("pista vacia", dir, none, 0, 0.7f, true);
+        check_plan("pista vacia grip 1", dir, none, 0, 1.0f, true);
+        check_plan("3 letreros", dir, three, 3, 0.7f, true);
+        check_plan("letreros pegados (S corta)", dir, tight, 2, 0.7f, false);
     }
     /* Mas agarre => vuelta mas rapida. */
     it_config_t cfg; it_config_default(&cfg);

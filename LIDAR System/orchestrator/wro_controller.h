@@ -14,6 +14,7 @@
 #include "park_planner.h"
 #include "park_ackermann.h"
 #include "race_line.h"
+#include "it_plan.h"
 #include "trace_map.h"
 #include "trace_parking.h"
 
@@ -114,6 +115,17 @@ typedef struct {
     float race_blend_before_cm, race_blend_after_cm;   /* la referencia lateral se mezcla con el centro del carril a tanto antes / despues de una esquina */
     float race_slip_derate;         /* cada patinaje de los encoders desde que se calculo la linea quita esta fraccion del exceso de velocidad (agarre real) */
     float race_corner_extra_cm;     /* en la carrera la esquina empieza tanto antes (corta la esquina por dentro) */
+    /* Trayectoria inteligente (it_plan.h): terminada la primera vuelta el planificador descubre la trayectoria y el perfil de velocidad
+     * sobre los objetos de trace_map, y el seguidor manda direccion y velocidad hasta `it_stop_before_end` esquinas del final (entrega limpia
+     * al parqueo). El controlador reactivo sigue corriendo en la sombra (cuenta esquinas y vueltas) y recupera el mando si IT falla. */
+    bool it_enabled;
+    uint8_t it_stop_before_end;     /* IT cede el mando cuando faltan tantas esquinas para terminar */
+    int it_step_evals;              /* evaluaciones de la busqueda por escaneo (reparte el calculo del plan) */
+    float it_grip_max;              /* tope del agarre aprendido */
+    float it_engage_dist_cm, it_engage_heading_deg;   /* IT toma el mando a menos de esto de la trayectoria y con el morro a menos de esto de su rumbo */
+    float it_accel_cm_s2;           /* cuanto sube como mucho la velocidad ordenada por segundo */
+    float it_hold_s;                /* tras ceder el mando por un fallo, espera antes de volver a tomarlo */
+    it_config_t it;
     bool lap_memory_enabled;        /* los letreros vistos en una vuelta se recuerdan por seccion para las siguientes */
     bool sidestep_enabled;
     float sidestep_after_s, sidestep_cooldown_s, sidestep_speed_cm_s, sidestep_margin_cm;
@@ -255,6 +267,19 @@ typedef struct {
     float lap_off_cm, lap_prev_travel_cm;   /* correccion del avance de la seccion con los letreros reconocidos */
     float hug_cmd_cm, hug_target_cm, hug_hold_s;   /* desplazamiento pedido al planificador, objetivo y espera por pilar desconocido */
     bool hug_active;
+    /* Trayectoria inteligente. */
+    it_plan_t it_plan;              /* plan en uso */
+    it_plan_t it_work;              /* plan en construccion */
+    it_tracker_t it_tr;
+    bool it_building, it_active, it_failed, it_engaged, it_rebuild;
+    int it_arc_bad, it_stats_ticks;
+    int it_plan_lap, it_lap;        /* vuelta del plan en uso / vuelta en curso */
+    float it_grip, it_v_prev, it_hold_left_s, it_active_s, it_stuck_s;
+    it_lap_stats_t it_stats;
+    int it_slips0, it_drops;
+    struct { float x_cm, z_cm, theta_deg, gyro_deg; uint64_t t_us; bool valid; } it_anchor;   /* ultima pose del LiDAR con la que se propaga el lazo rapido */
+    uint64_t it_fast_us;
+    uint8_t it_drop_reason;         /* 1 fuera de la trayectoria, 2 sin pose, 3 emergencia del reactivo, 4 sorpresa en el LiDAR */
     race_line_t race;               /* linea de carrera de la vuelta (valida tras calcularla) */
     bool race_tried, race_active, race_corner_clear;
     int race_slips0;                /* patinajes contados cuando se calculo la linea */
@@ -336,6 +361,10 @@ bool wro_controller_start(wro_controller_t *c, uint64_t t_us);
  * distancias desde el sensor). Rellena la orden. */
 void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points, size_t count,
                          uint64_t t_us, wro_command_t *out);
+/* Lazo rapido de IT (llamalo en cada pasada del bucle del P4, ~1 kHz): entre dos escaneos del LiDAR propaga la ultima pose con la odometria de los
+ * encoders y el giroscopio y vuelve a calcular direccion y velocidad (maximo cada 20 ms). Devuelve true si hay una orden nueva en `out`. A 150 cm/s un
+ * escaneo cada 100 ms son 15 cm sin corregir: sin este lazo el error lateral se duplica. */
+bool wro_controller_it_fast(wro_controller_t *c, uint64_t now_us, wro_command_t *out);
 /* Perro guardian: si no llegan escaneos, la orden pasa a parar (devuelve true). */
 bool wro_controller_watchdog(wro_controller_t *c, uint64_t now_us, wro_command_t *out);
 

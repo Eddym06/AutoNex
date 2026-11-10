@@ -27,7 +27,7 @@ async function doJob(job) {
   const base = Object.assign({}, W.robot.DEFAULT_ROBOT, W.robot.PROFILES.largo26d, { speedGain: 1, maxAccel: job.accel, speedTauS: 0.08 });
   base.tire = Object.assign({}, base.tire, { mu: job.mu });
   const robot = new W.robot.Robot(base);
-  const params = { grip: job.grip0, vMax: job.vmax, aMotor: job.accel * 0.9, trackErr: job.trackErr, poseErr: job.poseErr };
+  const params = { grip: job.grip0, vMax: job.vmax, aMotor: job.accel * 0.9, trackErr: job.trackErr, poseErr: job.poseErr, ctrlMode: job.mode + 1, kPsi: job.kpsi, kE: job.ke };
   let plan = core.itBuild(job.direction, params, known);
   if (!plan.ok) return { seed: job.seed, direction: job.direction, error: 'plan no valido', log: `${job.direction} ${job.seed}: PLAN NO VALIDO` };
   const buildMs = [];
@@ -35,7 +35,7 @@ async function doJob(job) {
   robot.reset({ x: p0.x, z: p0.z, yaw: Math.atan2(p1.x - p0.x, p1.z - p0.z) });
   robot.v = 0;
   const world = { solids: field.walls, signs: field.signs };
-  const dt = 0.005, ctl = 0.02;
+  const dt = 0.005, ctl = job.ctl;
   let t = 0, nextCtl = 0, lap = 0, lapT0 = 0, last = -1, grip = job.grip0, fallback = 0, stuck = 0;
   let st = { maxErr: 0, minRoom: 1e9, contacts: 0, slip: 0, traction: 0, ticks: 0, vsum: 0, vmax: 0 };
   const laps = [];
@@ -98,7 +98,7 @@ async function doJob(job) {
   const first = a.length && !a[0].startsWith('--') ? Number(a[0]) : 6;
   const o = { signs: Number(fl('--signs', 3)), laps: Number(fl('--laps', 4)), mu: Number(fl('--mu', 0.8)), grip0: Number(fl('--grip0', 0.6)), gripMax: Number(fl('--gripmax', 1)),
     noise: Number(fl('--noise', 1)), accel: Number(fl('--accel', 350)), vmax: Number(fl('--vmax', 150)), mapErr: Number(fl('--map-err', 0.9)),
-    trackErr: Number(fl('--track-err', 0)), poseErr: Number(fl('--pose-err', 0)), limit: Number(fl('--limit', 150)) };
+    ctl: Number(fl('--ctl', 0.02)), mode: Number(fl('--mode', 1)), kpsi: Number(fl('--kpsi', 0)), ke: Number(fl('--ke', 0)), trackErr: Number(fl('--track-err', 0)), poseErr: Number(fl('--pose-err', 0)), limit: Number(fl('--limit', 150)) };
   const jobs = [];
   for (const direction of ['ccw', 'cw']) for (let seed = 1; seed <= first; seed++) jobs.push(Object.assign({ direction, seed }, o));
   const res = (await runJobs(__filename, jobs)).filter(r => r.result).map(r => r.result);

@@ -67,6 +67,14 @@ for (const f of ['geometry', 'rng', 'field', 'sensors', 'robot', 'judge', 'core'
     assert(cache.telemetry.innerHTML.includes('estaciones'), 'la linea existe pero el panel no la describe');
     assert(sandbox.WROSim.sim.racePts && sandbox.WROSim.sim.racePts.length > 50, 'no se leyo la linea de carrera');
   }
+  /* Trayectoria inteligente (la casilla esta marcada en el DOM de mentira): tras la 1.a vuelta el panel la describe y el mapa la dibuja sin fallar. */
+  assert(cache.telemetry.innerHTML.includes('Trayectoria inteligente'), 'falta la fila de la trayectoria inteligente');
+  sim.run(75);
+  for (let i = 0; i < 6; i++) { const f = pending; pending = null; assert(f, 'se detuvo el bucle de dibujo'); f(9000 + i * 33); }
+  const it = sim.core.itState(false);
+  assert(it.enabled, 'IT no esta activada en el controlador');
+  assert(it.valid || it.failed || it.building, 'IT no intento planear tras la 1.a vuelta');
+  if (it.valid) assert(/estaciones/.test(cache.telemetry.innerHTML) && /vuelta estimada/.test(cache.telemetry.innerHTML), 'el panel no describe el plan de IT');
   console.log('PASS: la interfaz arranca, simula ' + sim.t.toFixed(1) + ' s y dibuja sin errores (' + ids.length + ' elementos)');
   process.exit(0);
 })().catch(e => { console.error(e); process.exit(1); });

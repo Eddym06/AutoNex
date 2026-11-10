@@ -28,7 +28,7 @@ void odom_config_default(odom_config_t *cfg)
     cfg->slip_yaw_dps = 40.0f;
     cfg->slip_min_dt_s = 0.01f;
     cfg->max_gap_s = 0.5f;
-    cfg->max_speed_cm_s = 150.0f;
+    cfg->max_speed_cm_s = 300.0f;     /* una muestra que implique mas es un error de lectura: la trayectoria inteligente llega a 150 cm/s, con 150 se descartaba distancia real */
 }
 
 static bool clamp_f(float *v, float lo, float hi)

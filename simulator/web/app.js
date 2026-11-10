@@ -53,15 +53,20 @@
     const lines = [$('ctrlText').value, 'planner.speed_cm_s ' + num('rSpeed'),
       'planner.pass_side_red ' + $('redSide').value, 'planner.pass_side_green ' + $('greenSide').value].join('\n');
     const vision = [$('visionText').value, 'pass_side_red ' + $('redSide').value, 'pass_side_green ' + $('greenSide').value].join('\n');
+    const itOn = !!($('itEnable') && $('itEnable').checked);
+    const linesIt = itOn ? lines + '\nit_enabled 1' : lines;
+    /* IT: chasis con dinamica y un motor que da la aceleracion que el plan supone (el robot real lo da MIC). */
+    const robotCfg = itOn ? Object.assign({}, WRO.robot.PROFILES.largo26d, { maxAccel: 350, speedTauS: 0.08, speedGain: 1, steerTrimDeg: num('rTrim') })
+                          : { speedGain: num('rSpeedGain'), steerTrimDeg: num('rTrim') };
     const gyro = $('rGyroBias').value === '' ? null : num('rGyroBias');
     const camFps = num('rCamFps') || WRO.sensors.DEFAULT_CAMERA.fps;
     const passSide = $('judgeFollows').checked ? { red: Number($('redSide').value), green: Number($('greenSide').value) } : { red: 1, green: -1 };
     try {
       sim = new WRO.sim.Simulation(core, {
-        field, seed: Number($('seed').value) || 1, ctrlConfig: lines, visionConfig: vision,
+        field, seed: Number($('seed').value) || 1, ctrlConfig: linesIt, visionConfig: vision,
         lidar: { sigmaNearCm: 0.5 * noise, sigmaFarCm: 2 * noise, angleJitterDeg: 0.15 * noise, dropout: noise > 0 ? 0.015 : 0 },
         camera: { noiseSigma: 3.5 * camNoise, gain: num('rLight'), latencyMs: num('rLatency'), fps: camFps, bitErrorRate: num('rBitErr') / 100 },
-        imu: { biasDps: gyro }, robot: { speedGain: num('rSpeedGain'), steerTrimDeg: num('rTrim') }, judge: { passSide }
+        imu: { biasDps: gyro }, robot: robotCfg, judge: { passSide }
       });
       setStatus('listo', '');
     } catch (e) { setStatus('error: ' + e.message, 'bad'); sim = null; }
@@ -144,6 +149,20 @@
       }
       const k = sim.cmd.race.idx;
       if (sim.cmd.race.active && k >= 0 && rl[k]) { g.fillStyle = '#ffd24d'; g.strokeStyle = '#222'; g.lineWidth = 1; g.beginPath(); g.arc(T.px(rl[k].x), T.py(rl[k].z), 4, 0, 7); g.fill(); g.stroke(); }
+    }
+    if ($('showIT') && $('showIT').checked && $('itEnable') && $('itEnable').checked) {
+      /* Trayectoria inteligente: la que el robot descubrio tras la 1.a vuelta, coloreada por la velocidad (rojo lento, verde rapido). */
+      const st = core.itState();
+      if (st.valid && st.line.length > 2) {
+        g.lineWidth = 3; g.lineCap = 'round';
+        for (let i = 0; i < st.line.length; i++) {
+          const a = st.line[i], b = st.line[(i + 1) % st.line.length], t = Math.max(0, Math.min(1, (a.v - 20) / 130));
+          g.strokeStyle = `hsl(${Math.round(120 * t)}, 85%, 42%)`;
+          g.beginPath(); g.moveTo(T.px(a.x), T.py(a.z)); g.lineTo(T.px(b.x), T.py(b.z)); g.stroke();
+        }
+        const k = st.idx, q = st.line[k];
+        if (k >= 0 && q) { g.fillStyle = st.active ? '#ffd24d' : '#9aa'; g.strokeStyle = '#222'; g.lineWidth = 1; g.beginPath(); g.arc(T.px(q.x), T.py(q.z), 4, 0, 7); g.fill(); g.stroke(); }
+      }
     }
     if ($('showLidar').checked && sim.snapshot.scan.length) {
       g.fillStyle = 'rgba(0,170,210,.9)';
@@ -272,6 +291,18 @@
     if (c.hug) {
       const h = c.hug;
       rows.push(['Pegado a la pared interior', h.active ? `desplazamiento ${f(h.cmd, 1)} cm (objetivo ${f(h.target, 1)} cm)` : (h.hold > 0 ? 'centrado: pilar que no esta en el mapa' : 'centrado (primera vuelta, esquina, letrero o sin usar)'), h.active ? 'good' : '']);
+    }
+    if ($('itEnable') && $('itEnable').checked) {
+      const t = core.itState(false), why = ['', 'el volante no llega', 'salto lateral', '', 'la huella del chasis toca algo'][t.why] || 'invalida';
+      const reasons = { 0: 'fin previsto', 1: 'fuera de la trayectoria', 2: 'sin pose del campo', 4: 'sorpresa en el LiDAR', 5: 'atascado' };
+      let txt = 'se calcula al terminar la primera vuelta', cls = '';
+      if (t.building) { txt = 'calculando la trayectoria…'; cls = 'warn'; }
+      else if (t.valid) {
+        txt = `${f(t.n)} estaciones · vuelta estimada ${f(t.planTime, 1)} s (centro ${f(t.timeCenter, 1)} s) · agarre ${f(100 * t.grip)} %` +
+          (t.active ? ` · MANDA IT: ${f(t.vCmd, 0)} cm/s (plan ${f(t.vPlan, 0)}), error lateral ${f(t.e, 1)} cm` : ` · en espera (reactivo)${t.drops ? ' · cedió ' + t.drops + ' vez/veces: ' + (reasons[t.dropReason] || '') : ''}`);
+        cls = t.active ? 'good' : 'warn';
+      } else if (t.failed) { txt = 'sin plan válido con estos letreros (' + why + '): modo reactivo'; cls = 'warn'; }
+      rows.push(['Trayectoria inteligente', txt, cls]);
     }
     if (c.race) {
       const r = c.race;

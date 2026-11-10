@@ -1,0 +1,382 @@
+{
+  "summary": {
+    "rondas": 20,
+    "profile": "largo26d",
+    "config": "-",
+    "fin": {
+      "wrong-side": 7,
+      "finished": 11,
+      "time": 1,
+      "stalled": 1
+    },
+    "puntos_medios": 36.5,
+    "tiempo_medio_s": 96.7,
+    "vuelta1_s": 29.2,
+    "vuelta2_s": 33.9,
+    "vuelta3_s": null,
+    "v_media_cm_s": 17.1,
+    "v_max_cm_s": 23,
+    "contactos_medios": 0,
+    "deriva_trasera_max_deg": 0.5,
+    "fraccion_con_tope_de_traccion": 0
+  },
+  "res": [
+    {
+      "seed": 1,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 2.759999999999985,
+      "violations": 1,
+      "contacts": 0,
+      "parking": "partial",
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "ccw 1: wrong-side 0 pts 3 s v medio 0.0 max 0 contactos 0"
+    },
+    {
+      "seed": 2,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 153.22000000000563,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.95896671739772,
+      "slipMax": 0.1806566452618251,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.860000000001172,
+        "2": 34.67999999999914
+      },
+      "log": "ccw 2: finished 62 pts 153 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 3,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 20,
+      "elapsed": 56.669999999997295,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999999999999986,
+      "vmean": 16.542710556265682,
+      "slipMax": 0.1908891427552533,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.76000000000127
+      },
+      "log": "ccw 3: wrong-side 20 pts 57 s v medio 16.5 max 23 contactos 0"
+    },
+    {
+      "seed": 4,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 7.129999999999892,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "ccw 4: wrong-side 0 pts 7 s v medio 0.0 max 0 contactos 0"
+    },
+    {
+      "seed": 5,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 136.72000000002063,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.957402228574256,
+      "slipMax": 0.18139611357123045,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.76000000000139,
+        "2": 33.579999999997796
+      },
+      "log": "ccw 5: finished 62 pts 137 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 6,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 3.519999999999969,
+      "violations": 1,
+      "contacts": 0,
+      "parking": "partial",
+      "vmax": 0,
+      "vmean": 0,
+      "slipMax": 0,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "ccw 6: wrong-side 0 pts 4 s v medio 0.0 max 0 contactos 0"
+    },
+    {
+      "seed": 7,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 9.509999999999842,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999999813574913,
+      "vmean": 20.555957176742925,
+      "slipMax": 0.05420514243969674,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "ccw 7: wrong-side 0 pts 10 s v medio 20.6 max 23 contactos 0"
+    },
+    {
+      "seed": 8,
+      "direction": "ccw",
+      "end": "wrong-side",
+      "points": 4,
+      "elapsed": 23.750000000000913,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999999999999986,
+      "vmean": 22.74261441738482,
+      "slipMax": 0.18087966361269492,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "ccw 8: wrong-side 4 pts 24 s v medio 22.7 max 23 contactos 0"
+    },
+    {
+      "seed": 9,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 147.12000000001117,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.9576871418465,
+      "slipMax": 0.3109114193709282,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.530000000001237,
+        "2": 33.309999999998205
+      },
+      "log": "ccw 9: finished 62 pts 147 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 10,
+      "direction": "ccw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 140.02000000001763,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.95851261020143,
+      "slipMax": 0.17110010853807112,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.640000000001216,
+        "2": 34.09999999999869
+      },
+      "log": "ccw 10: finished 62 pts 140 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 1,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 160.21999999999926,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.96532868945754,
+      "slipMax": 0.18182860569260548,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.650000000001313,
+        "2": 33.339999999997985
+      },
+      "log": "cw 1: finished 62 pts 160 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 2,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 142.42000000001545,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.965517757932606,
+      "slipMax": 0.18182754300324408,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.76000000000129,
+        "2": 33.22999999999801
+      },
+      "log": "cw 2: finished 62 pts 142 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 3,
+      "direction": "cw",
+      "end": "wrong-side",
+      "points": 0,
+      "elapsed": 9.029999999999852,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999924790752942,
+      "vmean": 19.445028089369377,
+      "slipMax": 0.0563688491144788,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "cw 3: wrong-side 0 pts 9 s v medio 19.4 max 23 contactos 0"
+    },
+    {
+      "seed": 4,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 139.42000000001818,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.965366684813613,
+      "slipMax": 0.1818281969073506,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.530000000001138,
+        "2": 32.759999999998314
+      },
+      "log": "cw 4: finished 62 pts 139 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 5,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 152.42000000000635,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.966361471552208,
+      "slipMax": 0.18182818104745482,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.530000000001138,
+        "2": 34.15999999999903
+      },
+      "log": "cw 5: finished 62 pts 152 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 6,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 138.02000000001945,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.96580561028262,
+      "slipMax": 0.18182821934550536,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.980000000001247,
+        "2": 33.60999999999836
+      },
+      "log": "cw 6: finished 62 pts 138 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 7,
+      "direction": "cw",
+      "end": "time",
+      "points": 22,
+      "elapsed": 181.5099999999799,
+      "violations": 0,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999999999999986,
+      "vmean": 5.3309672400188175,
+      "slipMax": 0.4846658233370462,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.750000000001094
+      },
+      "log": "cw 7: time 22 pts 182 s v medio 5.3 max 23 contactos 0"
+    },
+    {
+      "seed": 8,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 144.2200000000138,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 22.965704734041115,
+      "slipMax": 0.18182801721926636,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 29.090000000001226,
+        "2": 33.29999999999828
+      },
+      "log": "cw 8: finished 62 pts 144 s v medio 23.0 max 23 contactos 0"
+    },
+    {
+      "seed": 9,
+      "direction": "cw",
+      "end": "stalled",
+      "points": 2,
+      "elapsed": 35.050000000001596,
+      "violations": 1,
+      "contacts": 0,
+      "parking": null,
+      "vmax": 22.999999999999986,
+      "vmean": 6.299469692957154,
+      "slipMax": 0.4675202544083284,
+      "tractionLimited": 0,
+      "laps": {},
+      "log": "cw 9: stalled 2 pts 35 s v medio 6.3 max 23 contactos 0"
+    },
+    {
+      "seed": 10,
+      "direction": "cw",
+      "end": "finished",
+      "points": 62,
+      "elapsed": 152.12000000000663,
+      "violations": 0,
+      "contacts": 0,
+      "parking": "full",
+      "vmax": 22.999999999999986,
+      "vmean": 21.98230915013195,
+      "slipMax": 0.18182814688892476,
+      "tractionLimited": 0,
+      "laps": {
+        "1": 28.32000000000138,
+        "2": 36.769999999999506
+      },
+      "log": "cw 10: finished 62 pts 152 s v medio 22.0 max 23 contactos 0"
+    }
+  ]
+}
