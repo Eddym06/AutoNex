@@ -250,6 +250,7 @@ static const cf_field_t FIELDS[] = {
     CF("arena_gates_corners", CF_BOOL, arena_gates_corners), CF("arena_corner_margin_cm", CF_F32, arena_corner_margin_cm),
     CF("peek_enabled", CF_BOOL, peek_enabled), CF("peek_bearing_min_deg", CF_F32, peek_bearing_min_deg),
     CF("peek_max_heading_deg", CF_F32, peek_max_heading_deg), CF("peek_rate_dps", CF_F32, peek_rate_dps),
+    CF("arena_gain", CF_F32, arena.gain), CF("arena_tol_cm", CF_F32, arena.tol_cm), CF("arena_max_range_cm", CF_F32, arena.max_range_cm),
     CF("arena_enabled", CF_BOOL, arena_enabled), CF("arena_sign_bias_cm", CF_F32, arena_sign_bias_cm), CF("arena_map_lead", CF_BOOL, arena_map_lead), CF("arena_signs_enabled", CF_BOOL, arena_signs_enabled),
     CF("arena.outer_half_cm", CF_F32, arena.outer_half_cm), CF("arena.inner_half_cm", CF_F32, arena.inner_half_cm),
     CF("arena.tol_cm", CF_F32, arena.tol_cm), CF("arena.gain", CF_F32, arena.gain),

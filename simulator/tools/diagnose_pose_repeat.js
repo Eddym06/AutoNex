@@ -23,7 +23,9 @@ async function doJob(job) {
     const p = sim.robot.pose();
     const k = `${lap}|${Math.floor(p.x / BIN)}|${Math.floor(p.z / BIN)}`;
     const a = acc[k] || (acc[k] = { n: 0, ex: 0, ez: 0 });
-    a.n++; a.ex += c.arena.x - p.x; a.ez += c.arena.z - p.z;
+    /* con o sin el adelanto de latencia que el mapa ya aplica (LEAD=0 reproduce la medida anterior, sin compensar) */
+    const th = (c.arena.theta) * Math.PI / 180, lead = process.env.LEAD === '0' ? 0 : (c.odom && c.odom.inUse ? c.odom.v : c.speed) * 0.10;
+    a.n++; a.ex += c.arena.x + lead * Math.sin(th) - p.x; a.ez += c.arena.z + lead * Math.cos(th) - p.z;
   }
   return { bins: acc, log: `fin ${sim.result().endReason} t=${sim.t.toFixed(0)}s casillas=${Object.keys(acc).length}` };
 }

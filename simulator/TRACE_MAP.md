@@ -32,7 +32,7 @@ congela el mapa para poder copiarlo.
 
 Cada celda acumula un contador de retornos de 8 bits (hits, 1 por barrido); el de 4 bits de cells se satura en la primera pasada y no sirve para promediar. En 	race_map_refresh se calcula la **superficie**: una celda ocupada que tiene al menos el 30 % del peso máximo de su entorno de 5 × 5. Es la cresta del histograma de retornos: las pasadas con distinto error de pose se promedian en vez de dejar una mancha. Los objetos se buscan sobre la superficie; el centro de un letrero se corrige con la huella completa porque la superficie solo conserva la cara que ve el LiDAR (ponderar por hits empeoró el centro, de 0,7 a 1,2 cm).
 
-**Límite que no se arregla promediando:** el error de la pose del campo se repite casi igual en cada vuelta (correlación 0,983 entre la vuelta 1 y la 3, RMS 1,6 cm; solo 0,3 cm cambian de una vuelta a otra). Promediar vueltas quita la parte aleatoria, no esa. Ver MEDICION_TRACE_VUELTAS.md.
+**Qué limita la precisión de las vueltas:** la pose cruda del localizador va ~2,2 cm detrás de la real (latencia de 0,10 s del LiDAR); el controlador ya la adelanta `v · latency_s` antes de alimentar el mapa. Con esa compensación el error de pose es de 0,78 cm RMS (0,70 en rectas) y su parte repetible por lugar es de 0,31 cm (correlación 0,915 entre la vuelta 1 y la 3), así que promediar vueltas solo puede quitar ~0,13 cm. **Una `latency_s` mal calibrada en el chasis real desplaza el mapa unos 0,4 cm por cada 10 ms de error a 40 cm/s.** Ver `MEDICION_ARENA_LOCALIZER.md`.
 
 ## Dónde vive en el P4 (ESP32-P4 Waveshare)
 

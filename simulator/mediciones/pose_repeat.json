@@ -1,7 +1,7 @@
 {
   "casillas_pareadas_vuelta1_vuelta3": 252,
-  "rms_error_pose_vuelta1_cm": 1.62,
-  "rms_error_pose_vuelta3_cm": 1.61,
-  "rms_diferencia_vuelta1_menos_vuelta3_cm": 0.3,
-  "correlacion_error_vuelta1_vuelta3": 0.983
+  "rms_error_pose_vuelta1_cm": 0.31,
+  "rms_error_pose_vuelta3_cm": 0.31,
+  "rms_diferencia_vuelta1_menos_vuelta3_cm": 0.13,
+  "correlacion_error_vuelta1_vuelta3": 0.915
 }
