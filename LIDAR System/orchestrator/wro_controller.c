@@ -87,7 +87,7 @@ void wro_controller_config_default(wro_controller_config_t *c)
     c->pivot_after_s = 2.0f;
     c->pivot_rot_dps = 45.0f;
     c->pivot_margin_cm = 1.0f;
-    c->corner_max_heading_deg = 30.0f;
+    c->corner_max_heading_deg = 45.0f;   /* 30 bloqueaba la esquina en cw: el cambio de carril a la pendiente maxima (hug_rate 0,6 = 31 grados) ya la superaba */
     c->stuck_relax_s = 0.0f;   /* desactivado: el juez termina la ronda ante un lado equivocado */
     c->motion_comp = true;
     c->latency_s = 0.10f;

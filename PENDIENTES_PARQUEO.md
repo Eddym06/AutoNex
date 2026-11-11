@@ -46,6 +46,15 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 - La vía de fondo que sigue abierta es modelar el retardo del servo y del motor dentro del A* (o ejecutar con realimentación), no más candidatos.
 - `rebuild_wasm.sh` admite `EXTRA_CFLAGS="-DPARK_ENTRY_CHECK_MARGIN_CM=0.25f"` para probar constantes sin editar el código.
 
+## 3c. Simetría ccw/cw (11 nov)
+
+- Prueba con la pista reflejada exacta (misma pista con x→−x y colores cambiados; 8 semillas, `largo26d`): 7 de 8 parejas dan el mismo resultado. Quitar el desvío del volante (0,8°) y el
+  sesgo del giroscopio **no** vuelve el simulador más simétrico (5 de 8), así que no son la causa. cw tarda unos 3-9 s más (la salida acaba con otro rumbo, 4° frente a 10°, y el parqueo cw sale más largo).
+- La pareja que no coincidía (semilla 4) fallaba en cw con `wrong-side` a los 14 s: tras la salida el reactivo cambia de carril a pendiente alta, el morro pasa de 30° respecto al carril y la guarda
+  `corner_max_heading_deg` (30) impedía detectar la esquina; el coche entraba ancho y no llegaba a pasar el letrero por el lado pedido. Con 45 ese caso termina y el resto no cambia
+  (24 rondas con 3 letreros: 22 de 24, igual que antes; 16 rondas con 6 letreros: 16 de 16 en ambos).
+- Sigue siendo cierto que la mayoría de los fallos en pistas aleatorias distintas por sentido es azar de pistas distintas, no una asimetría del código.
+
 ## 4. Preguntas sin responder
 
 - ¿Cuenta el reglamento el número de repasadas? El límite de 3 viene de los documentos del proyecto, no de una regla comprobada.
