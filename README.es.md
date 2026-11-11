@@ -156,7 +156,7 @@ AutoNex/
 | Parqueo, MIC, encoders y guardado del mapa en el coche real | 🔄 integrados en el firmware, **sin probar en hardware** |
 | Chasis y electrónica | 🔄 en curso, ver los documentos por rol |
 
-Límites conocidos: en pistas aleatorias *factibles* (las que dibuja la interfaz) 22 de 24 rondas simuladas terminan con 62 puntos; las otras dos son un contacto en el parqueo y un atasco en una esquina al empezar la vuelta 3 (caótico: cambia de semilla al mover 1 cm/s la velocidad de mapeo, ver [`ESTADO.md`](ESTADO.md)). El antiguo "1 de cada 3 acaba en `wrong-side`" venía de que la herramienta de medida sorteaba pistas que ningún chasis puede pasar (un letrero a 45 cm de la salida del cajón); la precisión del mapa a los 34 cm/s de mapeo aún no está medida; el planificador tarda ~0,4 s en un PC y su tiempo en el P4 no está medido (por eso se reparte en pasos de ~10 ms).
+Límites conocidos: en pistas aleatorias *factibles* (las que dibuja la interfaz) 24 de 24 rondas simuladas terminan con 62 puntos y sin contactos (3 letreros, `largo26d`); cw tarda unos segundos más que ccw (la salida acaba con otro rumbo y el plan de parqueo cw sale más largo). El antiguo "1 de cada 3 acaba en `wrong-side`" venía de que la herramienta de medida sorteaba pistas que ningún chasis puede pasar (un letrero a 45 cm de la salida del cajón); la precisión del mapa a los 34 cm/s de mapeo aún no está medida; el planificador tarda ~0,4 s en un PC y su tiempo en el P4 no está medido (por eso se reparte en pasos de ~10 ms).
 
 ## Equipo
 

@@ -1176,10 +1176,10 @@ static park_params_t g_ack_park_params;
 #define PARK_LOST_MAX_SCANS 30
 #endif
 /* Holgura con la que se comprueba cada arco del plan de entrada (la del plan es park_margin_cm). Medido en 24 rondas (semillas 21-32):
- * 0,5 -> 104 repasadas y 23 completas; 0,25 -> 92 y 22; 0 -> 74 y 20 (con 2 contactos). Menos holgura baja las repasadas pero el chasis
- * se queda tan justo que el parqueo acaba parcial: se queda en 0,5. */
+ * 0,75 -> 122 repasadas, 24 completas y 0 contactos; 0,5 -> 104-108 y 23; 0,25 -> 92 y 22; 0 -> 74 y 20 (con 2 contactos). Un contacto con el
+ * tope termina la ronda (47 puntos), una repasada de mas no: se prefiere la holgura mayor. */
 #ifndef PARK_ENTRY_CHECK_MARGIN_CM
-#define PARK_ENTRY_CHECK_MARGIN_CM 0.5f
+#define PARK_ENTRY_CHECK_MARGIN_CM 0.75f
 #endif
 #ifndef PARK_RETRACE_ENABLED
 #define PARK_RETRACE_ENABLED 0

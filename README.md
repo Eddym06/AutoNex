@@ -156,7 +156,7 @@ AutoNex/
 | Parking, MIC, encoders and map storage on the real car | 🔄 integrated in firmware, **not tested on hardware** |
 | Chassis and electronics | 🔄 in progress, see the role documents |
 
-Known limits: on random but *feasible* layouts (the ones the interface draws) 22 of 24 simulated rounds finish with 62 points; the two others are a parking contact and a stall in a corner at the start of lap 3 (chaotic: it moves to other seeds when the mapping speed changes by 1 cm/s, see [`ESTADO.md`](ESTADO.md)). The old "1 in 3 ends with `wrong-side`" came from the measurement tool drawing layouts that no chassis can pass (a sign 45 cm in front of the parking exit); map precision at the new 34 cm/s mapping speed is not yet measured; the planner takes ~0.4 s on a PC and its time on the P4 is unmeasured (it is sliced into ~10 ms steps for that reason).
+Known limits: on random but *feasible* layouts (the ones the interface draws) 24 of 24 simulated rounds finish with 62 points and no contacts (3 signs, `largo26d`); cw takes a few seconds longer than ccw (the exit ends with another heading and the cw parking plan comes out longer). The old "1 in 3 ends with `wrong-side`" came from the measurement tool drawing layouts that no chassis can pass (a sign 45 cm in front of the parking exit); map precision at the new 34 cm/s mapping speed is not yet measured; the planner takes ~0.4 s on a PC and its time on the P4 is unmeasured (it is sliced into ~10 ms steps for that reason).
 
 ## Team
 

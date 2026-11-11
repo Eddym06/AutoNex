@@ -1599,9 +1599,16 @@ uint8_t local_obstacle_map_recommend_cfg(const local_obstacle_map_t *map,
      * referencia es cero, o sea mantener el rumbo actual. */
     float lane_cm = corridor_center_cm(map);
     if (lane_measured) lane_cm += state->lane_offset_cm;
-    const float reference_rad = (isfinite(course_heading_deg) && map->imu_fresh)
+    float reference_rad = (isfinite(course_heading_deg) && map->imu_fresh)
         ? yaw_delta_deg(course_heading_deg, map->yaw_deg) * LOCAL_DEG_TO_RAD
         : 0.0f;
+    /* Una esquina de 90 grados con el morro 3 grados atrasado da un error de 93: el corredor y el reticulo tratan >90 como "detras",
+     * invierten el giro y el coche daba 270 grados a la izquierda hacia la pared (atasco de 120 s: cw 5 vuelta 3). Entre 90 y 135 grados
+     * se sigue pidiendo el giro hacia el lado mas corto, con 85 grados. Mas de 135 (media vuelta) se deja como estaba. */
+    {
+        const float lim = 85.0f * LOCAL_DEG_TO_RAD, lo = 90.0f * LOCAL_DEG_TO_RAD, hi = 135.0f * LOCAL_DEG_TO_RAD;
+        if (fabsf(reference_rad) > lo && fabsf(reference_rad) < hi) reference_rad = reference_rad > 0.0f ? lim : -lim;
+    }
     const size_t curtains = apply_curtains(map, reference_rad, lane_cm, lane_measured);
     plan_ref_v = state->ref_rows > 0 ? state->ref_v_cm : NULL;
     plan_ref_rows = state->ref_rows < LOCAL_REF_ROWS ? state->ref_rows : LOCAL_REF_ROWS;

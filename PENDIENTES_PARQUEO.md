@@ -46,6 +46,13 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 - La vía de fondo que sigue abierta es modelar el retardo del servo y del motor dentro del A* (o ejecutar con realimentación), no más candidatos.
 - `rebuild_wasm.sh` admite `EXTRA_CFLAGS="-DPARK_ENTRY_CHECK_MARGIN_CM=0.25f"` para probar constantes sin editar el código.
 
+## 3d. Estado final de la simulación (11 nov noche)
+
+- Pistas factibles, 3 letreros, `largo26d`, 24 rondas: 62 puntos y 0 contactos en todas. Parqueo en 21-32 (`parkentry.js ... ronda`): 24 completas, 0 contactos, 122 repasadas (media 5,1);
+  la comprobación de arco en 0,75 cm cambia 1-2 repasadas por seguridad (ver `PARK_ENTRY_CHECK_MARGIN_CM`).
+- Sigue abierto: la asimetría cw/ccw de unos segundos (la salida acaba a 10° en ccw y a 4° en cw; el plan de parqueo cw sale más largo); una pose libre sin plan en el A* de rejilla; el
+  tiempo de cinco A* por plan en el P4; todo lo que depende de medir el chasis real.
+
 ## 3c. Simetría ccw/cw (11 nov)
 
 - Prueba con la pista reflejada exacta (misma pista con x→−x y colores cambiados; 8 semillas, `largo26d`): 7 de 8 parejas dan el mismo resultado. Quitar el desvío del volante (0,8°) y el

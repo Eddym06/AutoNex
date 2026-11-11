@@ -14,6 +14,10 @@
 >   los motores sin MIC o sin recalibrar ese valor. **Motor (11 nov):** hoy se asume el de 600 rpm en todo el repo (MIC, Kconfig, simulador); el definitivo
 >   será de 1000 rpm y se cambia con `mic_cfg_jgb37_520_1000rpm()` o `WRO_MIC_RPM_NOLOAD`.
 > - Nada de esto está probado en el coche real.
+> - **11 nov (noche): 24 de 24.** Cerrados los dos fallos que quedaban en pistas factibles (3 letreros, `largo26d`, 24 rondas: **62 puntos y 0 contactos en todas**, 118,9 s de media del cronómetro del simulador):
+>   (1) atasco de 120 s en la esquina de la vuelta 3 (cw 5): el error de rumbo al disparar la esquina era 93° (el morro 3° atrasado), `local_obstacle_map.c` trata >90° como "detrás" e
+>   invertía el giro (270° a la izquierda hacia la pared); ahora entre 90° y 135° se pide 85° hacia el lado corto. (2) contacto con el tope en el parqueo (cw 2): la comprobación de cada arco de
+>   la entrada sube de 0,5 a 0,75 cm (`PARK_ENTRY_CHECK_MARGIN_CM`): 24 completas y 0 contactos en las semillas 21-32, a cambio de ~5 repasadas de media (antes 4,5).
 > - **11 nov (tarde): causa del "1 de cada 3 acaba en wrong-side".** `measure_mission.js` y `bench/ab2.js` sorteaban pistas SIN `feasible: true`: con arranque en el
 >   cajón salían letreros a ~45 cm de la salida que ningún chasis Ackermann puede pasar por el lado pedido (la interfaz sí usa `feasible`). `measure_mission.js` ya usa pistas
 >   factibles por defecto (`--any` las permite todas). Resultado con `largo26d`, 3 letreros, 24 rondas: **22 terminan con 62 puntos**; fallan una por contacto con el tope en el parqueo (cw 2)
