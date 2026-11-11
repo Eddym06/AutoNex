@@ -101,7 +101,7 @@ const clean = r => { assert.equal(r.violations.length, 0, 'sin infracciones'); a
   await run('con letreros: 3 vueltas y aparcar', {
     /* Plano pasable: el sorteo con `feasible` no deja cambios de lado que ningun chasis
      * puede trazar (el mismo criterio que la interfaz y el banco). */
-    field: F.randomLayout(4, { direction: 'ccw', signs: 4, parking: true, startInLot: true, feasible: true, allowGates: false }), seed: 4 }, 200, r => {
+    field: F.randomLayout(4, { direction: 'ccw', signs: 4, parking: true, startInLot: true, feasible: true, allowGates: false, refill: false }), seed: 4 }, 200, r => {
     assert.equal(r.violations.length, 0); assert.equal(r.parking, 'full'); assert(r.points >= 52); });
   await run('con cajon pero arrancando fuera de el: sin los 7 puntos de salida', {
     field: F.randomLayout(5, { direction: 'ccw', signs: 0, parking: true, startInLot: false }), seed: 5 }, 200, r => {

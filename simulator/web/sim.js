@@ -167,6 +167,7 @@
         const cmd = this.core.scan(e.payload.points, e.payload.tEnd * 1e6);
         this.stats.scans++;
         this.lastCommandTime = this.t;
+        this.lastScanEnd = e.payload.tEnd;     // instante al que corresponde la pose estimada (para dibujarla adelantada)
         this.cmd = cmd;
         this.snapshot.scan = e.payload.points;
         this.snapshot.debug = core.debug();

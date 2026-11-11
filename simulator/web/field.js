@@ -290,29 +290,55 @@
      * Es el mismo criterio con el que un juez humano reconoceria un layout "injusto". */
     if (o.feasible === true) {
       const colorOf = seat => seat.__color;
-      picked.forEach(seat => { seat.__color = rng() < 0.5 ? 'red' : 'green'; });
-      for (let changed = true; changed;) {
-        changed = false;
-        /* En los dos sentidos: si el ultimo letrero de la 2.a vuelta es rojo, la 3.a se
-         * conduce al reves y los mismos letreros piden el lado contrario. */
-        for (const [index, flip] of [0, 2, 4, 6].flatMap(i => [[i, 1], [i, -1]])) {
-          const T0 = travelVector(index, o.direction), T = [T0[0] * flip, T0[1] * flip], right = [T[1], -T[0]];
-          const info = straightInfo(base, index), laneC = info.axis === 'x' ? [0, info.center] : [info.center, 0];
-          const row = picked.filter(seat => seat.section === index).sort((a, b) =>
-            ((a.x - b.x) * T[0] + (a.z - b.z) * T[1]));
-          let prevV = null, prevAlong = null;
-          for (const seat of row) {
-            const along = (seat.x - (T[0] ? (T[0] > 0 ? info.lo : info.hi) : 0)) * T[0] + (seat.z - (T[1] ? (T[1] > 0 ? info.lo : info.hi) : 0)) * T[1];
-            const v = (seat.x - laneC[0]) * right[0] + (seat.z - laneC[1]) * right[1];
-            const need = colorOf(seat) === 'red' ? v + 12 : v - 12;       // a la derecha / izquierda del letrero (letrero 2,5 + medio chasis 6,5 + 3)
-            const lo = colorOf(seat) === 'red' ? need : -1e9, hi = colorOf(seat) === 'red' ? 1e9 : need;
-            let shift;
-            if (prevV === null) shift = Math.max(0, lo - 6, -6 - hi) / (along + 10);   // el color solo se ve a ~50 cm: poco margen tras la esquina
-            else shift = Math.max(0, lo - prevV.hi, prevV.lo - hi) / Math.max(1, along - prevAlong);
-            if (shift > MAX_LAYOUT_SLOPE) { picked.splice(picked.indexOf(seat), 1); changed = true; break; }
-            prevV = { lo, hi }; prevAlong = along;
+      /* Quita, uno a uno, los letreros cuyo cambio de lado no cabe en la recta (ver arriba); devuelve cuantos quito. */
+      const prune = () => {
+        const before = picked.length;
+        for (let changed = true; changed;) {
+          changed = false;
+          /* En los dos sentidos: si el ultimo letrero de la 2.a vuelta es rojo, la 3.a se
+           * conduce al reves y los mismos letreros piden el lado contrario. */
+          for (const [index, flip] of [0, 2, 4, 6].flatMap(i => [[i, 1], [i, -1]])) {
+            const T0 = travelVector(index, o.direction), T = [T0[0] * flip, T0[1] * flip], right = [T[1], -T[0]];
+            const info = straightInfo(base, index), laneC = info.axis === 'x' ? [0, info.center] : [info.center, 0];
+            const row = picked.filter(seat => seat.section === index).sort((a, b) =>
+              ((a.x - b.x) * T[0] + (a.z - b.z) * T[1]));
+            let prevV = null, prevAlong = null;
+            for (const seat of row) {
+              const along = (seat.x - (T[0] ? (T[0] > 0 ? info.lo : info.hi) : 0)) * T[0] + (seat.z - (T[1] ? (T[1] > 0 ? info.lo : info.hi) : 0)) * T[1];
+              const v = (seat.x - laneC[0]) * right[0] + (seat.z - laneC[1]) * right[1];
+              const need = colorOf(seat) === 'red' ? v + 12 : v - 12;       // a la derecha / izquierda del letrero (letrero 2,5 + medio chasis 6,5 + 3)
+              const lo = colorOf(seat) === 'red' ? need : -1e9, hi = colorOf(seat) === 'red' ? 1e9 : need;
+              let shift;
+              if (prevV === null) shift = Math.max(0, lo - 6, -6 - hi) / (along + 10);   // el color solo se ve a ~50 cm: poco margen tras la esquina
+              else shift = Math.max(0, lo - prevV.hi, prevV.lo - hi) / Math.max(1, along - prevAlong);
+              if (shift > MAX_LAYOUT_SLOPE) { picked.splice(picked.indexOf(seat), 1); changed = true; break; }
+              prevV = { lo, hi }; prevAlong = along;
+            }
+            if (changed) break;
           }
-          if (changed) break;
+        }
+        return before - picked.length;
+      };
+      picked.forEach(seat => { seat.__color = rng() < 0.5 ? 'red' : 'green'; });
+      prune();
+      /* Reponer: el filtro quitaba letreros y la pista salia con menos de los pedidos (3 de 6 era lo normal). Se prueban otros asientos,
+       * con un generador aparte para no alterar el resto del sorteo, y se conserva cada uno que deja pasable toda la pista. */
+      const want = Math.min(o.signs, RULES.maxSigns * 2);
+      if (picked.length < want && o.refill !== false) {
+        const fill = RNG((seed * 2654435761 + 12345) >>> 0);
+        const pool = candidates.filter(seat => !picked.includes(seat));
+        for (let i = pool.length - 1; i > 0; --i) { const j = Math.floor(fill() * (i + 1)); const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
+        const rowLimit = o.allowGates === false ? 1 : 2;
+        for (const seat of pool) {
+          if (picked.length >= want) break;
+          const key = seat.section + ':' + seat.alongIndex;
+          const sameRow = picked.filter(q => q.section + ':' + q.alongIndex === key).map(q => q.lateralIndex);
+          if (sameRow.length >= rowLimit || (sameRow.length === 1 && Math.abs(sameRow[0] - seat.lateralIndex) < 2)) continue;
+          const keep = picked.slice();
+          seat.__color = fill() < 0.5 ? 'red' : 'green';
+          picked.push(seat);
+          prune();
+          if (picked.length !== keep.length + 1 || !picked.includes(seat)) { picked.length = 0; for (const q of keep) picked.push(q); }
         }
       }
     }

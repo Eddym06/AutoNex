@@ -14,6 +14,13 @@
 >   los motores sin MIC o sin recalibrar ese valor. **Motor (11 nov):** hoy se asume el de 600 rpm en todo el repo (MIC, Kconfig, simulador); el definitivo
 >   será de 1000 rpm y se cambia con `mic_cfg_jgb37_520_1000rpm()` o `WRO_MIC_RPM_NOLOAD`.
 > - Nada de esto está probado en el coche real.
+> - **11 nov (revisión del simulador).** El simulador abría con IT, cajón y arranque en el cajón APAGADOS: ahora los tres vienen marcados. Cambios: (1) el sorteo `feasible` reponía mal los
+>   letreros (3 de 6 era lo normal): ahora prueba otros asientos y coloca ~5,5 de 6 (el aviso explica por qué faltan); `refill: false` conserva el sorteo anterior. (2) La pose estimada se dibuja
+>   adelantada por el retraso del barrido (antes iba detrás: la pose es la del instante del barrido, que llega ~procDelay después). (3) El parqueo para en cuanto la pose estimada cumple la meta
+>   (antes terminaba el plan entero: hasta 12 s y 9 repasadas con el juez ya dando 'completo'): 105 repasadas en 24 rondas (antes 122), 24 completas, 0 contactos. (4) El juez espera 3 s
+>   (antes 15) tras aparcar y el tiempo de la ronda es el del instante en que se detuvo. (5) IT lleva todo menos la última esquina (`it_stop_before_end` 1; con 0 el parqueo falla): ~3 s menos.
+>   **Efecto secundario:** con ~5,5 letreros reales aparecen fallos que el sorteo escaso ocultaba: reactivo solo 21 de 24 (3 atascos contra un letrero en un paso de 27 cm: escape ↔ avance sin salida);
+>   completo (IT+MIC) 24 de 24 terminan, 22 con 62 puntos y 2 con 44. Sin resolver.
 > - **11 nov (noche): 24 de 24.** Cerrados los dos fallos que quedaban en pistas factibles (3 letreros, `largo26d`, 24 rondas: **62 puntos y 0 contactos en todas**, 118,9 s de media del cronómetro del simulador):
 >   (1) atasco de 120 s en la esquina de la vuelta 3 (cw 5): el error de rumbo al disparar la esquina era 93° (el morro 3° atrasado), `local_obstacle_map.c` trata >90° como "detrás" e
 >   invertía el giro (270° a la izquierda hacia la pared); ahora entre 90° y 135° se pide 85° hacia el lado corto. (2) contacto con el tope en el parqueo (cw 2): la comprobación de cada arco de

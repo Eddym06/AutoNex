@@ -56,7 +56,7 @@ void wro_controller_config_default(wro_controller_config_t *c)
     c->race_lateral_enabled = false;   /* sube la ganancia de tiempo pero baja la fiabilidad (90/100 contra 97/100 en el banco): opcion */
     race_config_default(&c->race);
     c->it_enabled = false;           /* opcional: validado solo en el simulador; activar tras calibrar el chasis (ver simulator/INTELLIGENT_TRAJECTORY.md) */
-    c->it_stop_before_end = 2;
+    c->it_stop_before_end = 1;   /* IT lleva todo menos la ultima esquina (con 0 el parqueo falla; con 2 la ronda tarda ~3 s mas): medido en 12 rondas con IT+MIC */
     c->it_step_evals = 300;
     c->it_grip_max = 1.0f;
     c->it_engage_dist_cm = 25.0f;
@@ -1593,6 +1593,14 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             out->speed_cm_s = 0.0f; out->steer_deg = 0.0f; out->yaw_rate_dps = 0.0f;
             out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
             return;
+        }
+        /* Parar en cuanto la pose estimada cumple la meta, aunque al plan le queden arcos: el plan se calculo desde otra pose y seguir
+         * ejecutandolo sacaba de la meta a un coche ya bien aparcado (medido: 5 repasadas y 5 s mas con el juez ya dando 'completo').
+         * Se fuerza el replan, que devuelve 'en la meta' y confirma 3 barridos quieto antes de dar el parqueo por hecho. */
+        if (!exiting && park_ackermann_at_goal(params, &c->park_pose, PARK_GOAL_IN)) {
+            c->park_arc_remaining_cm = 0.0f;
+            c->park_arc_index = c->park_arc_count;
+            c->park_settle = 0;
         }
         const bool entry_settle = !exiting && c->park_symmetric;
         if (entry_settle && c->park_settle > 0) {

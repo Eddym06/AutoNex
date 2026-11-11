@@ -24,3 +24,5 @@ S3 Robot/sdkconfig.dbg.out
 S3 Robot/sdkconfig.dbg.out.old
 LIDAR System/diag_motores/build/
 LIDAR System/diag_motores/sdkconfig
+
+.claude/

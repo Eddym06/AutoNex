@@ -22,7 +22,7 @@
   class Judge {
     constructor(field, options) {
       const o = Object.assign({ passSide: { red: 1, green: -1 }, roundSeconds: F.RULES.roundSeconds, laps: 3, reverseRule: false, wheelbase: 6, parallelToleranceCm: 2,
-                                stallSeconds: 8, stallYawRateDps: 5, finishHoldSeconds: 15 }, options || {});
+                                stallSeconds: 8, stallYawRateDps: 5, finishHoldSeconds: 3 }, options || {});
       this.field = field;
       this.opt = o;
       this.reset();
@@ -50,7 +50,9 @@
 
     end(t, reason) {
       if (this.ended) return;
-      this.ended = { t, reason, elapsed: t - this.t0 };
+      /* El tiempo de una ronda terminada es el del instante en que el robot quedo parado, no el de la espera de confirmacion. */
+      const at = reason === 'finished' && this.stoppedSince != null ? this.stoppedSince : t;
+      this.ended = { t, reason, elapsed: at - this.t0 };
     }
 
     /* Un paso: `robot` = {x, z, yaw, v}; `body` = caja del chasis; events = contactos. */

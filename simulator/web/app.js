@@ -44,7 +44,7 @@
     }
     const requested = Number($('signCount').value);
     generatedNotice = preset === 'random' && field.signs.length < requested
-      ? `El filtro generó ${field.signs.length} de ${requested} letreros solicitados; no garantiza una trayectoria.` : '';
+      ? `Se colocaron ${field.signs.length} de ${requested} letreros: con más, algún cambio de lado no cabría en la recta (cada letrero se comprueba con la pendiente máxima que puede hacer el coche). La pista que ves sí es pasable.` : '';
     startSim();
   }
   function startSim() {
@@ -208,7 +208,11 @@
     g.restore();
     if ($('showPose') && $('showPose').checked && sim.cmd && sim.cmd.arena && sim.cmd.arena.valid) {
       /* Contorno amarillo: la pose que cree el robot (odometria corregida con el LiDAR). */
-      const a = sim.cmd.arena;
+      /* La pose estimada es la del instante del barrido (tEnd): llega ~procDelay despues y el coche ha seguido andando. El firmware la adelanta
+       * con la odometria; aqui se dibuja ya adelantada (velocidad de los encoders y giro del giroscopio) para que no parezca ir detras. */
+      const a0 = sim.cmd.arena, lag = Math.max(0, Math.min(0.3, sim.t - (sim.lastScanEnd == null ? sim.t : sim.lastScanEnd)));
+      const vEst = sim.cmd.odom && sim.cmd.odom.inUse ? sim.cmd.odom.v : (sim.cmd.speed || 0), wEst = sim.cmd.yawRate || 0;
+      const thAdv = a0.theta + wEst * lag * 0.5, a = { x: a0.x + vEst * lag * Math.sin(thAdv * DEG), z: a0.z + vEst * lag * Math.cos(thAdv * DEG), theta: a0.theta + wEst * lag };
       g.save(); g.translate(T.px(a.x), T.py(a.z)); g.rotate(a.theta * DEG);
       g.strokeStyle = '#ffd24d'; g.lineWidth = 1.5; g.setLineDash([4, 3]);
       g.strokeRect(-rb.bodyWidth / 2 * S, -(rb.bodyLength - rb.rearOverhang) * S, rb.bodyWidth * S, rb.bodyLength * S);

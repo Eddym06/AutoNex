@@ -27,6 +27,8 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *params, const p
  * cajon. Falsa si no existe con esta geometria: el llamador sigue con el A*. */
 bool park_ackermann_entry_maneuver(const park_params_t *params, const park_ackermann_config_t *cfg,
                                    const park_pose_t *start, park_ackermann_result_t *out);
+/* ¿La pose ya cumple la meta (dentro del cajon y paralelo)? Sirve para parar en cuanto se llega, sin esperar al final del plan. */
+bool park_ackermann_at_goal(const park_params_t *params, const park_pose_t *pose, park_goal_t goal);
 bool park_ackermann_arc_free(const park_params_t *params, const park_ackermann_config_t *cfg,
                             const park_pose_t *start, int direction, int steering);
 #endif

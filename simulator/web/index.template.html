@@ -45,8 +45,8 @@ textarea{width:100%;min-height:150px;font:12px ui-monospace,Consolas,monospace;r
   <label>Sentido <select id="direction"><option value="ccw">antihorario</option><option value="cw">horario</option></select></label>
   <label>Semilla <input id="seed" type="number" value="1" min="1"></label>
   <label>Letreros <input id="signCount" type="number" value="6" min="0" max="14"></label>
-  <label title="Cajón de parqueo en la sección de arranque (reglamento 2026: 20 cm de ancho, 1,5 × el largo del robot)"><input type="checkbox" id="withLot">Cajón de parqueo</label>
-  <label title="Parqueo Ackermann experimental: sujeto a validación"><input type="checkbox" id="startInLot">Arrancar dentro (experimental)</label>
+  <label title="Cajón de parqueo en la sección de arranque (reglamento 2026: 20 cm de ancho, 1,5 × el largo del robot)"><input type="checkbox" id="withLot" checked>Cajón de parqueo</label>
+  <label title="Parqueo Ackermann experimental: sujeto a validación"><input type="checkbox" id="startInLot" checked>Arrancar dentro del cajón</label>
   <label title="Parqueo Ackermann experimental: sujeto a validación"><input type="checkbox" id="startOnTrack">Empezar en pista (parqueo experimental)</label>
   <button id="random">Pista aleatoria</button>
   <button id="ioBtn">Plano ⇄ JSON</button>
@@ -62,7 +62,7 @@ textarea{width:100%;min-height:150px;font:12px ui-monospace,Consolas,monospace;r
       <label><input type="checkbox" id="showTrace" checked>trayectoria</label>
       <label><input type="checkbox" id="showCurtain">cortinas (rojo/verde)</label>
       <label title="Linea de carrera que calcula el robot tras la primera vuelta: verde = rapido, naranja = velocidad base, rojo = lento. La punta amarilla es donde cree estar el robot sobre ella"><input type="checkbox" id="showRace" checked>linea de carrera</label>
-      <label title="Trayectoria inteligente (IT): tras la primera vuelta el robot calcula y sigue la trayectoria mas rapida entre los letreros. Activa el chasis con dinamica (servo MG90S, neumaticos, peso trasero) y el controlador con IT. Rojo = lento, verde = rapido (hasta 150 cm/s). Se aplica al reiniciar"><input type="checkbox" id="itEnable">trayectoria inteligente (IT)</label>
+      <label title="Trayectoria inteligente (IT): tras la primera vuelta el robot calcula y sigue la trayectoria mas rapida entre los letreros. Activa el chasis con dinamica (servo MG90S, neumaticos, peso trasero) y el controlador con IT. Rojo = lento, verde = rapido (hasta 150 cm/s). Se aplica al reiniciar"><input type="checkbox" id="itEnable" checked>trayectoria inteligente (IT)</label>
       <label><input type="checkbox" id="showIT" checked>dibujar IT</label>
       <label title="Pose que estima el robot: contorno amarillo = odometria corregida con el LiDAR; cruz magenta = solo encoders y giroscopio"><input type="checkbox" id="showPose" checked>pose estimada</label>
       <span><i class="dot" style="background:#ee2737"></i>rojo → derecha</span>

@@ -46,6 +46,13 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 - La vía de fondo que sigue abierta es modelar el retardo del servo y del motor dentro del A* (o ejecutar con realimentación), no más candidatos.
 - `rebuild_wasm.sh` admite `EXTRA_CFLAGS="-DPARK_ENTRY_CHECK_MARGIN_CM=0.25f"` para probar constantes sin editar el código.
 
+## 3e. Pistas densas y trayectoria de IT (11 nov, revisión del simulador)
+
+- Con el sorteo repuesto (~5,5 de 6 letreros): reactivo solo 21/24 (ccw 3, ccw 5, ccw 10: el coche queda delante de un letrero, escape ↔ avance sin salida, 160-260 pasos de contacto); IT+MIC 24/24
+  terminan, 22 con 62 puntos. Falta: que el escape elija el lado que pide el color cuando lleva varios intentos, y que el reactivo acepte pasos de 27 cm (el criterio de `checkLayout` usa 1 cm de margen).
+- IT: el barrido de límites (`it.safety` 0,92; `it.track_err_cm` 9; `it.steer_use` 0,88 + `it.rate_use` 0,7) solo baja la vuelta 2 de 11,0 a 10,5 s: la trayectoria ya está en los límites supuestos de agarre,
+  servo y motor. Para mejorarla de verdad hay que medir el chasis (agarre, retardo del servo, aceleración con 600 rpm). Los defectos no se tocaron.
+
 ## 3d. Estado final de la simulación (11 nov noche)
 
 - Pistas factibles, 3 letreros, `largo26d`, 24 rondas: 62 puntos y 0 contactos en todas. Parqueo en 21-32 (`parkentry.js ... ronda`): 24 completas, 0 contactos, 122 repasadas (media 5,1);

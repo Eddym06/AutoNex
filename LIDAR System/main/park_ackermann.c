@@ -93,6 +93,10 @@ static bool goal_reached(const park_params_t *p, const park_pose_t *s, park_goal
         if (fabsf(c[i][0]) > len * 0.5f - 0.5f || c[i][1] < 0.5f || c[i][1] > p->lot_width_cm - 0.5f) return false;
     return true;
 }
+bool park_ackermann_at_goal(const park_params_t *p, const park_pose_t *s, park_goal_t goal)
+{
+    return p && s && isfinite(s->u_cm) && isfinite(s->w_cm) && isfinite(s->theta_deg) && goal_reached(p, s, goal);
+}
 static float heuristic(const park_params_t *p, const park_pose_t *s, park_goal_t goal)
 {
     const float target_w = goal == PARK_GOAL_OUT ? p->lot_width_cm + p->robot_width_cm * 0.5f + 2.0f : p->lot_width_cm * 0.5f;
