@@ -27,7 +27,7 @@ static mic_t g_mic;
 static float g_mic_out[12];
 EXPORT("core_mic_init") void core_mic_init(void)
 {
-    mic_cfg_t cfg; mic_cfg_jgb37_520_1000rpm(&cfg); mic_init(&g_mic, &cfg);
+    mic_cfg_t cfg; mic_cfg_jgb37_520_600rpm(&cfg); mic_init(&g_mic, &cfg);
 }
 EXPORT("core_mic_ptr") float *core_mic_ptr(void) { return g_mic_out; }
 EXPORT("core_mic_cm_per_count") float core_mic_cm_per_count(void) { return g_mic.cm_per_count; }

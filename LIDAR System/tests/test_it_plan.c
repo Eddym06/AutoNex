@@ -68,7 +68,9 @@ static void check_plan(const char *name, int dir, const it_obstacle_t *obs, int 
         CHECK((side > 0.0f) == want_right_of_line, "%s: letrero %d (color %d) por el lado equivocado (side %.1f, distancia %.1f)", name, j, obs[j].color, side, bd);
     }
     CHECK(plan.time_s <= plan.time_center_s + 0.01f, "%s: el plan no mejora la linea central", name);
-    printf("   v: min %.0f max %.0f cm/s; holgura minima %.1f cm\n", vmin, vmax, ({ float m = 1e9f; for (int i = 0; i < plan.n; ++i) if (plan.room[i] < m) m = plan.room[i]; m; }));
+    float room_min = 1e9f;
+    for (int i = 0; i < plan.n; ++i) if (plan.room[i] < room_min) room_min = plan.room[i];
+    printf("   v: min %.0f max %.0f cm/s; holgura minima %.1f cm\n", vmin, vmax, room_min);
 }
 
 int main(void)

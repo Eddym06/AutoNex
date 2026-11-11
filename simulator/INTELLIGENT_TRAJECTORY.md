@@ -118,7 +118,7 @@ Rondas en las que IT interviene (12 de 20; en las otras 8 la ronda acaba a los p
 
 La vuelta 1 (~29 s) y la última media vuelta más el parqueo siguen siendo del reactivo; ahí está ahora el tiempo. `test_it_mission.js` fija esto en dos rondas.
 
-## Velocidad de la vuelta 1 (mapeo): 35 cm/s
+## Velocidad de la vuelta 1 (mapeo): 34 cm/s
 
 Barrido de `planner.speed_cm_s` con IT activa (16 rondas por valor, `largo26d`, 3 letreros y cajón):
 
@@ -129,7 +129,7 @@ Barrido de `planner.speed_cm_s` con IT activa (16 rondas por valor, `largo26d`, 
 | 40 cm/s | 17,6 s | 10 de 16 | 11 (0,19 contactos de media) |
 | 55 cm/s | 14,0 s | 8 de 16 | 8 (una ronda en sentido contrario) |
 
-Se fija **35 cm/s** (punto medio de 30 y 40). Comprobación en 24 rondas con la configuración exacta: 15 perfectas con 35 frente a 14-15 con 23, 0 contactos, vuelta 1 de 29,6 a 19,4 s; con IT la ronda pasa de 98,6 s a 61,4 s. Un banco anterior del equipo (otro perfil de chasis) había dado 26 cm/s como límite de fiabilidad: **revalidar con el chasis real**. No se ha medido el error de posición de los letreros en el mapa a esta velocidad. Datos: `simulator/mediciones/vuelta1_v*.json` y `v35_*.json`.
+Se fijó 35 cm/s (punto medio de 30 y 40) y el 11 nov se bajó a **34 cm/s**: a 35 el plano del equipo (`plano_corregido.json`) acaba en `wrong-side` a los 19,7 s; a 31, 33 y 34 termina limpio (62 puntos, 0 contactos; 132,1 s con 34). El eslalon de `test_missions.js` (chasis diferencial histórico) roza letreros a 30, 33 y 36 cm/s y pasa a 32, 34 y 35: la fiabilidad no es monótona con la velocidad, y 34 es el valor que pasa los dos. Las cifras de abajo son de 35. Comprobación en 24 rondas con la configuración exacta: 15 perfectas con 35 frente a 14-15 con 23, 0 contactos, vuelta 1 de 29,6 a 19,4 s; con IT la ronda pasa de 98,6 s a 61,4 s. Un banco anterior del equipo (otro perfil de chasis) había dado 26 cm/s como límite de fiabilidad: **revalidar con el chasis real**. No se ha medido el error de posición de los letreros en el mapa a esta velocidad. Datos: `simulator/mediciones/vuelta1_v*.json` y `v35_*.json`.
 
 ## Lo que falta (no hecho)
 

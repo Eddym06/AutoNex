@@ -84,9 +84,9 @@ static run_t run(mic_t *m, plant_t *p, float t_max, float watch[4], int nwatch, 
 
 int main(void)
 {
-    mic_cfg_t cfg; mic_cfg_jgb37_520_1000rpm(&cfg);
+    mic_cfg_t cfg; mic_cfg_jgb37_520_600rpm(&cfg);
     mic_t proto; mic_init(&proto, &cfg);
-    printf("modelo JGB37-520 1000 rpm: Ke=%.4f V s/rad  ke_lin=%.2f V/(m/s)  kf=%.2f N/A  M_eff=%.2f kg  %.4f cm/cuenta\n",
+    printf("modelo JGB37-520 600 rpm: Ke=%.4f V s/rad  ke_lin=%.2f V/(m/s)  kf=%.2f N/A  M_eff=%.2f kg  %.4f cm/cuenta\n",
            proto.ke_motor, proto.ke_lin, proto.kf_lin, proto.m_eff, proto.cm_per_count);
     printf("capacidades: acel(0)=%.0f  acel(100 cm/s)=%.0f cm/s2 | frenado progresivo(100)=%.0f  agresivo(100)=%.0f cm/s2\n",
            mic_max_accel_cm_s2(&proto, 0), mic_max_accel_cm_s2(&proto, 100),
@@ -117,7 +117,9 @@ int main(void)
                    r.emergency ? " EMERGENCIA" : "");
             CHECK(r.done, "no termino la ruta (%s)", cases[c].name);
             CHECK(fabsf(r.s_end - 300.0f) < 1.4f, "error de parada %.2f cm (%s)", r.s_end - 300.0f, cases[c].name);
-            CHECK(vw[1] < 28.0f + 6.0f, "entro a la curva a %.0f cm/s (limite 28; el 0,3 %% de rueda mal calibrada son 0,9 cm) (%s)", vw[1], cases[c].name);
+            /* El perfil baja a 1,95 m/s2 (0,65 x el tope de adherencia, motor de 600 rpm): 1 cm de retraso de posicion son
+             * ~6 cm/s. Con el motor de 1000 rpm (frenado progresivo mas suave) el mismo retraso daba ~4. */
+            CHECK(vw[1] < 28.0f + 12.0f, "entro a la curva a %.0f cm/s (limite 28; el 0,3 %% de rueda mal calibrada son 0,9 cm) (%s)", vw[1], cases[c].name);
             CHECK(vw[3] < 12.0f + 4.0f, "entro a la aproximacion a %.0f cm/s (limite 12) (%s)", vw[3], cases[c].name);
             CHECK(r.i_max < cfg.i_max_a * 1.25f, "corriente %.2f A supera el limite del puente (%s)", r.i_max, cases[c].name);
             CHECK(r.min_v > -0.01f, "retrocedio (%s)", cases[c].name);
@@ -147,6 +149,7 @@ int main(void)
     printf("\n== C) parada desde 100 cm/s: progresiva frente a agresiva\n");
     {
         float dist[2], vminv[2];
+        mic_t proto_c; mic_init(&proto_c, &cfg);
         for (int md = 0; md < 2; ++md) {
             mic_t m; mic_init(&m, &cfg);
             plant_t p = make_plant(&m, 1.0f, 1.0f, 1.0f, 1.0f, 11.1f);
@@ -167,7 +170,11 @@ int main(void)
             CHECK(tstop > 0.0f, "no se detuvo");
             CHECK(vminv[md] > -0.01f, "retrocedio");
         }
-        CHECK(dist[1] < dist[0] * 0.8f, "agresivo no acorta la parada (%.1f vs %.1f)", dist[1], dist[0]);
+        /* Con un motor de Ke alto (600 rpm) hasta el frenado progresivo llega al limite de adherencia: entonces los dos
+         * modos pueden empatar y lo unico exigible es que el agresivo no sea peor. Con el motor rapido si debe acortar. */
+        const bool grip_limited = mic_max_decel_cm_s2(&proto_c, 100.0f, MIC_DECEL_PROGRESSIVE) >= cfg.a_grip_ms2 / 0.01f - 1.0f;
+        if (grip_limited) CHECK(dist[1] <= dist[0] + 0.5f, "agresivo frena peor que el progresivo (%.1f vs %.1f)", dist[1], dist[0]);
+        else CHECK(dist[1] < dist[0] * 0.8f, "agresivo no acorta la parada (%.1f vs %.1f)", dist[1], dist[0]);
     }
 
     printf("\n== D) mantener velocidad con perturbacion (subida: friccion x3 a mitad)\n");

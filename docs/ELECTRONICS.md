@@ -30,7 +30,7 @@ tensión de la batería, lo que nos deja avanzar, retroceder y frenar. Aguanta 2
 con 4 A de pico, y a plena carga se deja unos 2 V en el camino, un detalle que hay que
 tener en cuenta al calcular velocidades.
 
-**Motor JGB37-520.** Motorreductor de 12 V y 1000 rpm con encoder Hall de cuadratura
+**Motor JGB37-520.** Motorreductor de 12 V (hoy el de 600 rpm; el definitivo será de 1000 rpm) con encoder Hall de cuadratura
 incorporado. La reducción es 10:1 y el encoder entrega 11 pulsos por canal por vuelta del
 motor, así que en el eje de salida contamos 440 cuentas por vuelta. Va montado en el eje
 trasero, con las dos ruedas unidas físicamente.
@@ -94,7 +94,7 @@ flowchart TB
     end
 
     subgraph PER["PERIFÉRICOS"]
-        MOT["Motor JGB37-520<br/>12 V · 1000 rpm"]
+        MOT["Motor JGB37-520<br/>12 V · 600 rpm (luego 1000)"]
         ENC["Encoder A/B"]
         SRV["Servo SCS0009"]
         LID["LiDAR D500"]

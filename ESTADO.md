@@ -1,4 +1,4 @@
-# ESTADO del proyecto (2026-10-13)
+# ESTADO del proyecto (actualizado 2026-11-11)
 
 > **Actualización del 10 nov 2026 (léela primero).** Todo lo de abajo que habla del parqueo de entrada es anterior. Lo nuevo:
 >
@@ -10,9 +10,14 @@
 >   planificador con anticipación, frenado progresivo y agresivo. Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (**apagado**) y en el simulador (`mic: true`).
 >   Probado solo con un motor simulado. Procedimiento de calibración en [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md).
 > - **trace_map:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
-> - **Aviso de hardware:** el lazo abierto de `hw_motors.c` usa `WRO_MOTOR_MAX_CM_S = 40`; con el motor de 1000 rpm el 100 % de ciclo son ~270 cm/s. No activar
->   los motores sin MIC o sin recalibrar ese valor. `ACKERMANN.md` dice 600 rpm y MIC usa 1000 rpm: confirmar con la placa del motor.
+> - **Aviso de hardware:** el lazo abierto de `hw_motors.c` usa `WRO_MOTOR_MAX_CM_S = 40`; con el motor de 600 rpm el 100 % de ciclo son ~157 cm/s (~270 con el de 1000). No activar
+>   los motores sin MIC o sin recalibrar ese valor. **Motor (11 nov):** hoy se asume el de 600 rpm en todo el repo (MIC, Kconfig, simulador); el definitivo
+>   será de 1000 rpm y se cambia con `mic_cfg_jgb37_520_1000rpm()` o `WRO_MIC_RPM_NOLOAD`.
 > - Nada de esto está probado en el coche real.
+> - **11 nov:** la velocidad de mapeo subió a 35 cm/s (commit 628b88c; se dejó en 34 porque a 35 `plano_corregido.json` falla con `wrong-side`) y la entrada al cajón pasó de 2-5 a 8-12 repasadas en algunas semillas cw: la pose con la que se
+>   llega a la búsqueda cambia unos cm y el plan reacciona de forma caótica. Se añadió `park_approach_speed_cm_s` (23): tope de velocidad desde la última esquina.
+>   Con la velocidad de mapeo en 34 y 8 rondas (semillas 1-4, ccw/cw): 2-5 repasadas, 3,4 de media y 62 puntos en todas (con 35 y sin el tope: 5,4 de media y máximo 12; con todo el recorrido a 23: 3,3). No es una solución de fondo (ver
+>   [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md), límite 2): la causa es la sensibilidad del plan a la pose de llegada.
 
 > **Cambio de chasis, 7 nov 2026:** la configuración diferencial descrita abajo
 > es histórica. El nuevo robot usa un motor trasero con encoder integrado y
@@ -144,7 +149,7 @@ node simulator\tools\arena_check.js 100 3           # error de la pose del local
 - [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md): mapa persistente (rejilla, objetos, plaza, guardado).
 - [`simulator/LINEA_BASE_PARQUEO_MAPA.md`](simulator/LINEA_BASE_PARQUEO_MAPA.md): mediciones de la línea base del parqueo y del mapa (9 nov).
 
-## 6. Panel web, enlace P4-S3 y mapa (rama integracion-panel)
+## 9. Panel web, enlace P4-S3 y mapa (rama integracion-panel)
 
 **Inicio:** el robot solo arranca con el boton fisico (GPIO5). La pagina web solo puede PARAR (`WRO_WEB_START_ENABLED=n`).
 El signo del giroscopio no se cambia solo con el robot armado.
@@ -157,12 +162,8 @@ El signo del giroscopio no se cambia solo con el robot armado.
 - Enlace: ~406 puntos por vuelta (limite 512), trama de estado ~1,8 KB a 8 Hz = ~15 KB/s de los 92 KB/s de la UART a 921600.
 
 **Pendiente (necesita el robot / la mano):** girar el robot a mano para comprobar rumbo y signo del giroscopio; flashear el S3 (`S3 Robot`, ya compila con IDF 5.5.4) con su red WiFi en `S3 Robot/main/wifi_secrets.h`; motores y encoders al final.
-# Estado actual de la adaptación Ackermann
+## 10. Nota de lectura sobre el chasis Ackermann
 
-El estado detallado que sigue conserva resultados históricos del chasis diferencial;
-no acredita el funcionamiento del vehículo actual. El simulador usa por defecto
-un chasis Ackermann provisional y encoder de eje. Se verificaron seis salidas de
-parqueo aisladas, no la misión completa ni la entrada al cajón. Una salida tardó
-55,21 s simulados. La prueba histórica de parqueo diferencial se detiene en la
-salida; `test_missions.js` no está íntegramente en verde. No usar estas cifras
-como validación del chasis real, cuyas medidas aún faltan.
+Las secciones 1-6 conservan resultados del chasis diferencial. Para el chasis actual (Ackermann, motor trasero de 600 rpm, servo MG90S) manda la
+nota del 10-11 nov del principio, [`ACKERMANN.md`](ACKERMANN.md) y [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md). Todo sigue siendo solo simulación:
+las medidas del chasis real (dimensiones, servo, encoder, velocidad frente a PWM) están sin tomar.

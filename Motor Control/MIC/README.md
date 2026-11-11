@@ -36,25 +36,28 @@ nivel 0   hw_motors (L298N, PWM)            duty con signo + freno corto
 
 | Dato | Valor en MIC | Origen |
 | --- | --- | --- |
-| Motor | JGB37-520, 12 V, reductora 10:1, **1000 rpm en vacío** | tu indicación; coincide con 10:1 |
+| Motor | JGB37-520, 12 V, reductora 10:1, **600 rpm en vacío** (el motor que hay hoy; el definitivo será de 1000 rpm) | `ACKERMANN.md` y tu indicación del 11 nov |
 | Encoder | 11 pulsos/canal × 4 flancos × 10 = **440 cuentas/vuelta**, 0,047 cm/cuenta con rueda de 6,6 cm | `ACKERMANN.md` (propuesto por el equipo) |
-| Ke | 0,0111 V·s/rad (de 1000 rpm a 12 V y 0,15 A en vacío) | calculado |
+| Ke | 0,0185 V·s/rad (de 600 rpm a 12 V y 0,15 A en vacío; con 1000 rpm sería 0,0111) | calculado |
 | Resistencia | **2,6 Ω** | **SUPUESTO**: no encontré el dato fiable; medir con el rotor bloqueado a baja tensión |
 | Masa, fricción | 1,2 kg, 0,6 N seca, 0,5 N·s/m | **SUPUESTOS** |
 | Puente | 2 A, caída 2,0 V, ENA puenteado | `Kconfig.projbuild` |
 
-Búsqueda en tiendas (no hay datasheet del fabricante): existe la versión de 1000 rpm a 12 V (rpm nominal 770), el encoder es Hall
-A/B en cuadratura, y los vendedores no coinciden en pulsos por vuelta ni en corriente de bloqueo. **Hay un desacuerdo en el
-repositorio**: `ACKERMANN.md` dice 600 rpm; MIC usa 1000 rpm según tu indicación. Confirmar con la placa del motor y el contador de
-cuentas por vuelta (girar la rueda una vuelta a mano y leer el PCNT).
+Búsqueda en tiendas (no hay datasheet del fabricante): el encoder es Hall A/B en cuadratura, y los vendedores no coinciden en pulsos por
+vuelta ni en corriente de bloqueo. **Decisión del 11 nov:** el perfil por defecto es el de **600 rpm** (`mic_cfg_jgb37_520_600rpm()`),
+porque es el motor que se tiene; cuando llegue el de 1000 rpm basta con `mic_cfg_jgb37_520_1000rpm()` o `WRO_MIC_RPM_NOLOAD=1000`. Ojo:
+la relación de reducción de la versión de 1000 rpm puede no ser 10:1 (cambiaría también las cuentas por vuelta de rueda): comprobarlo al
+recibirlo. Confirmar con la placa del motor y el contador de cuentas por vuelta (girar la rueda una vuelta a mano y leer el PCNT).
 
-Con ese motor la rueda llega a ~270 cm/s en vacío con 9 V efectivos, y el coche hoy se usa a ~23 cm/s: **opera en el 8 % del
-rango**, por debajo de la zona muerta de la fricción. Por eso el control en lazo cerrado con el encoder es imprescindible.
+Con el motor de 600 rpm la rueda llega a ~157 cm/s en vacío con 9,1 V efectivos (el techo `v_max_cm_s` de MIC se calcula como el 90 % de
+eso, ~141 cm/s), y el coche hoy se usa a ~23 cm/s: **opera en el 15 % del rango**, por debajo de la zona muerta de la fricción. Por eso el
+control en lazo cerrado con el encoder es imprescindible. Con Ke más alto el frenado progresivo ya llega al límite de adherencia
+(`a_grip_ms2`, 3 m/s²), así que el frenado agresivo apenas acorta la parada; con el motor de 1000 rpm sí.
 
 ## 3. API
 
 ```c
-mic_cfg_t cfg; mic_cfg_jgb37_520_1000rpm(&cfg);  mic_t mic; mic_init(&mic, &cfg);
+mic_cfg_t cfg; mic_cfg_jgb37_520_600rpm(&cfg);  mic_t mic; mic_init(&mic, &cfg);
 
 mic_request_speed(&mic, 60.0f, MIC_DECEL_PROGRESSIVE);             // mantener 60 cm/s
 mic_request_move(&mic, 3.5f, 14.0f, 0.0f, MIC_DECEL_PROGRESSIVE);  // avanzar 3,5 cm y parar (arco de parqueo)
@@ -113,12 +116,12 @@ gcc -O2 -std=c11 -Wall -Wextra -I. mic.c test_mic.c -o test_mic -lm && ./test_mi
 - `LIDAR System/p4_firmware/main/hw_motors.c`: con `CONFIG_WRO_USE_MIC=y`, un temporizador de 1 kHz ejecuta `mic_update()` con las cuentas del
   encoder (`hw_encoders_counts()`, PCNT x4) y aplica el ciclo que devuelve. `hw_motors_drive(v)` solo cambia la orden de velocidad;
   `hw_motors_stop()` corta y se mantiene cortado hasta la siguiente orden válida; sin encoder listo el motor no se mueve.
-- Kconfig: `WRO_USE_MIC` (n), `WRO_MIC_GEAR_REDUCTION` (10), `WRO_MIC_RPM_NOLOAD` (1000), `WRO_MIC_ENC_PPR` (11),
+- Kconfig: `WRO_USE_MIC` (n), `WRO_MIC_GEAR_REDUCTION` (10), `WRO_MIC_RPM_NOLOAD` (600), `WRO_MIC_ENC_PPR` (11),
   `WRO_MIC_MOTOR_R_MOHM` (2600, supuesto) y `WRO_MIC_MASS_G` (1200, supuesto). El diámetro sale de `WRO_WHEEL_RADIUS_MM` y los engranajes
   de `WRO_MOTOR_GEAR_TEETH`/`WRO_DIFF_GEAR_TEETH`.
 - Hoy el controlador manda solo **velocidad**; los avances exactos (`mic_request_move`) y las rutas con anticipación todavía no los usa
   ningún nivel superior. Es el siguiente paso para el parqueo.
 
 **Aviso del lazo abierto actual:** `hw_motors.c` convierte la velocidad a ciclo con `WRO_MOTOR_MAX_CM_S` (40 cm/s por defecto = 100 % de ciclo).
-Con el motor de 1000 rpm y rueda de 6,6 cm el 100 % da ~270 cm/s, así que pedir 23 cm/s pondría el 57 % de ciclo y el coche iría
-a ~150 cm/s. Los motores están desactivados por defecto (`WRO_MOTORS_ENABLED=n`); no activarlos en lazo abierto sin recalibrar ese valor.
+Con el motor de 600 rpm y rueda de 6,6 cm el 100 % da ~157 cm/s (con el de 1000 rpm serían ~270), así que pedir 23 cm/s pondría el 57 %
+de ciclo y el coche iría a ~90 cm/s. Los motores están desactivados por defecto (`WRO_MOTORS_ENABLED=n`); no activarlos en lazo abierto sin recalibrar ese valor.

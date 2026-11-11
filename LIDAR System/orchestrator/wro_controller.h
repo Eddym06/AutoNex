@@ -157,6 +157,7 @@ typedef struct {
     float park_lot_length_cm;       /* 0 = 1,5 x el largo del robot */
     float park_lane_w_cm;           /* al buscar el cajon, a que distancia de la pared exterior ir */
     float park_search_speed_cm_s;
+    float park_approach_speed_cm_s;  /* tope de velocidad en el ultimo tramo antes del parqueo (ultima esquina): el plan de entrada es sensible a la pose de llegada */
     float park_search_max_cm;       /* si no lo encuentra en este recorrido, se detiene como sin parqueo */
     /* Demostracion: arrancar ya en el carril con las vueltas dadas y ponerse a buscar el cajon.
      * -1 = sentido antihorario, +1 = horario, 0 = ronda normal. Hace falta parking_enabled. */

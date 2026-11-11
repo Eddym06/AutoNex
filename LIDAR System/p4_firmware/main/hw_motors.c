@@ -71,7 +71,7 @@ static bool s_mic_ready;
 
 static void mic_build_cfg(mic_cfg_t *c)
 {
-    mic_cfg_jgb37_520_1000rpm(c);
+    mic_cfg_jgb37_520_600rpm(c);
     /* La rueda va detras de la pareja de engranajes: axle = salida x dientes_motor/dientes_diferencial. */
     const float final_ratio = (float)CONFIG_WRO_DIFF_GEAR_TEETH / (float)CONFIG_WRO_MOTOR_GEAR_TEETH;
     c->gear_ratio = (float)CONFIG_WRO_MIC_GEAR_REDUCTION * final_ratio;
@@ -82,6 +82,8 @@ static void mic_build_cfg(mic_cfg_t *c)
     c->mass_kg = 0.001f * (float)CONFIG_WRO_MIC_MASS_G;
     c->vbat_nominal = 0.00088f * (float)CONFIG_WRO_BATT_MV;           /* 12,6 V cargada -> 11,1 V nominales */
     c->vdrop_volts = 0.001f * (float)CONFIG_WRO_MOTOR_DROP_MV;
+    /* El techo de velocidad depende de rpm, rueda y tension: recalcularlo con los valores de Kconfig. */
+    c->v_max_cm_s = 0.9f * (c->rpm_nl_out * 3.14159265f * c->wheel_diam_cm / 60.0f) * (c->vbat_nominal - c->vdrop_volts) / c->v_nl_volts;
 }
 
 static void mic_apply(const mic_out_t *o)

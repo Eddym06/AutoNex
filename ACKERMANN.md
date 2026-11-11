@@ -1,14 +1,15 @@
 # Adaptación al chasis Ackermann
 
-Estado: **en desarrollo, sin compilar ni probar**. No se debe usar para mover
-el robot hasta completar y comprobar las tareas pendientes.
+Estado (11 nov 2026): **en desarrollo**. El firmware del P4 compila (ESP-IDF 5.5.4) y el simulador ejecuta la misión
+completa con este chasis, pero **nada está probado en el coche real**. No se debe usar para mover el robot hasta completar
+y comprobar las tareas pendientes.
 
 Se ha elegido un [perfil provisional de simulación](simulator/PERFIL_PROVISIONAL.md)
 de 22 × 14 cm y batalla 14 cm. Son suposiciones editables, no medidas del robot.
 
 ## Hardware indicado por el equipo
 
-- Un motor trasero JGB37-520 de 12 V y 600 rpm, con encoder integrado A/B en
+- Un motor trasero JGB37-520 de 12 V y 600 rpm (el que hay hoy; el definitivo será de 1000 rpm), con encoder integrado A/B en
   cuadratura y conectado a un eje común para las ruedas traseras.
 - Puente H L298N; servo MG90S para las ruedas directrices delanteras.
 - Batería Gens Ace 3S, 11,1 V nominales, 2200 mAh, 25C; 12,6 V cargada.

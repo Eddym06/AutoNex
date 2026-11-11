@@ -10,14 +10,16 @@
 static float sgnf(float x) { return x > 0.0f ? 1.0f : (x < 0.0f ? -1.0f : 0.0f); }
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : x); }
 
-void mic_cfg_jgb37_520_1000rpm(mic_cfg_t *c)
+/* Perfil base del JGB37-520 de 12 V con la reductora 10:1. `rpm_out` son las rpm en vacio del eje de salida a 12 V:
+ * 600 es el motor que hay hoy; 1000 es el definitivo (aun no llega). Lo demas es comun y sigue siendo SUPUESTO. */
+void mic_cfg_jgb37_520(mic_cfg_t *c, float rpm_out)
 {
     memset(c, 0, sizeof *c);
     c->wheel_diam_cm = 6.6f;
     c->gear_ratio = 10.0f;               /* reductora; la rueda va 1:1 al eje de salida (confirmar) */
     c->counts_per_motor_rev = 44.0f;     /* 11 pulsos por canal x 4 flancos; 440 cuentas por vuelta de rueda */
     c->v_nl_volts = 12.0f;
-    c->rpm_nl_out = 1000.0f;
+    c->rpm_nl_out = rpm_out;
     c->i_noload_a = 0.15f;
     c->r_ohm = 2.6f;                     /* SUPUESTO: medir con el rotor bloqueado a baja tension */
     c->eta = 0.75f;
@@ -38,8 +40,12 @@ void mic_cfg_jgb37_520_1000rpm(mic_cfg_t *c)
     c->v_creep_cm_s = 4.0f;
     c->pos_tol_cm = 0.25f;
     c->v_stop_cm_s = 1.0f;
-    c->v_max_cm_s = 200.0f;
+    /* Techo de velocidad: la de vacio a la tension disponible (3S menos la caida del L298N) con ~10 % de margen. */
+    c->v_max_cm_s = 0.9f * rpm_out * (c->wheel_diam_cm * PI_F) / 60.0f * (c->vbat_nominal - c->vdrop_volts) / c->v_nl_volts;
 }
+
+void mic_cfg_jgb37_520_600rpm(mic_cfg_t *c) { mic_cfg_jgb37_520(c, 600.0f); }
+void mic_cfg_jgb37_520_1000rpm(mic_cfg_t *c) { mic_cfg_jgb37_520(c, 1000.0f); }
 
 void mic_init(mic_t *m, const mic_cfg_t *cfg)
 {

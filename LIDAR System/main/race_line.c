@@ -27,8 +27,8 @@ void race_config_default(race_config_t *c)
     c->corner_radius_cm = 40.0f;
     c->max_offset_cm = 24.0f;
     c->v_max_cm_s = 52.0f;
-    c->v_sign_cm_s = 35.0f;
-    c->v_corner_cm_s = 35.0f;
+    c->v_sign_cm_s = 34.0f;
+    c->v_corner_cm_s = 34.0f;
     c->a_lat_cm_s2 = 120.0f;
     c->a_acc_cm_s2 = 45.0f;
     c->a_dec_cm_s2 = 60.0f;

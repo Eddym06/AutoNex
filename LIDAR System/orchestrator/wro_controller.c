@@ -105,6 +105,7 @@ void wro_controller_config_default(wro_controller_config_t *c)
     c->park_lot_length_cm = 0.0f;
     c->park_lane_w_cm = 32.0f;
     c->park_search_speed_cm_s = 12.0f;
+    c->park_approach_speed_cm_s = 23.0f;
     c->park_search_max_cm = 330.0f;
     c->start_lot_w_cm = 12.5f;
     c->park_demo_dir = 0;
@@ -154,6 +155,7 @@ static void sanitize(wro_controller_config_t *c)
     if (!(c->park_lane_w_cm >= 22.0f)) c->park_lane_w_cm = 22.0f;
     if (c->park_lane_w_cm > 45.0f) c->park_lane_w_cm = 45.0f;
     if (!(c->park_search_speed_cm_s >= 4.0f)) c->park_search_speed_cm_s = 4.0f;
+    if (!(c->park_approach_speed_cm_s >= 8.0f)) c->park_approach_speed_cm_s = 8.0f;
     if (!(c->park_search_max_cm >= 50.0f)) c->park_search_max_cm = 50.0f;
     if (c->park_demo_dir > 1) c->park_demo_dir = 1;
     if (c->park_demo_dir < -1) c->park_demo_dir = -1;
@@ -318,7 +320,7 @@ static const cf_field_t FIELDS[] = {
     CF("parking_enabled", CF_BOOL, parking_enabled), CF("park_ackermann", CF_BOOL, park_ackermann), CF("park_exact_moves", CF_BOOL, park_exact_moves), CF("start_in_lot", CF_BOOL, start_in_lot),
     CF("park_speed_cm_s", CF_F32, park_speed_cm_s), CF("park_rot_dps", CF_F32, park_rot_dps),
     CF("park_margin_cm", CF_F32, park_margin_cm), CF("park_lot_length_cm", CF_F32, park_lot_length_cm),
-    CF("park_lane_w_cm", CF_F32, park_lane_w_cm), CF("park_search_speed_cm_s", CF_F32, park_search_speed_cm_s),
+    CF("park_lane_w_cm", CF_F32, park_lane_w_cm), CF("park_search_speed_cm_s", CF_F32, park_search_speed_cm_s), CF("park_approach_speed_cm_s", CF_F32, park_approach_speed_cm_s),
     CF("park_search_max_cm", CF_F32, park_search_max_cm), CF("start_lot_w_cm", CF_F32, start_lot_w_cm), CF("park_demo_dir", CF_I8, park_demo_dir),
     CF("stuck_relax_s", CF_F32, stuck_relax_s), CF("stuck_relax_cm", CF_F32, stuck_relax_cm),
     CF("reverse_on_color", CF_U8, reverse_on_color), CF("continue_on_color", CF_U8, continue_on_color),
@@ -2455,6 +2457,10 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
     }
     if (c->phase == WRO_PHASE_PARK_SEARCH && out->speed_cm_s > c->cfg.park_search_speed_cm_s)
         out->speed_cm_s = c->cfg.park_search_speed_cm_s;
+    /* Ultimo tramo antes del parqueo: llegar a la busqueda con la misma pose que a velocidad moderada. */
+    if (c->cfg.parking_enabled && c->phase == WRO_PHASE_RUN && c->corners_done >= (int)c->cfg.laps * 4 - 1 &&
+        out->speed_cm_s > c->cfg.park_approach_speed_cm_s)
+        out->speed_cm_s = c->cfg.park_approach_speed_cm_s;
     /* Mirar antes de pasar (ver peek_enabled). */
     if (c->cfg.peek_enabled && c->phase == WRO_PHASE_RUN && !c->corner_active && c->sidestep_phase == 0 && !c->pivoting &&
         !out->explicit_yaw_rate && out->speed_cm_s > 5.0f && c->debug.pass_cm >= 50.0f && !c->planner_state.escaping) {
