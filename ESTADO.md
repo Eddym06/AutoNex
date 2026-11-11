@@ -14,6 +14,12 @@
 >   los motores sin MIC o sin recalibrar ese valor. **Motor (11 nov):** hoy se asume el de 600 rpm en todo el repo (MIC, Kconfig, simulador); el definitivo
 >   será de 1000 rpm y se cambia con `mic_cfg_jgb37_520_1000rpm()` o `WRO_MIC_RPM_NOLOAD`.
 > - Nada de esto está probado en el coche real.
+> - **11 nov (tarde): causa del "1 de cada 3 acaba en wrong-side".** `measure_mission.js` y `bench/ab2.js` sorteaban pistas SIN `feasible: true`: con arranque en el
+>   cajón salían letreros a ~45 cm de la salida que ningún chasis Ackermann puede pasar por el lado pedido (la interfaz sí usa `feasible`). `measure_mission.js` ya usa pistas
+>   factibles por defecto (`--any` las permite todas). Resultado con `largo26d`, 3 letreros, 24 rondas: **22 terminan con 62 puntos**; fallan una por contacto con el tope en el parqueo (cw 2)
+>   y una por atasco 120 s en la esquina del inicio de la vuelta 3 (cw 5: tras el primer giro a izquierda el reactivo oscila delante/atrás). Con la velocidad de mapeo en 32 o 33
+>   fallan 3-4 de 24 en otras semillas: es caótico, no una velocidad mala. Corregido aparte: el parqueo se quedaba parado ('stalled') si la pose medida solapaba el cajón aunque sin holgura
+>   (ahora se usa la pose libre más cercana, hasta 2 cm y 6°) y, sin plan desde una pose, se hace un movimiento corto libre para cambiar de pose (`park_noplan_moves`).
 > - **11 nov:** la velocidad de mapeo subió a 35 cm/s (commit 628b88c; se dejó en 34 porque a 35 `plano_corregido.json` falla con `wrong-side`) y la entrada al cajón pasó de 2-5 a 8-12 repasadas en algunas semillas cw: la pose con la que se
 >   llega a la búsqueda cambia unos cm y el plan reacciona de forma caótica. Se añadió `park_approach_speed_cm_s` (23): tope de velocidad desde la última esquina.
 >   Con la velocidad de mapeo en 34 y 8 rondas (semillas 1-4, ccw/cw): 2-5 repasadas, 3,4 de media y 62 puntos en todas (con 35 y sin el tope: 5,4 de media y máximo 12; con todo el recorrido a 23: 3,3). No es una solución de fondo (ver

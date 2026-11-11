@@ -1452,6 +1452,23 @@ static bool park_retrace_step(wro_controller_t *c, const park_params_t *params, 
 #define PARK_TWIN_K_TH 0.35f
 #endif
 #define PARK_TWIN_JUMP_CM 3.0f
+/* Pose libre mas cercana a `in` (busqueda en anillos de 0,25 cm hasta 2 cm y giros de hasta 6 grados). */
+static bool park_nearest_free(const park_params_t *p, const park_pose_t *in, park_pose_t *out)
+{
+    static const float dth[] = {0.0f, 3.0f, -3.0f, 6.0f, -6.0f};
+    for (int ring = 1; ring <= 8; ++ring) {
+        const float r = 0.25f * (float)ring;
+        for (int k = 0; k < 16; ++k) {
+            const float a = (float)k * (2.0f * 3.14159265f / 16.0f);
+            for (unsigned t = 0; t < sizeof dth / sizeof dth[0]; ++t) {
+                const park_pose_t q = {in->u_cm + r * cosf(a), in->w_cm + r * sinf(a), imu_wrap_deg(in->theta_deg + dth[t])};
+                if (park_pose_free(p, &q)) { *out = q; return true; }
+            }
+        }
+    }
+    return false;
+}
+
 static void park_step(wro_controller_t *c, const local_lidar_point_t *points, size_t count, float dt,
                       const perception_t *per, wro_command_t *out)
 {
@@ -1529,7 +1546,14 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
             relaxed = *params;
             relaxed.margin_cm = 0.0f;
             if (!park_pose_free(&relaxed, &c->park_pose)) {
-                c->park_arc_remaining_cm = 0.0f; c->park_arc_count = 0; return;
+                /* Ni siquiera sin holgura: la pose medida solapa el cajon (el error de la pose es de 0,5-1 cm, asi que el chasis
+                 * real casi seguro esta libre). Antes se volvia sin dar ninguna orden y el coche se quedaba parado hasta el fin de la
+                 * ronda ('stalled', parqueo parcial; cw 5 a 23 cm/s). Ahora se usa la pose libre mas cercana (hasta 2 cm y 6 grados). */
+                park_pose_t near_pose;
+                if (!park_nearest_free(&relaxed, &c->park_pose, &near_pose)) {
+                    c->park_arc_remaining_cm = 0.0f; c->park_arc_count = 0; return;
+                }
+                c->park_pose = near_pose;
             }
             params = &relaxed;
         }
@@ -1646,7 +1670,26 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 c->park_plan_found = a.found ? 1 : 0; c->park_plan_expanded = (int)a.expanded;
                 c->park_plan_at_goal = a.at_goal ? 1 : 0; c->park_plan_count = (int)a.count;
                 c->park_plan_step = (int)(step_cm * 10.0f);
-                if (!a.found) { c->park_goal_hits = 0; return; }
+                if (!a.found) {
+                    c->park_goal_hits = 0;
+                    /* Sin plan desde esta pose (el A* de rejilla no llega a la meta desde alguna pose libre): el coche se quedaba
+                     * parado hasta el fin de la ronda ('stalled', parqueo parcial). Tras dos barridos sin plan se hace un movimiento
+                     * corto y libre (atras antes que adelante, recto antes que girando) para cambiar de pose y replanificar. */
+                    if (++c->park_noplan < 2 || c->park_noplan_moves >= 12) return;
+                    park_params_t fb_check = *params; fb_check.margin_cm = fminf(params->margin_cm, PARK_ENTRY_CHECK_MARGIN_CM);
+                    const park_ackermann_config_t fb = {pl->wheelbase_cm, pl->steer_hard_deg, 3.5f, c->park_arc_direction};
+                    const int first = c->park_arc_direction > 0 ? -1 : 1;
+                    static const int steer_order[3] = {0, 1, -1};
+                    for (int di = 0; di < 2 && !a.found; ++di) for (int si = 0; si < 3 && !a.found; ++si) {
+                        const int dir = di == 0 ? first : -first;
+                        if (!park_ackermann_arc_free(&fb_check, &fb, &c->park_pose, dir, steer_order[si])) continue;
+                        a.found = true; a.count = 1; a.directions[0] = (int8_t)dir; a.steering[0] = (int8_t)steer_order[si];
+                    }
+                    if (!a.found) return;
+                    step_cm = 3.5f; c->park_noplan = 0; ++c->park_noplan_moves;
+                } else {
+                    c->park_noplan = 0;
+                }
                 if (a.at_goal) {
                 if (++c->park_goal_hits >= 3) {
                     c->phase = exiting ? WRO_PHASE_RUN : WRO_PHASE_DONE;

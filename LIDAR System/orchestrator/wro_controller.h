@@ -330,6 +330,7 @@ typedef struct {
     int park_rot_hold;
     /* Diagnostico del ultimo plan de la maniobra Ackermann (ver core_park_dbg_ptr). */
     int park_plan_found, park_plan_expanded, park_plan_at_goal, park_plan_count, park_plan_step;
+    int park_noplan, park_noplan_moves;   /* barridos seguidos sin plan / movimientos de recuperacion hechos */
     int park_abort_dev, park_abort_arc;   /* diagnostico: planes de entrada abortados por desvio / por arco no libre */
     int park_rot_sign;              /* sentido del ultimo giro (+1 contra reloj, -1 a favor) */
     float net_cm, progress_best_cm, stuck_s, relax_from_cm;   /* avance neto (velocidad ordenada x tiempo) */

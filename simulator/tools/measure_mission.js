@@ -1,5 +1,6 @@
 /* Mide rondas completas del controlador (en paralelo, con log): fin, puntos, tiempo total y por vuelta, contactos.
- *   node simulator/tools/measure_mission.js [semillas=10] [perfil=largo26d] ["clave valor;clave valor"] [salida.json] [--signs N] [--noparking]
+ *   node simulator/tools/measure_mission.js [semillas=10] [perfil=largo26d] ["clave valor;clave valor"] [salida.json] [--signs N] [--noparking] [--any]
+ * Por defecto usa pistas factibles (como la interfaz); --any permite tambien las que ningun chasis puede pasar.
  * Una ronda por proceso. Sirve para comparar perfiles de chasis (cinematico / con dinamica) y configuraciones del controlador. */
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
@@ -9,7 +10,7 @@ require(path.join(web, 'core.js'));
 
 async function doJob(job) {
   const core = await W.core.load(fs.readFileSync(path.join(web, 'wro_core.wasm')));
-  const field = W.field.randomLayout(job.seed, { direction: job.direction, signs: job.signs, parking: !job.noparking, startInLot: !job.noparking });
+  const field = W.field.randomLayout(job.seed, { direction: job.direction, signs: job.signs, parking: !job.noparking, startInLot: !job.noparking, feasible: !job.anyLayout, allowGates: false });
   const sim = new W.sim.Simulation(core, { field, seed: job.seed, robot: Object.assign({}, W.robot.PROFILES[job.profile], job.robotOver || {}), mic: !!job.mic, ctrlConfig: job.config || '' });
   const lapT = {}; let itTicks = 0, itActive = 0, itMaxDrops = 0, itReasons = {}, itGrip = 0, itPlanTime = 0, itValid = false, lastLap = 0, vmax = 0, vsum = 0, vn = 0, slipMax = 0, tractionLim = 0, ticks = 0;
   while (sim.t < job.limit && !sim.finished) {
@@ -43,8 +44,8 @@ async function doJob(job) {
   const accel = fl('--accel', null), useIt = process.argv.includes('--it'), mic = process.argv.includes('--mic');
   const robotOver = accel ? { maxAccel: Number(accel), speedTauS: 0.08, speedGain: 1 } : null;
   const signs = Number(fl('--signs', 3)), noparking = process.argv.includes('--noparking'), limit = Number(fl('--limit', 240));
-  const jobs = [];
-  for (const direction of ['ccw', 'cw']) for (let seed = 1; seed <= seeds; seed++) jobs.push({ direction, seed, profile, config, signs, noparking, limit, robotOver, mic, it: useIt });
+  const anyLayout = process.argv.includes('--any'), jobs = [];
+  for (const direction of ['ccw', 'cw']) for (let seed = 1; seed <= seeds; seed++) jobs.push({ direction, seed, profile, config, signs, noparking, limit, robotOver, mic, it: useIt, anyLayout });
   const res = (await runJobs(__filename, jobs)).filter(r => r.result).map(r => r.result);
   const full = res.filter(r => r.points >= 0);
   const mean = (f, arr = res) => arr.length ? arr.reduce((s, r) => s + f(r), 0) / arr.length : 0;

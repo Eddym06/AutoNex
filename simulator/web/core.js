@@ -240,12 +240,12 @@
       /* Plan de la maniobra de parqueo (ver core_park_dbg_ptr): si hay plan, nodos expandidos,
        * paso en cm, si ya esta en la meta y los arcos que quedan por ejecutar. */
       parkPlan() {
-        const d = f32(x.core_park_dbg_ptr(), 7).slice();
+        const d = f32(x.core_park_dbg_ptr(), 11).slice();
         const p = f32(x.core_park_plan_ptr(), 2 + 2 * 128).slice();
         const arcs = [];
         for (let i = 0; i < p[0]; i++) arcs.push([p[2 + 2 * i], p[3 + 2 * i]]);
         return { found: d[0] > 0, expanded: d[1] | 0, atGoal: d[2] > 0, count: d[3] | 0,
-                 stepCm: d[4] / 10, index: p[1] | 0, arcs, abortDev: d[5] | 0, abortArc: d[6] | 0 };
+                 stepCm: d[4] / 10, index: p[1] | 0, arcs, abortDev: d[5] | 0, abortArc: d[6] | 0, remainingCm: d[7], settle: d[8] | 0, goalHits: d[9] | 0, noplanMoves: d[10] | 0 };
       },
       debug() {
         const o = f32(x.core_debug_ptr(), x.core_debug_fields()).slice();
