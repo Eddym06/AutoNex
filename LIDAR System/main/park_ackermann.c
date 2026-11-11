@@ -33,6 +33,17 @@
 #ifndef PARK_CLEAR_EXTRA_CM
 #define PARK_CLEAR_EXTRA_CM 1.5f
 #endif
+/* Entrada: se planean varias variantes (otro precio de la repasada y de la holgura) y se elige la mejor (ver park_ackermann_plan).
+ * 1 = un solo A* como antes. Cada variante es un A* completo: en el P4 el tiempo de plan sube casi lineal. */
+#ifndef PARK_PLAN_VARIANTS
+#define PARK_PLAN_VARIANTS 5
+#endif
+#ifndef PARK_SCORE_CLEAR_TARGET_CM
+#define PARK_SCORE_CLEAR_TARGET_CM 3.0f   /* holgura extra por encima de la de planeo a partir de la cual ya no se premia */
+#endif
+#ifndef PARK_SCORE_CLEAR_WEIGHT
+#define PARK_SCORE_CLEAR_WEIGHT 10.0f     /* cm de coste por cada cm de holgura que falta */
+#endif
 
 typedef struct { float u, w, theta, cost; int32_t parent; int8_t dir, steer; } node_t;
 typedef struct { float score; int32_t id; } heap_item_t;
@@ -121,8 +132,10 @@ bool park_ackermann_arc_free(const park_params_t *p, const park_ackermann_config
     return travel(p, cfg, start, direction, steering, &end);
 }
 
-park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_ackermann_config_t *cfg,
-                                            const park_pose_t *start, park_goal_t goal)
+typedef struct { float reverse_cost, clear_penalty, clear_extra_cm; } plan_variant_t;
+
+static park_ackermann_result_t plan_core(const park_params_t *p, const park_ackermann_config_t *cfg,
+                                         const park_pose_t *start, park_goal_t goal, plan_variant_t var)
 {
     park_ackermann_result_t result = {0};
     if (!p || !cfg || !start || !isfinite(start->u_cm) || !isfinite(start->w_cm) ||
@@ -141,8 +154,8 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
      * planeo rozan el tope y el error de pose (~0,5-1 cm) las aborta; las que tienen 1-2 cm de mas
      * se ejecutan enteras (medido en 16 rondas). Se prefieren sin prohibir las apretadas. */
     park_params_t wide = *p;
-    wide.margin_cm += PARK_CLEAR_EXTRA_CM;
-    const bool use_wide = goal == PARK_GOAL_IN && PARK_CLEAR_PENALTY > 0.0f;
+    wide.margin_cm += var.clear_extra_cm;
+    const bool use_wide = goal == PARK_GOAL_IN && var.clear_penalty > 0.0f;
     int end = -1;
     while (heap_n && result.expanded < MAX_NODES) {
         heap_item_t item = pop(); node_t cur = nodes[item.id];
@@ -162,7 +175,7 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
              * costaba lo mismo que un arco de 3,5 cm y el plan salia a base de repasadas
              * (10 dentro del cajon). Cada repasada es tiempo y desgaste: se penaliza mas. */
             float cost = cur.cost + cfg->step_cm * (dir < 0 ? 1.1f : 1.0f) +
-                         (cur.dir && cur.dir != dir ? PARK_REVERSE_COST : 0.0f) + (float)pen * PARK_CLEAR_PENALTY;
+                         (cur.dir && cur.dir != dir ? var.reverse_cost : 0.0f) + (float)pen * var.clear_penalty;
             if (id >= 0 && cost >= nodes[id].cost) continue;
             if (id < 0) {
                 if (node_n >= MAX_NODES) continue;
@@ -190,6 +203,76 @@ park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_a
     result.found = true; result.direction = result.directions[0];
     result.steer_deg = result.steering[0] * cfg->steer_max_deg;
     return result;
+}
+
+/* ---------------------------------------------------------------- eleccion entre planes candidatos
+ * El A* da UN camino y su forma depende de detalles: poses a 1 cm de distancia daban 1, 2, 5 o 10 repasadas
+ * (medido) porque el camino optimo para el coste cambia de familia de golpe. Las repasadas de mas vienen de
+ * planes con ~1 cm de holgura que el error de pose aborta a mitad, o de caminos con cambios de sentido que
+ * el coste no pagaba lo bastante. Se planean varias variantes (cambio de sentido mas o menos caro, holgura
+ * mas o menos premiada) y se elige la de menor puntuacion = longitud + cambios de sentido + holgura que falta. */
+static bool plan_evaluate(const park_params_t *p, const park_ackermann_config_t *cfg, const park_pose_t *start,
+                          const park_ackermann_result_t *r, float rev_cost, float *score, int *reversals, float *clear_cm)
+{
+    static const float extras[] = {0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f};
+    enum { NE = sizeof extras / sizeof extras[0] };
+    park_pose_t pose = *start;
+    int rev = 0, last = cfg->previous_direction;
+    float length = 0.0f;
+    bool ok[NE];
+    for (int e = 0; e < NE; ++e) ok[e] = true;
+    for (unsigned i = 0; i < r->count; ++i) {
+        const int dir = r->directions[i];
+        if (last && dir != last) ++rev;
+        last = dir;
+        length += cfg->step_cm * (dir < 0 ? 1.1f : 1.0f);
+        const float ds = dir * cfg->step_cm / 6.0f;
+        const float curvature = tanf(r->steering[i] * cfg->steer_max_deg * RAD) / cfg->wheelbase_cm;
+        for (int k = 0; k < 6; ++k) {
+            const float dtheta = ds * curvature, mid = pose.theta_deg * RAD + dtheta * 0.5f;
+            pose.u_cm += ds * cosf(mid); pose.w_cm += ds * sinf(mid);
+            pose.theta_deg = wrap(pose.theta_deg + dtheta / RAD);
+            for (int e = 0; e < NE; ++e) {
+                if (!ok[e]) continue;
+                park_params_t q = *p; q.margin_cm += extras[e];
+                if (!park_pose_free(&q, &pose)) ok[e] = false;
+            }
+        }
+    }
+    float clear = 0.0f;
+    for (int e = 0; e < NE; ++e) if (ok[e]) clear = extras[e]; else break;
+    *reversals = rev; *clear_cm = clear;
+    *score = length + rev_cost * (float)rev + PARK_SCORE_CLEAR_WEIGHT * fmaxf(0.0f, PARK_SCORE_CLEAR_TARGET_CM - clear);
+    return true;
+}
+
+park_ackermann_result_t park_ackermann_plan(const park_params_t *p, const park_ackermann_config_t *cfg,
+                                            const park_pose_t *start, park_goal_t goal)
+{
+    const plan_variant_t base = {PARK_REVERSE_COST, PARK_CLEAR_PENALTY, PARK_CLEAR_EXTRA_CM};
+    park_ackermann_result_t best = plan_core(p, cfg, start, goal, base);
+    if (goal != PARK_GOAL_IN || PARK_PLAN_VARIANTS <= 1 || best.at_goal || !cfg) return best;
+    static const plan_variant_t alt[] = {
+        {PARK_REVERSE_COST, 4.0f, 3.0f},          /* mas holgura (premiada) */
+        {2.0f * PARK_REVERSE_COST, 1.0f, 1.5f},   /* menos cambios de sentido */
+        {2.0f * PARK_REVERSE_COST, 4.0f, 3.0f},   /* las dos cosas */
+        {0.5f * PARK_REVERSE_COST, 2.0f, 2.5f},   /* mas corto en distancia */
+    };
+    float best_score = 1.0e30f; int best_rev = 0; float best_clear = 0.0f;
+    /* Si el A* base no encontro camino (se le acabaron los nodos), cualquier variante que lo encuentre sirve. */
+    if (best.found) plan_evaluate(p, cfg, start, &best, PARK_REVERSE_COST, &best_score, &best_rev, &best_clear);
+    unsigned total_expanded = best.expanded;
+    for (unsigned v = 0; v < sizeof alt / sizeof alt[0] && (int)v + 1 < PARK_PLAN_VARIANTS; ++v) {
+        park_ackermann_result_t cand = plan_core(p, cfg, start, goal, alt[v]);
+        total_expanded += cand.expanded;
+        if (!cand.found || cand.at_goal) continue;
+        float sc; int rev; float clr;
+        plan_evaluate(p, cfg, start, &cand, PARK_REVERSE_COST, &sc, &rev, &clr);
+        if (sc < best_score - 0.01f) { best = cand; best_score = sc; best_rev = rev; best_clear = clr; }
+    }
+    (void)best_rev; (void)best_clear;
+    best.expanded = total_expanded;
+    return best;
 }
 
 /* --------------------------------------- entrada en una pasada: S de dos arcos

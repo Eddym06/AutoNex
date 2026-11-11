@@ -31,6 +31,21 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 4. **Arranque en la pista**: el plan sale desde donde el LiDAR ve el cajón (u≈−36, w≈39), de 24 a 40 arcos. Probar una pose previa estándar mejora ccw (73→43) pero empeora cw (47→96): el simulador coloca el arranque distinto en cada sentido. Hay que ver si es artefacto del simulador.
 5. **ccw/cw asimétricos** en la ronda completa (cw peor: planes más largos porque la salida termina ~2-3 cm más lejos).
 
+## 3b. Elección entre planes candidatos (11 nov) y diagnóstico de abortos
+
+- `park_ackermann_plan` (solo la entrada) ahora planea 5 variantes (`PARK_PLAN_VARIANTS`: precio de la repasada y de la holgura distintos) y elige la de menor
+  puntuación = longitud + cambios de sentido + holgura que falta hasta 3 cm. También rescata poses donde el A* base se queda sin camino.
+  Cada variante es un A* completo: en el P4 el tiempo de plan sube casi lineal y **no está medido** (en PC/WASM es despreciable).
+- Medido en semillas nuevas 21-32 (24 rondas): 108 repasadas (media 4,5), 23 completas, 0 contactos. Un solo A* daba 59 frente a 53 en las semillas 21-26 y 11 de 12 completas.
+  Dos variantes con holgura *exigida* (no premiada) nunca ganaron y se quitaron.
+- **Causa de las repasadas que quedan:** todas las repasadas de más son abortos por arco no libre (`park_abort_arc`; los abortos por desvío fueron 0). La
+  comprobación de cada arco usa `PARK_ENTRY_CHECK_MARGIN_CM` (0,5). Bajarla baja las repasadas pero deja el chasis tan justo que el parqueo acaba parcial:
+  0,5 → 104 repasadas / 23 completas; 0,25 → 92 / 22; 0 → 74 / 20 y 2 contactos. Se queda en 0,5.
+- `test_park_ackermann.c` comprueba que 9 poses de llegada vecinas dan planes comparables. **Una de las 9 no tiene plan** (límite conocido del A* de rejilla, con el
+  paso de 3,5 y también con 2,5 cm): el controlador se queda esperando en ese caso.
+- La vía de fondo que sigue abierta es modelar el retardo del servo y del motor dentro del A* (o ejecutar con realimentación), no más candidatos.
+- `rebuild_wasm.sh` admite `EXTRA_CFLAGS="-DPARK_ENTRY_CHECK_MARGIN_CM=0.25f"` para probar constantes sin editar el código.
+
 ## 4. Preguntas sin responder
 
 - ¿Cuenta el reglamento el número de repasadas? El límite de 3 viene de los documentos del proyecto, no de una regla comprobada.

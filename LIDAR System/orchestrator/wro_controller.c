@@ -1175,6 +1175,12 @@ static park_params_t g_ack_park_params;
 #ifndef PARK_LOST_MAX_SCANS
 #define PARK_LOST_MAX_SCANS 30
 #endif
+/* Holgura con la que se comprueba cada arco del plan de entrada (la del plan es park_margin_cm). Medido en 24 rondas (semillas 21-32):
+ * 0,5 -> 104 repasadas y 23 completas; 0,25 -> 92 y 22; 0 -> 74 y 20 (con 2 contactos). Menos holgura baja las repasadas pero el chasis
+ * se queda tan justo que el parqueo acaba parcial: se queda en 0,5. */
+#ifndef PARK_ENTRY_CHECK_MARGIN_CM
+#define PARK_ENTRY_CHECK_MARGIN_CM 0.5f
+#endif
 #ifndef PARK_RETRACE_ENABLED
 #define PARK_RETRACE_ENABLED 0
 #endif
@@ -1672,6 +1678,7 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                                      c->park_pose.w_cm - c->park_plan_pose.w_cm);
             if (symmetric && (dev > 6.0f ||
                 fabsf(imu_wrap_deg(c->park_pose.theta_deg - c->park_plan_pose.theta_deg)) > 25.0f)) {
+                ++c->park_abort_dev;
                 c->park_arc_count = c->park_arc_index = 0;
                 return;
             }
@@ -1688,10 +1695,11 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 /* Nunca mas estricto que el plan: si el coche esta a menos de la holgura de planeo, el plan
                  * se hizo con margen 0 (arriba) y comprobar el arco con 0,5 lo rechazaba cada barrido para
                  * siempre (ccw 12: parado 20 s con un plan valido, 'stalled' y parqueo parcial). */
-                entry_check = *params; entry_check.margin_cm = fminf(params->margin_cm, 0.5f); check = &entry_check;
+                entry_check = *params; entry_check.margin_cm = fminf(params->margin_cm, PARK_ENTRY_CHECK_MARGIN_CM); check = &entry_check;
             }
             if (!park_ackermann_arc_free(check, &acfg, &c->park_pose, c->park_arc_direction,
                                          c->park_arc_steering[c->park_arc_index])) {
+                ++c->park_abort_arc;
                 c->park_arc_count = c->park_arc_index = 0;
                 return;
             }

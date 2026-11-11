@@ -77,6 +77,28 @@ int main(void)
         printf("aproximación %u: destino=%d disponible=%d u=%.2f w=%.2f theta=%.2f\n", i, a.at_goal, a.found, q.u_cm, q.w_cm, q.theta_deg);
         assert(a.at_goal);
     }
+    /* Robustez: poses de llegada que difieren 1-2 cm y unos grados deben dar planes de entrada comparables (la eleccion entre
+     * variantes existe para eso). Se exige plan valido, libre de choque y sin una sola cadena enorme de cambios de sentido. */
+    {
+        const float dw[] = {-1.5f, 0.0f, 1.5f}, dth[] = {-8.0f, 0.0f, 8.0f};
+        int worst = 0, best = 99, missing = 0;
+        for (unsigned i = 0; i < 3; ++i) for (unsigned j = 0; j < 3; ++j) {
+            const park_pose_t s0 = {-20.0f, 32.0f + dw[i], dth[j]};
+            cfg.previous_direction = 0;
+            park_ackermann_result_t a = park_ackermann_plan(&p, &cfg, &s0, PARK_GOAL_IN);
+            if (!a.found) {   /* como el controlador: si el paso de 3,5 cm no da camino, se reintenta con 2,5 */
+                park_ackermann_config_t fine = cfg; fine.step_cm = 2.5f;
+                a = park_ackermann_plan(&p, &fine, &s0, PARK_GOAL_IN);
+            }
+            if (!a.found) { ++missing; continue; }   /* limite conocido del A* de rejilla: alguna pose libre no llega a la meta */
+            int rev = 0, last = 0;
+            for (unsigned k = 0; k < a.count; ++k) { if (last && a.directions[k] != last) ++rev; last = a.directions[k]; }
+            if (rev > worst) worst = rev;
+            if (rev < best) best = rev;
+        }
+        printf("robustez: cambios de sentido por plan entre %d y %d (9 poses de llegada, %d sin plan)\n", best, worst, missing);
+        assert(missing <= 1 && worst <= 6 && worst - best <= 4);
+    }
     puts("PASS: planeador Ackermann, geometria y limites");
     return 0;
 }
