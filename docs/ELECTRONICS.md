@@ -30,16 +30,24 @@ tensión de la batería, lo que nos deja avanzar, retroceder y frenar. Aguanta 2
 con 4 A de pico, y a plena carga se deja unos 2 V en el camino, un detalle que hay que
 tener en cuenta al calcular velocidades.
 
-**Motor JGB37-520.** Motorreductor de 12 V (hoy el de 600 rpm; el definitivo será de 1000 rpm) con encoder Hall de cuadratura
-incorporado. La reducción es 10:1 y el encoder entrega 11 pulsos por canal por vuelta del
-motor, así que en el eje de salida contamos 440 cuentas por vuelta. Va montado en el eje
-trasero, con las dos ruedas unidas físicamente.
+**Motor JGB37-520.** Motorreductor de 12 V con encoder Hall de cuadratura incorporado.
+La unidad que está montada ahora es de 600 rpm y la definitiva será de 1000 rpm. La
+reducción es 10:1 y el encoder entrega 11 pulsos por canal por vuelta del motor, así que
+en el eje de salida contamos 440 cuentas por vuelta. Va montado en el eje trasero, con las
+dos ruedas unidas físicamente.
 
 **Servo SCS0009.** Mueve la dirección. Es un servo de bus, no de pulso: se le manda la
 posición por un protocolo serie y él responde con su estado. Trabaja entre 4 y 7,4 V, con
-2,3 kg·cm a 6 V, 300° de recorrido repartidos en 1024 pasos y engranajes metálicos.
-Consume 150 mA en vacío y hasta 1 A si se bloquea. Un solo cable de datos lleva la
-pregunta y la respuesta, así que el bus es de medio dúplex.
+2,3 kg·cm de par de bloqueo a 6 V, 300° de recorrido repartidos en 1024 pasos y engranajes
+metálicos. Consume 150 mA en vacío y hasta 1 A si se bloquea. Un solo cable de datos lleva
+la pregunta y la respuesta, así que el bus es de medio dúplex. Lo conectamos con el tablero
+de conductor de servo de bus serie, que separa TX y RX, deja la respuesta en 3,3 V y reparte
+la alimentación desde el bus de 5,1 V.
+
+**Tablero de conductor de servo de bus serie (253 ST/SC).** Es el adaptador de Waveshare que
+va entre el P4 y el SCS0009. Soporta hasta 253 servos ST/SC, tiene dos puertos `D/V/G`, un
+header UART de 3,3 V y jumpers para elegir UART o USB. Lo alimentamos con el bus de 5,1 V y
+el servo entra directo en uno de sus puertos.
 
 **MPU-6050.** El módulo GY-521 con acelerómetro y giroscopio de seis ejes por I²C. Nos
 interesa el giro en el eje Z, que es el que dice cuánto está rotando el coche. Trae
@@ -96,6 +104,7 @@ flowchart TB
     subgraph PER["PERIFÉRICOS"]
         MOT["Motor JGB37-520<br/>12 V · 600 rpm (luego 1000)"]
         ENC["Encoder A/B"]
+        ADP["Adaptador de bus servo (A)<br/>jumpers en A"]
         SRV["Servo SCS0009"]
         LID["LiDAR D500"]
         IMU["MPU-6050"]
@@ -107,7 +116,7 @@ flowchart TB
     SW ==>|"12,6 V"| L298
     SW ==>|"12,6 V"| BUCK
     BUCK ==>|"5,1 V"| P4
-    BUCK ==>|"5,1 V"| SRV
+    BUCK ==>|"5,1 V"| ADP
     BUCK ==>|"5,1 V"| LID
     BUCK ==>|"5,1 V"| IMU
     BUCK ==>|"5,1 V"| S3CAM
@@ -115,7 +124,8 @@ flowchart TB
     MOT --> ENC
     P4 -->|"IN1 · IN2<br/>GPIO32 · GPIO33"| L298
     ENC -->|"GPIO27 · GPIO23"| P4
-    P4 -->|"bus serie<br/>GPIO26 · GPIO21"| SRV
+    P4 -->|"UART 1 Mbit/s<br/>GPIO26 · GPIO21"| ADP
+    ADP ==>|"D · V · G"| SRV
     LID -->|"UART<br/>GPIO22"| P4
     IMU -->|"I²C<br/>GPIO7 · GPIO8"| P4
     BTN -->|"GPIO5"| P4
@@ -130,7 +140,7 @@ flowchart TB
     class BAT,FUS,SW ent
     class L298,BUCK dist
     class P4 ctrl
-    class MOT,SRV act
+    class MOT,SRV,ADP act
     class ENC,LID,IMU,BTN,S3CAM sen
 ```
 
@@ -152,7 +162,8 @@ flowchart LR
     BUCK -->|"18 AWG"| BUS(["Bus de 5,1 V"])
     BUS -->|"22 AWG"| P4["ESP32-P4"]
     BUS -->|"22 AWG"| S3CAM["ESP32-S3-CAM"]
-    BUS -->|"22 AWG"| SRV["Servo SCS0009"]
+    BUS -->|"22 AWG"| ADP["Adaptador de servo<br/>DC+ / DC−"]
+    ADP -->|"D/V/G"| SRV["Servo SCS0009"]
     BUS -->|"22 AWG"| LID["LiDAR D500"]
     BUS -->|"22 AWG"| IMU["MPU-6050"]
     BUS -->|"22 AWG"| LOG["L298N<br/>+5V lógica"]
@@ -162,7 +173,7 @@ flowchart LR
     BUCK -.-> GND
     P4 -.-> GND
     S3CAM -.-> GND
-    SRV -.-> GND
+    ADP -.-> GND
     LID -.-> GND
     IMU -.-> GND
     LOG -.-> GND
@@ -173,13 +184,15 @@ flowchart LR
     classDef tierra fill:#111827,stroke:#000000,color:#ffffff
     class L298,BUCK,BUS pot
     class P4,S3CAM ctrl
-    class SRV,LID,IMU,LOG carga
+    class SRV,LID,IMU,LOG,ADP carga
     class GND tierra
 ```
 
-El fusible va de 5 A y lo elegimos con números, no por costumbre. El motor pide 2,5 A en
-el peor caso y la electrónica ronda 1 A, así que el pico total queda en unos 3,5 A: un
-fusible de 5 A deja margen para los arranques y corta rápido si hay un cortocircuito.
+El fusible va de 5 A y lo elegimos con números, no por costumbre. El motor definitivo pide
+2,5 A en el peor caso según el catálogo, y la electrónica ronda 1 A, así que el pico total
+queda en unos 3,5 A: un fusible de 5 A deja margen para los arranques y corta rápido si hay
+un cortocircuito. El de 600 rpm que está montado ahora está por medir, pero el fusible no
+cambia.
 
 El consumo en la línea de 5 V queda así:
 
@@ -189,6 +202,7 @@ El consumo en la línea de 5 V queda así:
 | ESP32-S3-CAM | 180 mA | 300 mA |
 | LiDAR | 290 mA | 320 mA |
 | Servo | 150 mA | 1000 mA |
+| Adaptador de servo (lógica) | 20 mA | 30 mA |
 | Lógica del L298N | 25 mA | 30 mA |
 | IMU | 4 mA | 4 mA |
 | **Total** | **≈ 1,0 A** | **≈ 2,2 A** |
@@ -199,10 +213,10 @@ de lo que aguanta una 2200 mAh de 25C.
 
 Hay tres cosas que hay que tener claras en el montaje. La primera: el 5 V que entrega el
 propio L298N no sirve para alimentar la placa, porque sale de un regulador pequeño que se
-calienta y mete ruido. La segunda: el servo tiene que colgar del convertidor con su propio
-cable y su condensador, porque su pico de arranque alcanza para tumbar la placa. La
-tercera: todos los negativos van al mismo punto. Un GND flotante entre el motor y la señal
-se convierte en datos basura.
+calienta y mete ruido. La segunda: el adaptador del servo tiene que colgar del convertidor
+con su propio par de cables y su condensador, porque el pico de arranque del servo alcanza
+para tumbar la placa. La tercera: todos los negativos van al mismo punto. Un GND flotante
+entre el motor y la señal se convierte en datos basura.
 
 ---
 
@@ -211,6 +225,12 @@ se convierte en datos basura.
 El motor usa un solo canal del L298N. Las órdenes van por `IN1` e `IN2`, y el jumper de
 `ENA` queda puesto para que el canal esté siempre habilitado. El PWM se aplica sobre las
 entradas, no sobre la habilitación, y por eso ese jumper no se puede quitar.
+
+La unidad que está puesta ahora es de 600 rpm, para las pruebas; la definitiva es de
+1000 rpm. El cableado no cambia, porque la reducción y el encoder son los mismos, pero la
+velocidad máxima y la odometría sí: los 440 pulsos por vuelta se mantienen, pero la relación
+entre el ciclo de trabajo y la velocidad cambia, y hay que volver a medirla el día que se
+cambie el motor. La diferencia entre las dos unidades es de 1,67 veces.
 
 | IN1 | IN2 | Qué hace el motor |
 |---|---|---|
@@ -286,51 +306,112 @@ es de colector abierto y sin ellas las cuentas llegan incompletas.
 ### El servo de dirección
 
 El SCS0009 no se controla con pulsos como un servo normal. Es un servo de bus: recibe
-paquetes por un cable y contesta por el mismo cable. Ese cable es el que hay que llevar al
-P4, y como el bus es de medio dúplex, la transmisión y la recepción comparten la línea.
+paquetes por un cable y contesta por el mismo cable, en medio dúplex. Para conectarlo al P4
+usamos el adaptador de bus servo (A) de Waveshare (SKU 25514), que hace de puente entre ese
+único hilo y el UART del micro, deja la respuesta en 3,3 V del lado de la placa y reparte la
+alimentación del servo. El servo trae en la caja una plaquita TTL pequeña; no la usamos,
+queda como repuesto para probarlo suelto con un adaptador USB-TTL.
 
-| Pin del conector | Color típico | Señal | Va a |
+El adaptador es una placa de 42 × 33 mm con dos puertos de servo idénticos, un header UART
+de tres pines, una bornera `DC+`/`DC−`, un jack DC5521 y un USB-C. Los dos jumpers van en la
+fila `A`, que conecta el driver del bus con el header UART; la fila `B` lo conecta con el
+CH343P del USB. En `A` el adaptador no necesita PC.
+
+El conector del servo es de tres pines y tiene una pestaña, pero se puede forzar al revés.
+El puerto del adaptador está serigrafiado `D V G`; antes de enchufar comprobamos que el negro
+quede en `G`, el rojo en `V` y el blanco en `D`:
+
+| Pin del servo | Color | Señal | Va a |
 |---|---|---|---|
-| 1 | negro | GND | GND común |
-| 2 | rojo | VCC | bus de 5,1 V |
-| 3 | blanco | Signal / TTL | línea de datos |
+| 1 | negro | GND | puerto `G` del adaptador |
+| 2 | rojo | VCC | puerto `V` del adaptador, que entrega el bus de 5,1 V |
+| 3 | blanco | DATA | puerto `D` del adaptador |
+
+El adaptador tiene dos puertos iguales y en paralelo. Usamos uno y el otro queda libre para
+encadenar un segundo servo con otra ID. Las conexiones del adaptador son estas:
+
+| Conexión | Va a | Cable |
+|---|---|---|
+| `DC+` | bus de 5,1 V | 22 AWG |
+| `DC−` | GND común | 22 AWG |
+| `TX` | P4 `GPIO26`, TX | 22 AWG |
+| `RX` | P4 `GPIO21`, RX | 22 AWG |
+| `GND` del header UART | GND común | 22 AWG |
+| `D`, `V`, `G` del puerto | servo | cable del servo |
+
+En la placa, el header se lee `TX`, `RX`, `GND` de izquierda a derecha, con el `GND` junto
+al tornillo de la esquina. Son tres pines.
+
+Ojo con los nombres: el `TX` del adaptador es la entrada por donde el P4 transmite y el
+`RX` es la salida por donde el P4 recibe, así que van con el mismo nombre y no se cruzan.
+Waveshare lo dice explícito en su documentación: RX con RX y TX con TX. Si se cruzan, el
+servo no contesta y parece muerto.
+
+El header UART es de 3,3 V. Los dos buffers del adaptador se alimentan del AMS1117-3.3 de
+la propia placa, así que la respuesta del servo nunca llega a 5 V al `GPIO21`. No hace falta
+divisor ni adaptador de nivel. El `TX` del P4 a 3,3 V entra sin problema, porque el
+datasheet del servo acepta de 2 a 5 V en su entrada. El header no tiene pin de
+alimentación: al adaptador no se le lleva 3,3 V desde el P4. Su lógica sale de `DC+`, y el
+único cable que comparte con la placa es el GND.
+
+**La alimentación.** El adaptador no regula la tensión del servo: el pin `V` del puerto
+entrega la misma tensión que entra por `DC+`. Por eso lo alimentamos con el bus de 5,1 V,
+que está dentro del rango de 4 a 7,4 V del SCS0009. La serigrafía dice `DC 9~12.6V` porque
+la placa está pensada para los servos ST, que trabajan a 12 V; para los SC el rango útil es
+5 a 8,4 V y nuestro 5,1 V es válido. La lógica se alimenta aparte, de un regulador interno
+que baja la entrada a 5 V y luego a 3,3 V; con 5,1 V de entrada el regulador de 5 V no tiene
+margen para regular y la tensión pasa casi tal cual, así que en la puesta en marcha medimos
+que los 3,3 V estén presentes antes de conectar el servo. Si no arranca, la solución es
+alimentar solo el adaptador desde una rama de 6 V, no subir todo el bus.
+
+La entrada tiene un MOSFET de protección de polaridad y un TVS, así que un cable invertido
+no quema la placa. Usamos la bornera y no el jack, porque la bornera no se suelta con la
+vibración; los cables van con terminal de puntera. El condensador de 470 µF va entre `DC+` y
+`DC−`, pegado a la bornera: es el que absorbe el pico de arranque del servo antes de que
+llegue al bus de 5,1 V.
 
 ```mermaid
 flowchart LR
     P4["ESP32-P4"]
-    TX["UART TX<br/>GPIO26"]
-    RX["UART RX<br/>GPIO21"]
-    R["1 kΩ"]
-    LINE(["Línea de datos"])
-    SRV["SCS0009<br/>pin 3 · Signal"]
+    TX["TX · GPIO26"]
+    RX["RX · GPIO21"]
+    ADP["Adaptador de servo (A)<br/>jumpers en A"]
+    SRV["SCS0009"]
+    BUS(["5,1 V"])
+    GND(["GND"])
 
-    P4 --> TX
-    P4 --> RX
-    TX --> R --> LINE
-    RX --> LINE
-    LINE --> SRV
-    BUS(["5,1 V"]) -->|"pin 2 · rojo"| SRV
-    GND(["GND"]) -->|"pin 1 · negro"| SRV
-    C["470 µF"] -.->|"junto al servo"| BUS
+    P4 --> TX -->|"TX"| ADP
+    ADP -->|"RX"| RX
+    BUS ==>|"DC+"| ADP
+    GND -.->|"DC−"| ADP
+    GND -.->|"GND"| ADP
+    ADP ==>|"D · V · G"| SRV
+    C["470 µF"] -.->|"en DC+"| ADP
 
     classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
     classDef srv fill:#15803d,stroke:#14532d,color:#ffffff
     classDef prot fill:#b45309,stroke:#78350f,color:#ffffff
     class P4,TX,RX ctrl
-    class SRV srv
-    class R,C prot
+    class ADP,SRV srv
+    class C,BUS,GND prot
 ```
 
-La resistencia de 1 kΩ en serie con la salida es lo que permite que los dos hablen por el
-mismo hilo: cuando el P4 transmite, la línea la maneja él, y cuando el servo responde, su
-salida puede tirar de la línea hacia abajo sin pelearse con el pin del P4. Sin esa
-resistencia, los dos se pisan y la comunicación falla de forma intermitente, que es el
-peor tipo de falla.
+El adaptador no es un simple conector. Lleva dos buffers y un transistor que detectan cuándo
+el P4 está transmitiendo: cuando la línea TX está en reposo, el buffer de transmisión queda
+en alta impedancia y una resistencia mantiene el hilo en alto, así que el servo puede
+responder; cuando el P4 empieza a transmitir, el transistor habilita el buffer, que lleva el
+hilo al nivel bajo. El buffer de recepción se deshabilita mientras la línea está en bajo,
+para que el adaptador no se escuche a sí mismo. Así el P4 puede usar un UART normal, con TX
+y RX separados, aunque el servo hable por un solo cable.
 
-Los valores que hay que respetar: 6 V nominales, aunque el rango va de 4 a 7,4 V, así que
-funciona con nuestra línea de 5,1 V, con la salvedad de que el par baja un poco respecto a
-los 2,3 kg·cm que anuncia el catálogo a 6 V. Velocidad de 0,1 s por 60° a 6 V y 1024 pasos
-para 300°, o sea 0,293° por paso. Viene de fábrica con la dirección 1 y a 1 Mbit/s; si se
+El conexionado directo que probamos antes, con una resistencia de 1 kΩ en el TX y un divisor
+en la recepción, queda descartado para la instalación final: el adaptador hace las dos cosas
+y además reparte la alimentación. La resistencia sigue sirviendo solo para probar el servo
+suelto con una fuente y un adaptador USB-TTL, nunca dentro del coche.
+
+Los valores que hay que respetar: 4 a 7,4 V de alimentación, 2,3 kg·cm de par de bloqueo a
+6 V, 0,7 kg·cm de par nominal, 300° en 1024 pasos (0,293° por paso), 0,1 s por 60° a 6 V,
+150 mA en vacío y 1 A de bloqueo. Viene de fábrica con la dirección 1 y a 1 Mbit/s; si se
 cambia la velocidad hay que hacerlo con cuidado, porque si se escribe mal el servo deja de
 responder y hay que recuperarlo con la herramienta del fabricante.
 
@@ -356,6 +437,7 @@ flowchart LR
 
     L298["L298N"]
     MOT["Motor JGB37-520"]
+    ADP["Adaptador de servo (A)"]
     SRV["Servo SCS0009"]
     LID["LiDAR D500"]
     IMU["MPU-6050"]
@@ -374,9 +456,10 @@ flowchart LR
     V33 ==>|"encoder VCC"| MOT
     MOT -->|"C1 27 · C2 23"| P4
 
-    P4 <-->|"datos 26 y 21"| SRV
-    BUS ==> SRV
-    GND -.-> SRV
+    P4 <-->|"UART 26 y 21"| ADP
+    BUS ==>|"DC+"| ADP
+    GND -.-> ADP
+    ADP ==>|"D · V · G"| SRV
 
     LID -->|"TX 22"| P4
     BUS ==> LID
@@ -399,7 +482,7 @@ flowchart LR
     classDef sen fill:#6d28d9,stroke:#4c1d95,color:#ffffff
     class BUS,V33,GND rails
     class P4,S3 ctrl
-    class L298,SRV act
+    class L298,SRV,ADP act
     class MOT,LID,IMU,BTN sen
 ```
 
@@ -426,8 +509,11 @@ Aquí están todos, incluidos los que van a 3,3 V.
 | L298N | `+5V` | Bus de 5,1 V, solo lógica | 22 AWG |
 | Motor | `VCC` | `3V3` del P4 | 22 AWG |
 | Motor | `GND` | GND común | 22 AWG |
-| Servo | pin 2, `VCC` | Bus de 5,1 V | 22 AWG |
-| Servo | pin 1, `GND` | GND común | 22 AWG |
+| Adaptador de servo | `DC+` | Bus de 5,1 V | 22 AWG |
+| Adaptador de servo | `DC−` | GND común | 22 AWG |
+| Adaptador de servo | `GND` del header UART | GND común | 22 AWG |
+| Servo | `V`, rojo | Puerto `V` del adaptador | cable del servo |
+| Servo | `G`, negro | Puerto `G` del adaptador | cable del servo |
 | LiDAR | `P5V` | Bus de 5,1 V | 22 AWG |
 | LiDAR | `GND` | GND común | 22 AWG |
 | IMU | `VCC` | Bus de 5,1 V | 22 AWG |
@@ -447,7 +533,9 @@ Aquí están todos, incluidos los que van a 3,3 V.
 | Motor | `C1` | P4 `GPIO27` | 22 AWG |
 | Motor | `C2` | P4 `GPIO23` | 22 AWG |
 | Motor | `C1` y `C2` | Pull-ups de 4,7 kΩ a 3,3 V | 22 AWG |
-| Servo | pin 3, `Signal` | 1 kΩ al P4 `GPIO26`, y directo al `GPIO21` | 22 AWG |
+| Adaptador de servo | `TX` | P4 `GPIO26`, TX | 22 AWG |
+| Adaptador de servo | `RX` | P4 `GPIO21`, RX | 22 AWG |
+| Servo | `D`, blanco | Puerto `D` del adaptador | cable del servo |
 | LiDAR | `TX` | P4 `GPIO22` | 22 AWG |
 | LiDAR | `PWM` | GND, no al P4 | 22 AWG |
 | IMU | `SDA` | P4 `GPIO7` | 22 AWG |
@@ -464,8 +552,10 @@ Aquí están todos, incluidos los que van a 3,3 V.
 | IMU | `INT` | Ninguna parte del coche la usa |
 | IMU | `XDA`, `XCL` | Son la pasarela I²C auxiliar del módulo y no hacen falta |
 | S3-CAM | microSD y LED RGB | No se usan en el coche; la tarjeta ocupa `GPIO38` a `GPIO40` y el LED el `GPIO48` |
+| Adaptador de servo | USB-C y jack DC5521 | El USB es para configurarlo desde un PC y el jack duplica la bornera; alimentamos por la bornera |
+| Adaptador de servo | Segundo puerto `D/V/G` | Queda libre para un segundo servo con otra ID |
 
-### Las tres conexiones que se prestan a confusión
+### Las cuatro conexiones que se prestan a confusión
 
 **El LiDAR tiene una sola señal porque solo habla.** El D500 no recibe órdenes: entrega el
 barrido y nada más. Su conector de cuatro pines es `P5V`, `GND`, `TX` y `PWM`, y de esos
@@ -484,6 +574,12 @@ enlace va por `GPIO1` para transmitir y `GPIO14` para recibir, que son dos de lo
 quedan libres. El `GPIO2` también está libre, pero tiene un LED de la placa encima y
 preferimos no confundir el parpadeo con actividad del enlace. Del lado del P4 el enlace
 entra por `GPIO38` y sale por `GPIO37`, y los dos van trenzados con su GND.
+
+**El servo no se conecta directo al P4.** El SCS0009 habla por un solo hilo y el P4 tiene
+un UART con TX y RX separados. El adaptador de Waveshare hace esa conversión y deja la
+respuesta en 3,3 V. Por eso el `GPIO26` va al `TX` del adaptador y el `GPIO21` al `RX`, con
+el mismo nombre y sin cruzarlos. La alimentación tampoco sale del P4: entra por `DC+` desde
+el bus de 5,1 V y sale por el pin `V` del puerto `D/V/G`.
 
 ### Los pines del P4 que no se tocan
 
@@ -517,9 +613,11 @@ que levantar una resistencia para usarlos limpios.
 | Batería − | Punto común de GND | 16 AWG |
 | L298N `OUT1` y `OUT2` | Motor `M1` y `M2` | 16 AWG |
 | XL4015 `OUT+` | Bus de 5,1 V | 18 AWG |
-| Bus de 5,1 V | Las dos placas, LiDAR, servo, lógica del L298N | 22 AWG |
-| Señales, encoder y servo | Placa | 22 AWG |
+| Bus de 5,1 V | Las dos placas, LiDAR y lógica del L298N | 22 AWG |
+| Bus de 5,1 V | Adaptador del servo, con su propio par desde el punto de reparto | 22 AWG |
+| Señales y encoder | Placa | 22 AWG |
 | Fuente de 3,3 V | Encoder `VCC` y pull-ups | 22 AWG |
+| Adaptador de servo | Servo | cable del servo, corto |
 | Enlace UART con el S3-CAM | Placa | 22 AWG, corto y trenzado con GND |
 
 El pin `PWM` del LiDAR va a GND: si se deja al aire, el motor interno no gira y no hay
@@ -548,8 +646,13 @@ cable.
 7. Alimentamos el S3-CAM y comprobamos el enlace a 921600: que la tabla llegue completa y
    que no haya tramas cortadas ni errores de trama.
 8. Giramos el eje del motor a mano y vemos que el encoder cuenta en los dos sentidos.
-9. Movemos el servo con las ruedas en el aire, primero apenas unos grados, y comprobamos
-   que responde y que devuelve una posición coherente.
+9. Antes de conectar el servo, comprobamos que los dos jumpers del adaptador estén en la
+   fila `A`, medimos 5,1 V entre `DC+` y `DC−` y 5,1 V entre `V` y `G` del puerto del servo.
+   El LED `PWR` del adaptador tiene que encender: es la señal de que el regulador interno
+   sacó los 3,3 V. Recién ahí conectamos el servo y lo movemos con las ruedas en el aire,
+   primero apenas unos grados, y comprobamos que responde y que devuelve una posición
+   coherente. Si el LED no enciende con 5,1 V de entrada, no seguimos: pasamos el adaptador
+   a una rama de 6 V.
 10. Por último el motor, también en el aire y con el PWM al 10 %.
 
 Si algo falla, se desconecta lo último que se puso y se vuelve atrás. Así el error aparece
@@ -572,12 +675,18 @@ que además es un pin de configuración y puede dejar el coche en modo descarga 
 en el momento equivocado. La solución es un pulsador externo entre `GPIO5` y GND, con la
 resistencia de pull-up interna.
 
-**El servo.** Pasamos del servo de pulsos al SCS0009 por dos razones. La primera es que sus
-engranajes son metálicos y su par es parecido con menos desgaste, algo que importa en un
-coche que va a girar miles de veces. La segunda es que devuelve la posición real, así que
-no dependemos de haber medido los pulsos a mano para saber dónde están las ruedas. El
-precio es que hay que tratarlo como un bus serie y no como una salida PWM, con la
-resistencia de 1 kΩ y un protocolo que exige respetar el orden de los bytes.
+**El servo y su adaptador.** Pasamos del servo de pulsos al SCS0009 por dos razones. La
+primera es que sus engranajes son metálicos y su par es parecido con menos desgaste, algo
+que importa en un coche que va a girar miles de veces. La segunda es que devuelve la
+posición real, así que no dependemos de haber medido los pulsos a mano para saber dónde
+están las ruedas. El precio es que hay que tratarlo como un bus serie y no como una salida
+PWM. Para eso elegimos el adaptador de Waveshare y no la plaquita que viene en la caja: el
+adaptador ya trae el driver de medio dúplex, los niveles de 3,3 V, la bornera de
+alimentación con protección de polaridad y dos puertos de servo, así que el cableado se
+reduce a dos cables de alimentación y tres de señal, y no queda nada soldado al aire. La
+plaquita incluida queda como
+repuesto para probar el servo suelto. Los jumpers van en `A` porque el P4 habla UART; la
+posición `B` es para configurar el servo desde un PC por USB.
 
 **La IMU.** El GY-521 con MPU-6050 es el módulo más documentado que existe para esto, viene
 en paquetes de tres y su biblioteca está en todas partes. Para medir el giro en Z sobra, y
@@ -603,16 +712,25 @@ mismo tipo. Los dupont quedan solo para las señales, nunca para potencia.
 ## Lo que falta
 
 Nos queda medir la corriente real del motor con el coche completo, porque los 2,5 A de
-bloqueo los tomamos del catálogo y no de una medición propia. También hay que probar el
-servo de bus a 1 Mbit/s con el cable real y confirmar que la resistencia de 1 kΩ es
-suficiente con el largo de cable que terminemos usando, porque el bus es de medio dúplex y
-es sensible a la capacidad del hilo.
+bloqueo los tomamos del catálogo del motor de 1000 rpm y no de una medición propia; el de
+600 rpm que está montado ahora puede dar otro número. También hay que probar el servo a
+1 Mbit/s con el adaptador y el cable real, y confirmar que el largo del cable no mete
+errores, porque el bus es de medio dúplex y es sensible a la capacidad del hilo. La prueba
+se hace con el servo montado, no con el cable corto de banco.
 
-Con el osciloscopio hay que mirar además a qué nivel alto responde el servo en la línea de
-datos. El P4 aguanta 3,3 V en sus GPIO y no es tolerante a 5 V, así que si el servo
-contesta por encima de eso hay que poner una resistencia en serie también en la recepción
-o un adaptador de nivel. Es la única parte del cableado donde un error se lleva por delante
-la placa y no un módulo barato.
+Con el osciloscopio hay que mirar el `RX` del adaptador, que es lo que llega al `GPIO21`.
+Tiene que quedar entre 0 y 3,3 V. El adaptador ya debería entregarlo así porque sus buffers
+se alimentan de los 3,3 V internos; si aparece un pico de 5 V, no conectamos el `GPIO21` y
+revisamos la placa antes de seguir.
+
+Falta medir el par del servo a 5,1 V con la dirección montada. Si no alcanza para girar las
+ruedas paradas, cambiamos solo la alimentación del adaptador a una rama de 6 V; el resto del
+coche sigue en 5,1 V. Y confirmar que el regulador interno del adaptador arranca con 5,1 V
+de entrada, que es lo que dice el LED `PWR`.
+
+Y queda el cambio de motor: pasar del de 600 rpm al de 1000 y volver a medir velocidad,
+corriente y odometría. El encoder y el cableado no cambian, pero la relación entre el ciclo
+de trabajo y la velocidad sí, y hay que volver a medirla.
 
 Aparte, montar el divisor de tensión en `GPIO20`, que tiene ADC, para vigilar la batería
 durante la ronda, y fijar la posición definitiva del interruptor y del pulsador, de modo
