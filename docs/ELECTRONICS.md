@@ -1,125 +1,126 @@
-# Electrónica del AutoNex
+# AutoNex electronics
 
-Esta es la parte eléctrica del coche: qué componentes escogimos, cómo se alimentan y cómo
-quedaron conectados entre sí. La idea es simple: que cualquiera del equipo pueda abrir el
-coche, ver un cable y saber de dónde viene, para qué sirve y qué pasa si lo desconecta.
+This is the electrical side of the car: which components we chose, how they are powered and
+how they ended up connected to each other. The idea is simple: anyone on the team should be
+able to open the car, look at a wire and know where it comes from, what it is for and what
+happens if they unplug it.
 
-Trabajamos en tres pasos. Primero revisamos qué le exige el reglamento al vehículo en
-materia eléctrica, que al final es lo que decide entre un componente y otro. Después
-elegimos cada pieza comparando datasheets y no descripciones de tienda, porque los
-listados de venta mezclan variantes y cambian sin avisar. Y al final armamos el cableado y
-lo fuimos probando por partes, dejando por escrito lo que medimos.
-
----
-
-## Los componentes
-
-**Batería LiPo 3S.** Es la única fuente de energía. Tres celdas en serie, 11,1 V nominales,
-12,6 V cargada y 2200 mAh con descarga de 25C. Usamos conectores XT60 porque no se pueden
-invertir, y marcamos el positivo con rojo desde el primer día. El corte de seguridad está
-en 9,9 V (3,3 V por celda); por debajo de eso la batería se daña.
-
-**Convertidor XL4015.** Baja los 12,6 V de la batería a los 5,1 V que necesitan las placas,
-el LiDAR y el servo. Es un reductor no aislado de 5 A, así que la entrada y la salida
-comparten tierra. Eso define una regla de todo el montaje: hay un solo GND en el coche.
-Lo ajustamos a 5,1 V y no a 5,0 V para compensar la caída en los cables; nunca pasamos de
-5,5 V porque ahí ya se pone en riesgo la electrónica.
-
-**L298N.** Es el puente H que mueve el motor. Recibe las órdenes lógicas y conmuta la
-tensión de la batería, lo que nos deja avanzar, retroceder y frenar. Aguanta 2 A por canal
-con 4 A de pico, y a plena carga se deja unos 2 V en el camino, un detalle que hay que
-tener en cuenta al calcular velocidades.
-
-**Motor JGB37-520.** Motorreductor de 12 V con encoder Hall de cuadratura incorporado.
-La unidad que está montada ahora es de 600 rpm y la definitiva será de 1000 rpm. La
-reducción es 10:1 y el encoder entrega 11 pulsos por canal por vuelta del motor, así que
-en el eje de salida contamos 440 cuentas por vuelta. Va montado en el eje trasero, con las
-dos ruedas unidas físicamente.
-
-**Servo SCS0009.** Mueve la dirección. Es un servo de bus, no de pulso: se le manda la
-posición por un protocolo serie y él responde con su estado. Trabaja entre 4 y 7,4 V, con
-2,3 kg·cm de par de bloqueo a 6 V, 300° de recorrido repartidos en 1024 pasos y engranajes
-metálicos. Consume 150 mA en vacío y hasta 1 A si se bloquea. Un solo cable de datos lleva
-la pregunta y la respuesta, así que el bus es de medio dúplex. Lo conectamos con el tablero
-de conductor de servo de bus serie, que separa TX y RX, deja la respuesta en 3,3 V y reparte
-la alimentación desde el bus de 5,1 V.
-
-**Tablero de conductor de servo de bus serie (253 ST/SC).** Es el adaptador de Waveshare que
-va entre el P4 y el SCS0009. Soporta hasta 253 servos ST/SC, tiene dos puertos `D/V/G`, un
-header UART de 3,3 V y jumpers para elegir UART o USB. Lo alimentamos con el bus de 5,1 V y
-el servo entra directo en uno de sus puertos.
-
-**MPU-6050.** El módulo GY-521 con acelerómetro y giroscopio de seis ejes por I²C. Nos
-interesa el giro en el eje Z, que es el que dice cuánto está rotando el coche. Trae
-regulador de 3,3 V y resistencias de pull-up en la propia placa, así que se puede alimentar
-a 5 V sin riesgo para el bus. Con `AD0` a tierra responde en la dirección 0x68. Los pines
-auxiliares `XDA` y `XCL` no los usamos.
-
-**LiDAR D500.** Escáner láser de 360° por tiempo de vuelo. Alcanza 12 m, gira a 10 vueltas
-por segundo y entrega unos 5000 puntos por segundo por UART a 230400 baudios. Se alimenta
-a 5 V con unos 290 mA y usa un conector ZH1.5 de cuatro pines. Es el sensor que nos da el
-mapa del entorno, así que va en la parte alta del coche y sin nada que le tape el barrido.
-
-**ESP32-P4.** La placa que coordina todo. 32 MB de PSRAM, dos núcleos RISC-V y 27 GPIO
-útiles repartidos en dos hileras de 20 pines. Se alimenta a 5 V por el header y tiene dos
-puertos USB-C: uno para datos y otro, con chip CH343P, que es la consola.
-
-**ESP32-S3-CAM.** La segunda placa, la de la cámara. Es un módulo ESP32-S3-WROOM N16R8 con
-8 MB de PSRAM, 16 MB de flash, doble núcleo LX7 y una cámara OV3660 de 2 MP soldada en la
-propia placa. La escogimos porque la cámara ya viene montada y la PSRAM alcanza para los
-fotogramas, sin tener que añadir otra placa. Eléctricamente nos importan tres cosas: cuelga
-del mismo bus de 5,1 V, consume unos 180 mA con la cámara trabajando y hasta 300 mA en el
-arranque, y se comunica con el P4 por un UART a 921600 baudios. Su Wi-Fi y su Bluetooth van
-apagados durante las rondas, como pide el reglamento, y eso además quita el pico de consumo
-del radio.
-
-**Protección.** Un interruptor general, un pulsador de arranque y un fusible. Los tres son
-obligatorios, no accesorios: sin interruptor no se puede encender el coche como pide el
-reglamento, sin pulsador no hay forma de dar la salida y sin fusible un corto en la LiPo
-es un incendio.
+We worked in three steps. First we reviewed what the rules require of the vehicle
+electrically, which in the end is what decides between one component and another. Then we
+chose each part by comparing datasheets rather than shop descriptions, because sales
+listings mix variants and change without warning. And finally we built the wiring and tested
+it piece by piece, writing down what we measured.
 
 ---
 
-## El sistema completo
+## The components
 
-Así queda todo junto. Las flechas gruesas son potencia y las finas son señal.
+**3S LiPo battery.** It is the only energy source. Three cells in series, 11.1 V nominal,
+12.6 V charged and 2200 mAh at 25C discharge. We use XT60 connectors because they cannot be
+reversed, and we have marked the positive in red since day one. The safety cutoff is at
+9.9 V (3.3 V per cell); below that the battery is damaged.
+
+**XL4015 converter.** It steps the battery's 12.6 V down to the 5.1 V that the boards, the
+LiDAR and the servo need. It is a 5 A non-isolated buck, so input and output share ground.
+That defines a rule for the whole build: there is a single GND in the car. We set it to
+5.1 V rather than 5.0 V to compensate for the drop in the cables; we never go above 5.5 V
+because at that point the electronics are at risk.
+
+**L298N.** It is the H-bridge that drives the motor. It receives the logic commands and
+switches the battery voltage, which lets us move forward, reverse and brake. It handles 2 A
+per channel with a 4 A peak, and at full load it drops about 2 V along the way, a detail to
+keep in mind when calculating speeds.
+
+**JGB37-520 motor.** A 12 V gearmotor with a built-in quadrature Hall encoder. The unit
+fitted now is 600 rpm and the final one will be 1000 rpm. The reduction is 10:1 and the
+encoder delivers 11 pulses per channel per motor revolution, so at the output shaft we count
+440 counts per revolution. It is mounted on the rear axle, with both wheels physically
+joined.
+
+**SCS0009 servo.** It moves the steering. It is a bus servo, not a pulse servo: it is sent
+the position over a serial protocol and it answers with its status. It works between 4 and
+7.4 V, with 2.3 kg·cm of stall torque at 6 V, 300° of travel split into 1024 steps and metal
+gears. It draws 150 mA idle and up to 1 A if it stalls. A single data wire carries both the
+question and the answer, so the bus is half-duplex. We connect it through the serial bus
+servo driver board, which separates TX and RX, keeps the reply at 3.3 V and distributes power
+from the 5.1 V bus.
+
+**Serial bus servo driver board (253 ST/SC).** It is the Waveshare adapter that sits between
+the P4 and the SCS0009. It supports up to 253 ST/SC servos, has two `D/V/G` ports, a 3.3 V
+UART header and jumpers to select UART or USB. We power it from the 5.1 V bus and the servo
+plugs directly into one of its ports.
+
+**MPU-6050.** The GY-521 module with a six-axis accelerometer and gyroscope over I²C. We
+care about the rotation on the Z axis, which is what tells us how much the car is turning.
+It has a 3.3 V regulator and pull-up resistors on the board itself, so it can be powered at
+5 V without risk to the bus. With `AD0` tied to ground it responds at address 0x68. We do
+not use the auxiliary `XDA` and `XCL` pins.
+
+**D500 LiDAR.** A 360° time-of-flight laser scanner. It reaches 12 m, spins at 10
+revolutions per second and delivers about 5000 points per second over UART at 230400 baud.
+It is powered at 5 V with about 290 mA and uses a four-pin ZH1.5 connector. It is the sensor
+that gives us the map of the surroundings, so it sits on the upper part of the car with
+nothing blocking its sweep.
+
+**ESP32-P4.** The board that coordinates everything. 32 MB of PSRAM, two RISC-V cores and
+27 usable GPIOs spread over two 20-pin rows. It is powered at 5 V through the header and has
+two USB-C ports: one for data and one, with a CH343P chip, that is the console.
+
+**ESP32-S3-CAM.** The second board, the camera one. It is an ESP32-S3-WROOM N16R8 module with
+8 MB of PSRAM, 16 MB of flash, a dual-core LX7 and a 2 MP OV3660 camera soldered onto the
+board itself. We chose it because the camera comes already mounted and the PSRAM is enough
+for the frames, without having to add another board. Electrically three things matter to us:
+it hangs off the same 5.1 V bus, it draws about 180 mA with the camera working and up to
+300 mA at start-up, and it talks to the P4 over a UART at 921600 baud. Its Wi-Fi and
+Bluetooth are off during the rounds, as the rules require, and that also removes the current
+spike of the radio.
+
+**Protection.** A main switch, a start button and a fuse. All three are mandatory, not
+accessories: without a switch the car cannot be turned on as the rules require, without a
+button there is no way to start, and without a fuse a short on the LiPo is a fire.
+
+---
+
+## The complete system
+
+This is how it all fits together. Thick arrows are power and thin ones are signal.
 
 ```mermaid
 flowchart TB
-    subgraph ENT["ENTRADA"]
-        BAT["Batería LiPo 3S<br/>11,1 V · 2200 mAh"]
-        FUS["Fusible 5 A"]
-        SW["Interruptor general"]
+    subgraph INPUT["INPUT"]
+        BAT["3S LiPo battery<br/>11.1 V · 2200 mAh"]
+        FUS["5 A fuse"]
+        SW["Main switch"]
     end
 
-    subgraph DIST["DISTRIBUCIÓN"]
-        L298["L298N<br/>puente H"]
-        BUCK["XL4015<br/>12,6 V → 5,1 V"]
+    subgraph DIST["DISTRIBUTION"]
+        L298["L298N<br/>H-bridge"]
+        BUCK["XL4015<br/>12.6 V → 5.1 V"]
     end
 
     subgraph CTRL["CONTROL"]
         P4["ESP32-P4 DevKit"]
     end
 
-    subgraph PER["PERIFÉRICOS"]
-        MOT["Motor JGB37-520<br/>12 V · 600 rpm (luego 1000)"]
+    subgraph PER["PERIPHERALS"]
+        MOT["JGB37-520 motor<br/>12 V · 600 rpm (then 1000)"]
         ENC["Encoder A/B"]
-        ADP["Adaptador de bus servo (A)<br/>jumpers en A"]
-        SRV["Servo SCS0009"]
-        LID["LiDAR D500"]
+        ADP["Servo bus adapter (A)<br/>jumpers in A"]
+        SRV["SCS0009 servo"]
+        LID["D500 LiDAR"]
         IMU["MPU-6050"]
-        BTN["Pulsador START"]
-        S3CAM["ESP32-S3-CAM<br/>cámara OV3660"]
+        BTN["START button"]
+        S3CAM["ESP32-S3-CAM<br/>OV3660 camera"]
     end
 
     BAT ==> FUS ==> SW
-    SW ==>|"12,6 V"| L298
-    SW ==>|"12,6 V"| BUCK
-    BUCK ==>|"5,1 V"| P4
-    BUCK ==>|"5,1 V"| ADP
-    BUCK ==>|"5,1 V"| LID
-    BUCK ==>|"5,1 V"| IMU
-    BUCK ==>|"5,1 V"| S3CAM
+    SW ==>|"12.6 V"| L298
+    SW ==>|"12.6 V"| BUCK
+    BUCK ==>|"5.1 V"| P4
+    BUCK ==>|"5.1 V"| ADP
+    BUCK ==>|"5.1 V"| LID
+    BUCK ==>|"5.1 V"| IMU
+    BUCK ==>|"5.1 V"| S3CAM
     L298 ==>|"OUT1 · OUT2"| MOT
     MOT --> ENC
     P4 -->|"IN1 · IN2<br/>GPIO32 · GPIO33"| L298
@@ -131,44 +132,44 @@ flowchart TB
     BTN -->|"GPIO5"| P4
     P4 <-->|"UART 921600<br/>GPIO37 · GPIO38"| S3CAM
 
-    classDef ent fill:#334155,stroke:#0f172a,color:#ffffff
-    classDef dist fill:#b45309,stroke:#78350f,color:#ffffff
-    classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-    classDef act fill:#15803d,stroke:#14532d,color:#ffffff
-    classDef sen fill:#6d28d9,stroke:#4c1d95,color:#ffffff
+    classDef input fill:#334155,stroke:#0f172a,color:#ffffff
+    classDef distribution fill:#b45309,stroke:#78350f,color:#ffffff
+    classDef control fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef actuator fill:#15803d,stroke:#14532d,color:#ffffff
+    classDef sensor fill:#6d28d9,stroke:#4c1d95,color:#ffffff
 
-    class BAT,FUS,SW ent
-    class L298,BUCK dist
-    class P4 ctrl
-    class MOT,SRV,ADP act
-    class ENC,LID,IMU,BTN,S3CAM sen
+    class BAT,FUS,SW input
+    class L298,BUCK distribution
+    class P4 control
+    class MOT,SRV,ADP actuator
+    class ENC,LID,IMU,BTN,S3CAM sensor
 ```
 
 ---
 
-## Cómo se alimenta el coche
+## How the car is powered
 
-Todo cuelga del mismo punto. La batería entra por el XT60, pasa por el fusible y luego por
-el interruptor. De ahí salen dos ramas: una directa al L298N para el motor, y otra al
-XL4015 para los 5 V.
+Everything hangs off the same point. The battery comes in through the XT60, goes through the
+fuse and then through the switch. From there two branches leave: one straight to the L298N
+for the motor, and another to the XL4015 for the 5 V.
 
 ```mermaid
 flowchart LR
-    BAT["Batería<br/>11,1 V"] -->|"16 AWG"| FUS["Fusible<br/>5 A"]
-    FUS --> SW["Interruptor<br/>general"]
-    SW -->|"16 AWG<br/>12,6 V"| L298["L298N<br/>+12V"]
+    BAT["Battery<br/>11.1 V"] -->|"16 AWG"| FUS["Fuse<br/>5 A"]
+    FUS --> SW["Main<br/>switch"]
+    SW -->|"16 AWG<br/>12.6 V"| L298["L298N<br/>+12V"]
     SW -->|"18 AWG"| BUCK["XL4015<br/>IN+"]
 
-    BUCK -->|"18 AWG"| BUS(["Bus de 5,1 V"])
+    BUCK -->|"18 AWG"| BUS(["5.1 V bus"])
     BUS -->|"22 AWG"| P4["ESP32-P4"]
     BUS -->|"22 AWG"| S3CAM["ESP32-S3-CAM"]
-    BUS -->|"22 AWG"| ADP["Adaptador de servo<br/>DC+ / DC−"]
-    ADP -->|"D/V/G"| SRV["Servo SCS0009"]
-    BUS -->|"22 AWG"| LID["LiDAR D500"]
+    BUS -->|"22 AWG"| ADP["Servo adapter<br/>DC+ / DC−"]
+    ADP -->|"D/V/G"| SRV["SCS0009 servo"]
+    BUS -->|"22 AWG"| LID["D500 LiDAR"]
     BUS -->|"22 AWG"| IMU["MPU-6050"]
-    BUS -->|"22 AWG"| LOG["L298N<br/>+5V lógica"]
+    BUS -->|"22 AWG"| LOG["L298N<br/>+5V logic"]
 
-    BAT -.->|"16 AWG"| GND(["GND común"])
+    BAT -.->|"16 AWG"| GND(["Common GND"])
     L298 -.-> GND
     BUCK -.-> GND
     P4 -.-> GND
@@ -178,69 +179,69 @@ flowchart LR
     IMU -.-> GND
     LOG -.-> GND
 
-    classDef pot fill:#b45309,stroke:#78350f,color:#ffffff
-    classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-    classDef carga fill:#15803d,stroke:#14532d,color:#ffffff
-    classDef tierra fill:#111827,stroke:#000000,color:#ffffff
-    class L298,BUCK,BUS pot
-    class P4,S3CAM ctrl
-    class SRV,LID,IMU,LOG,ADP carga
-    class GND tierra
+    classDef power fill:#b45309,stroke:#78350f,color:#ffffff
+    classDef control fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef load fill:#15803d,stroke:#14532d,color:#ffffff
+    classDef ground fill:#111827,stroke:#000000,color:#ffffff
+    class L298,BUCK,BUS power
+    class P4,S3CAM control
+    class SRV,LID,IMU,LOG,ADP load
+    class GND ground
 ```
 
-El fusible va de 5 A y lo elegimos con números, no por costumbre. El motor definitivo pide
-2,5 A en el peor caso según el catálogo, y la electrónica ronda 1 A, así que el pico total
-queda en unos 3,5 A: un fusible de 5 A deja margen para los arranques y corta rápido si hay
-un cortocircuito. El de 600 rpm que está montado ahora está por medir, pero el fusible no
-cambia.
+The fuse is 5 A and we chose it with numbers, not by habit. The final motor asks for 2.5 A in
+the worst case according to the catalogue, and the electronics are around 1 A, so the total
+peak comes to about 3.5 A: a 5 A fuse leaves room for start-ups and blows quickly if there is
+a short circuit. The 600 rpm one fitted now is still to be measured, but the fuse does not
+change.
 
-El consumo en la línea de 5 V queda así:
+The consumption on the 5 V line works out like this:
 
-| Carga | Típico | Pico |
+| Load | Typical | Peak |
 |---|---|---|
 | ESP32-P4 | 350 mA | 550 mA |
 | ESP32-S3-CAM | 180 mA | 300 mA |
 | LiDAR | 290 mA | 320 mA |
 | Servo | 150 mA | 1000 mA |
-| Adaptador de servo (lógica) | 20 mA | 30 mA |
-| Lógica del L298N | 25 mA | 30 mA |
+| Servo adapter (logic) | 20 mA | 30 mA |
+| L298N logic | 25 mA | 30 mA |
 | IMU | 4 mA | 4 mA |
-| **Total** | **≈ 1,0 A** | **≈ 2,2 A** |
+| **Total** | **≈ 1.0 A** | **≈ 2.2 A** |
 
-El XL4015 da 5 A, pero sin disipador preferimos no pasar de 2,5 A, así que vamos justos
-pero dentro. Sumando el motor, la batería entrega como mucho 3,5 A de pico, muy por debajo
-de lo que aguanta una 2200 mAh de 25C.
+The XL4015 delivers 5 A, but without a heatsink we prefer not to go above 2.5 A, so we are
+tight but within limits. Adding the motor, the battery delivers at most 3.5 A peak, well
+below what a 2200 mAh 25C pack can handle.
 
-Hay tres cosas que hay que tener claras en el montaje. La primera: el 5 V que entrega el
-propio L298N no sirve para alimentar la placa, porque sale de un regulador pequeño que se
-calienta y mete ruido. La segunda: el adaptador del servo tiene que colgar del convertidor
-con su propio par de cables y su condensador, porque el pico de arranque del servo alcanza
-para tumbar la placa. La tercera: todos los negativos van al mismo punto. Un GND flotante
-entre el motor y la señal se convierte en datos basura.
+There are three things that must be clear in the build. First: the 5 V supplied by the L298N
+itself cannot be used to power the board, because it comes from a small regulator that heats
+up and injects noise. Second: the servo adapter must hang off the converter with its own pair
+of cables and its capacitor, because the servo's start-up peak is enough to bring the board
+down. Third: all the negatives go to the same point. A floating GND between the motor and the
+signal turns into garbage data.
 
 ---
 
-## Motor y dirección
+## Motor and steering
 
-El motor usa un solo canal del L298N. Las órdenes van por `IN1` e `IN2`, y el jumper de
-`ENA` queda puesto para que el canal esté siempre habilitado. El PWM se aplica sobre las
-entradas, no sobre la habilitación, y por eso ese jumper no se puede quitar.
+The motor uses a single channel of the L298N. The commands go through `IN1` and `IN2`, and
+the `ENA` jumper stays fitted so that the channel is always enabled. PWM is applied to the
+inputs, not to the enable, which is why that jumper cannot be removed.
 
-La unidad que está puesta ahora es de 600 rpm, para las pruebas; la definitiva es de
-1000 rpm. El cableado no cambia, porque la reducción y el encoder son los mismos, pero la
-velocidad máxima y la odometría sí: los 440 pulsos por vuelta se mantienen, pero la relación
-entre el ciclo de trabajo y la velocidad cambia, y hay que volver a medirla el día que se
-cambie el motor. La diferencia entre las dos unidades es de 1,67 veces.
+The unit fitted now is 600 rpm, for testing; the final one is 1000 rpm. The wiring does not
+change, because the reduction and the encoder are the same, but the maximum speed and the
+odometry do: the 440 pulses per revolution stay, but the relationship between duty cycle and
+speed changes, and it has to be measured again the day the motor is swapped. The difference
+between the two units is 1.67 times.
 
-| IN1 | IN2 | Qué hace el motor |
+| IN1 | IN2 | What the motor does |
 |---|---|---|
-| PWM | 0 | Avanza, la velocidad sigue al ciclo de trabajo |
-| 0 | PWM | Retrocede |
-| 0 | 0 | Queda libre |
-| 1 | 1 | Frena en seco, no lo usamos para parar |
+| PWM | 0 | Moves forward, speed follows the duty cycle |
+| 0 | PWM | Moves backward |
+| 0 | 0 | Freewheels |
+| 1 | 1 | Brakes hard, we do not use it to stop |
 
-El jumper de 5 V del módulo lo quitamos y alimentamos la lógica desde el XL4015. Es un
-cambio pequeño que evita que el regulador del L298N se caliente y contamine la línea.
+The module's 5 V jumper is removed and we power the logic from the XL4015. It is a small
+change that keeps the L298N regulator from heating up and contaminating the line.
 
 ```mermaid
 flowchart LR
@@ -248,136 +249,135 @@ flowchart LR
         direction TB
         IN1["IN1"]
         IN2["IN2"]
-        ENA["ENA · jumper puesto"]
+        ENA["ENA · jumper fitted"]
         OUT1["OUT1"]
         OUT2["OUT2"]
         V5["+5V"]
     end
 
     P4["ESP32-P4"]
-    MOT["Motor<br/>JGB37-520"]
-    ENC["Encoder Hall"]
-    BUS5(["5,1 V"])
+    MOT["JGB37-520<br/>motor"]
+    ENC["Hall encoder"]
+    BUS5(["5.1 V"])
     GND(["GND"])
 
     P4 -->|"GPIO32 · PWM"| IN1
     P4 -->|"GPIO33 · PWM"| IN2
     BUS5 --> V5
-    V5 -.->|"lógica"| DRV
+    V5 -.->|"logic"| DRV
     OUT1 -->|"M1"| MOT
     OUT2 -->|"M2"| MOT
     MOT --- ENC
     ENC -->|"C1 · GPIO27"| P4
     ENC -->|"C2 · GPIO23"| P4
-    ENC -.->|"VCC 3,3 V"| P4
-    L298G(["12,6 V"]) -->|"16 AWG"| DRV
+    ENC -.->|"VCC 3.3 V"| P4
+    L298G(["12.6 V"]) -->|"16 AWG"| DRV
 
-    classDef drv fill:#b45309,stroke:#78350f,color:#ffffff
-    classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-    classDef mot fill:#15803d,stroke:#14532d,color:#ffffff
-    class IN1,IN2,ENA,OUT1,OUT2,V5 drv
-    class P4 ctrl
-    class MOT,ENC mot
+    classDef driver fill:#b45309,stroke:#78350f,color:#ffffff
+    classDef control fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef motor fill:#15803d,stroke:#14532d,color:#ffffff
+    class IN1,IN2,ENA,OUT1,OUT2,V5 driver
+    class P4 control
+    class MOT,ENC motor
 ```
 
-### El conector del motor
+### The motor connector
 
-El motor trae un conector de seis pines en la tapa trasera. El orden está serigrafiado en
-la propia placa, y es el que usamos:
+The motor has a six-pin connector on the rear cover. The order is silkscreened on the board
+itself, and that is the one we use:
 
-| Pin | Serigrafía | Señal | Va a |
+| Pin | Silkscreen | Signal | Goes to |
 |---|---|---|---|
 | 1 | `M1` | Motor + | L298N `OUT1` |
-| 2 | `GND` | Masa del encoder | GND común |
-| 3 | `C1` | Canal A | GPIO27 |
-| 4 | `C2` | Canal B | GPIO23 |
-| 5 | `VCC` | Alimentación del encoder | 3,3 V |
+| 2 | `GND` | Encoder ground | Common GND |
+| 3 | `C1` | Channel A | GPIO27 |
+| 4 | `C2` | Channel B | GPIO23 |
+| 5 | `VCC` | Encoder supply | 3.3 V |
 | 6 | `M2` | Motor − | L298N `OUT2` |
 
-El vendedor adjunta un esquema numerado distinto, que pone `MOTOR+`, `MOTOR−`,
-`HALL GND`, `HALL Vcc`, `HALL A` y `HALL B` en ese orden. No coincide con la serigrafía, y
-por eso el número del dibujo no sirve. Antes de conectar, se comprueba con el multímetro:
-`M1` y `M2` son el único par con resistencia baja, de unos pocos ohmios, porque son el
-bobinado del motor; el resto son señales.
+The seller includes a different numbered diagram, which lists `MOTOR+`, `MOTOR−`,
+`HALL GND`, `HALL Vcc`, `HALL A` and `HALL B` in that order. It does not match the
+silkscreen, which is why the number in the drawing is useless. Before connecting, it is
+checked with the multimeter: `M1` and `M2` are the only pair with low resistance, a few
+ohms, because they are the motor winding; the rest are signals.
 
-Los canales del encoder llevan resistencias de 4,7 kΩ a 3,3 V, porque la salida del sensor
-es de colector abierto y sin ellas las cuentas llegan incompletas.
+The encoder channels have 4.7 kΩ resistors to 3.3 V, because the sensor output is open
+collector and without them the counts arrive incomplete.
 
-### El servo de dirección
+### The steering servo
 
-El SCS0009 no se controla con pulsos como un servo normal. Es un servo de bus: recibe
-paquetes por un cable y contesta por el mismo cable, en medio dúplex. Para conectarlo al P4
-usamos el adaptador de bus servo (A) de Waveshare (SKU 25514), que hace de puente entre ese
-único hilo y el UART del micro, deja la respuesta en 3,3 V del lado de la placa y reparte la
-alimentación del servo. El servo trae en la caja una plaquita TTL pequeña; no la usamos,
-queda como repuesto para probarlo suelto con un adaptador USB-TTL.
+The SCS0009 is not controlled with pulses like a normal servo. It is a bus servo: it receives
+packets over one wire and answers over the same wire, half-duplex. To connect it to the P4 we
+use the Waveshare servo bus adapter (A) (SKU 25514), which bridges that single wire and the
+microcontroller's UART, keeps the reply at 3.3 V on the board side and distributes the
+servo's power. The servo ships with a small TTL board in the box; we do not use it, it stays
+as a spare to test the servo on its own with a USB-TTL adapter.
 
-El adaptador es una placa de 42 × 33 mm con dos puertos de servo idénticos, un header UART
-de tres pines, una bornera `DC+`/`DC−`, un jack DC5521 y un USB-C. Los dos jumpers van en la
-fila `A`, que conecta el driver del bus con el header UART; la fila `B` lo conecta con el
-CH343P del USB. En `A` el adaptador no necesita PC.
+The adapter is a 42 × 33 mm board with two identical servo ports, a three-pin UART header, a
+`DC+`/`DC−` terminal block, a DC5521 jack and a USB-C port. Both jumpers go in row `A`, which
+connects the bus driver to the UART header; row `B` connects it to the USB CH343P. In `A` the
+adapter does not need a PC.
 
-El conector del servo es de tres pines y tiene una pestaña, pero se puede forzar al revés.
-El puerto del adaptador está serigrafiado `D V G`; antes de enchufar comprobamos que el negro
-quede en `G`, el rojo en `V` y el blanco en `D`:
+The servo connector is three-pin and has a tab, but it can be forced in backwards. The
+adapter port is silkscreened `D V G`; before plugging it in we check that black sits on `G`,
+red on `V` and white on `D`:
 
-| Pin del servo | Color | Señal | Va a |
+| Servo pin | Color | Signal | Goes to |
 |---|---|---|---|
-| 1 | negro | GND | puerto `G` del adaptador |
-| 2 | rojo | VCC | puerto `V` del adaptador, que entrega el bus de 5,1 V |
-| 3 | blanco | DATA | puerto `D` del adaptador |
+| 1 | black | GND | adapter `G` port |
+| 2 | red | VCC | adapter `V` port, which delivers the 5.1 V bus |
+| 3 | white | DATA | adapter `D` port |
 
-El adaptador tiene dos puertos iguales y en paralelo. Usamos uno y el otro queda libre para
-encadenar un segundo servo con otra ID. Las conexiones del adaptador son estas:
+The adapter has two identical ports in parallel. We use one and the other stays free to chain
+a second servo with another ID. The adapter connections are these:
 
-| Conexión | Va a | Cable |
+| Connection | Goes to | Cable |
 |---|---|---|
-| `DC+` | bus de 5,1 V | 22 AWG |
-| `DC−` | GND común | 22 AWG |
+| `DC+` | 5.1 V bus | 22 AWG |
+| `DC−` | common GND | 22 AWG |
 | `TX` | P4 `GPIO26`, TX | 22 AWG |
 | `RX` | P4 `GPIO21`, RX | 22 AWG |
-| `GND` del header UART | GND común | 22 AWG |
-| `D`, `V`, `G` del puerto | servo | cable del servo |
+| UART header `GND` | common GND | 22 AWG |
+| Port `D`, `V`, `G` | servo | servo cable |
 
-En la placa, el header se lee `TX`, `RX`, `GND` de izquierda a derecha, con el `GND` junto
-al tornillo de la esquina. Son tres pines.
+On the board the header reads `TX`, `RX`, `GND` from left to right, with `GND` next to the
+corner screw. It is three pins.
 
-Ojo con los nombres: el `TX` del adaptador es la entrada por donde el P4 transmite y el
-`RX` es la salida por donde el P4 recibe, así que van con el mismo nombre y no se cruzan.
-Waveshare lo dice explícito en su documentación: RX con RX y TX con TX. Si se cruzan, el
-servo no contesta y parece muerto.
+Mind the names: the adapter's `TX` is the input through which the P4 transmits and `RX` is
+the output through which the P4 receives, so they go with the same name and are not crossed.
+Waveshare says so explicitly in its documentation: RX with RX and TX with TX. If they are
+crossed, the servo does not answer and looks dead.
 
-El header UART es de 3,3 V. Los dos buffers del adaptador se alimentan del AMS1117-3.3 de
-la propia placa, así que la respuesta del servo nunca llega a 5 V al `GPIO21`. No hace falta
-divisor ni adaptador de nivel. El `TX` del P4 a 3,3 V entra sin problema, porque el
-datasheet del servo acepta de 2 a 5 V en su entrada. El header no tiene pin de
-alimentación: al adaptador no se le lleva 3,3 V desde el P4. Su lógica sale de `DC+`, y el
-único cable que comparte con la placa es el GND.
+The UART header is 3.3 V. Both buffers on the adapter are powered from the board's own
+AMS1117-3.3, so the servo reply never reaches 5 V at `GPIO21`. No divider or level shifter is
+needed. The P4's `TX` at 3.3 V goes in without a problem, because the servo datasheet accepts
+2 to 5 V on its input. The header has no power pin: no 3.3 V is taken from the P4 to the
+adapter. Its logic comes from `DC+`, and the only wire it shares with the board is GND.
 
-**La alimentación.** El adaptador no regula la tensión del servo: el pin `V` del puerto
-entrega la misma tensión que entra por `DC+`. Por eso lo alimentamos con el bus de 5,1 V,
-que está dentro del rango de 4 a 7,4 V del SCS0009. La serigrafía dice `DC 9~12.6V` porque
-la placa está pensada para los servos ST, que trabajan a 12 V; para los SC el rango útil es
-5 a 8,4 V y nuestro 5,1 V es válido. La lógica se alimenta aparte, de un regulador interno
-que baja la entrada a 5 V y luego a 3,3 V; con 5,1 V de entrada el regulador de 5 V no tiene
-margen para regular y la tensión pasa casi tal cual, así que en la puesta en marcha medimos
-que los 3,3 V estén presentes antes de conectar el servo. Si no arranca, la solución es
-alimentar solo el adaptador desde una rama de 6 V, no subir todo el bus.
+**Power.** The adapter does not regulate the servo voltage: the port's `V` pin delivers the
+same voltage that enters through `DC+`. That is why we power it from the 5.1 V bus, which is
+within the SCS0009's 4 to 7.4 V range. The silkscreen says `DC 9~12.6V` because the board is
+designed for ST servos, which run at 12 V; for SC servos the useful range is 5 to 8.4 V and
+our 5.1 V is valid. The logic is powered separately, from an internal regulator that steps
+the input down to 5 V and then to 3.3 V; with 5.1 V in, the 5 V regulator has no headroom to
+regulate and the voltage passes almost as is, so during bring-up we measure that the 3.3 V is
+present before connecting the servo. If it does not start, the solution is to power only the
+adapter from a 6 V branch, not to raise the whole bus.
 
-La entrada tiene un MOSFET de protección de polaridad y un TVS, así que un cable invertido
-no quema la placa. Usamos la bornera y no el jack, porque la bornera no se suelta con la
-vibración; los cables van con terminal de puntera. El condensador de 470 µF va entre `DC+` y
-`DC−`, pegado a la bornera: es el que absorbe el pico de arranque del servo antes de que
-llegue al bus de 5,1 V.
+The input has a reverse-polarity protection MOSFET and a TVS, so a reversed cable does not
+burn the board. We use the terminal block and not the jack, because the terminal block does
+not come loose with vibration; the cables go with ferrule terminals. The 470 µF capacitor
+goes between `DC+` and `DC−`, right next to the terminal block: it is what absorbs the servo's
+start-up peak before it reaches the 5.1 V bus.
 
 ```mermaid
 flowchart LR
     P4["ESP32-P4"]
     TX["TX · GPIO26"]
     RX["RX · GPIO21"]
-    ADP["Adaptador de servo (A)<br/>jumpers en A"]
+    ADP["Servo adapter (A)<br/>jumpers in A"]
     SRV["SCS0009"]
-    BUS(["5,1 V"])
+    BUS(["5.1 V"])
     GND(["GND"])
 
     P4 --> TX -->|"TX"| ADP
@@ -386,69 +386,67 @@ flowchart LR
     GND -.->|"DC−"| ADP
     GND -.->|"GND"| ADP
     ADP ==>|"D · V · G"| SRV
-    C["470 µF"] -.->|"en DC+"| ADP
+    C["470 µF"] -.->|"on DC+"| ADP
 
-    classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-    classDef srv fill:#15803d,stroke:#14532d,color:#ffffff
-    classDef prot fill:#b45309,stroke:#78350f,color:#ffffff
-    class P4,TX,RX ctrl
-    class ADP,SRV srv
-    class C,BUS,GND prot
+    classDef control fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef servo fill:#15803d,stroke:#14532d,color:#ffffff
+    classDef protection fill:#b45309,stroke:#78350f,color:#ffffff
+    class P4,TX,RX control
+    class ADP,SRV servo
+    class C,BUS,GND protection
 ```
 
-El adaptador no es un simple conector. Lleva dos buffers y un transistor que detectan cuándo
-el P4 está transmitiendo: cuando la línea TX está en reposo, el buffer de transmisión queda
-en alta impedancia y una resistencia mantiene el hilo en alto, así que el servo puede
-responder; cuando el P4 empieza a transmitir, el transistor habilita el buffer, que lleva el
-hilo al nivel bajo. El buffer de recepción se deshabilita mientras la línea está en bajo,
-para que el adaptador no se escuche a sí mismo. Así el P4 puede usar un UART normal, con TX
-y RX separados, aunque el servo hable por un solo cable.
+The adapter is not a simple connector. It has two buffers and a transistor that detect when
+the P4 is transmitting: when the TX line is idle, the transmit buffer goes high-impedance and
+a resistor holds the wire high, so the servo can answer; when the P4 starts transmitting, the
+transistor enables the buffer, which pulls the wire low. The receive buffer is disabled while
+the line is low, so the adapter does not hear itself. That is how the P4 can use a normal
+UART, with TX and RX separate, even though the servo talks over a single wire.
 
-El conexionado directo que probamos antes, con una resistencia de 1 kΩ en el TX y un divisor
-en la recepción, queda descartado para la instalación final: el adaptador hace las dos cosas
-y además reparte la alimentación. La resistencia sigue sirviendo solo para probar el servo
-suelto con una fuente y un adaptador USB-TTL, nunca dentro del coche.
+The direct wiring we tried before, with a 1 kΩ resistor on TX and a divider on receive, is
+ruled out for the final installation: the adapter does both things and also distributes
+power. The resistor is still only useful to test the servo on its own with a supply and a
+USB-TTL adapter, never inside the car.
 
-Los valores que hay que respetar: 4 a 7,4 V de alimentación, 2,3 kg·cm de par de bloqueo a
-6 V, 0,7 kg·cm de par nominal, 300° en 1024 pasos (0,293° por paso), 0,1 s por 60° a 6 V,
-150 mA en vacío y 1 A de bloqueo. Viene de fábrica con la dirección 1 y a 1 Mbit/s; si se
-cambia la velocidad hay que hacerlo con cuidado, porque si se escribe mal el servo deja de
-responder y hay que recuperarlo con la herramienta del fabricante.
+The values that must be respected: 4 to 7.4 V supply, 2.3 kg·cm stall torque at 6 V,
+0.7 kg·cm rated torque, 300° in 1024 steps (0.293° per step), 0.1 s per 60° at 6 V, 150 mA
+idle and 1 A stall. It comes from the factory with ID 1 and at 1 Mbit/s; if the speed is
+changed it must be done carefully, because if it is written wrong the servo stops responding
+and has to be recovered with the manufacturer's tool.
 
-Como es un servo de bus, también devuelve la posición real en la que está. Eso permite
-saber el ángulo de las ruedas sin depender de haber medido los pulsos a mano, que era el
-punto más frágil del servo anterior.
+Because it is a bus servo, it also returns the actual position it is in. That lets us know the
+wheel angle without depending on having measured the pulses by hand, which was the most
+fragile point of the previous servo.
 
 ---
 
-## Mapa de conexiones
+## Connection map
 
-Este diagrama muestra las dos cosas a la vez: las señales y las dos líneas que pasan por
-todos los módulos. Las flechas gruesas son potencia, las finas son señal y las de puntos
-son tierra.
+This diagram shows both things at once: the signals and the two lines that run through every
+module. Thick arrows are power, thin ones are signal and dotted ones are ground.
 
 ```mermaid
 flowchart LR
-    BUS(["5,1 V"])
-    V33(["3,3 V"])
+    BUS(["5.1 V"])
+    V33(["3.3 V"])
     GND(["GND"])
 
     P4["ESP32-P4"]
 
     L298["L298N"]
-    MOT["Motor JGB37-520"]
-    ADP["Adaptador de servo (A)"]
-    SRV["Servo SCS0009"]
-    LID["LiDAR D500"]
+    MOT["JGB37-520 motor"]
+    ADP["Servo adapter (A)"]
+    SRV["SCS0009 servo"]
+    LID["D500 LiDAR"]
     IMU["MPU-6050"]
     S3["ESP32-S3-CAM"]
-    BTN["Pulsador START"]
+    BTN["START button"]
 
     BUS ==>|"5 V"| P4
-    P4 ==>|"3,3 V"| V33
+    P4 ==>|"3.3 V"| V33
     P4 -.-> GND
 
-    BUS ==>|"lógica"| L298
+    BUS ==>|"logic"| L298
     GND -.-> L298
     P4 -->|"IN1 32 · IN2 33"| L298
     L298 ==>|"M1 · M2"| MOT
@@ -456,7 +454,7 @@ flowchart LR
     V33 ==>|"encoder VCC"| MOT
     MOT -->|"C1 27 · C2 23"| P4
 
-    P4 <-->|"UART 26 y 21"| ADP
+    P4 <-->|"UART 26 and 21"| ADP
     BUS ==>|"DC+"| ADP
     GND -.-> ADP
     ADP ==>|"D · V · G"| SRV
@@ -469,7 +467,7 @@ flowchart LR
     BUS ==> IMU
     GND -.-> IMU
 
-    P4 <-->|"UART 921600<br/>37 y 38"| S3
+    P4 <-->|"UART 921600<br/>37 and 38"| S3
     BUS ==> S3
     GND -.-> S3
 
@@ -477,270 +475,268 @@ flowchart LR
     GND -.-> BTN
 
     classDef rails fill:#111827,stroke:#000000,color:#ffffff
-    classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
-    classDef act fill:#15803d,stroke:#14532d,color:#ffffff
-    classDef sen fill:#6d28d9,stroke:#4c1d95,color:#ffffff
+    classDef control fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+    classDef actuator fill:#15803d,stroke:#14532d,color:#ffffff
+    classDef sensor fill:#6d28d9,stroke:#4c1d95,color:#ffffff
     class BUS,V33,GND rails
-    class P4,S3 ctrl
-    class L298,SRV,ADP act
-    class MOT,LID,IMU,BTN sen
+    class P4,S3 control
+    class L298,SRV,ADP actuator
+    class MOT,LID,IMU,BTN sensor
 ```
 
-### Alimentación y tierra
+### Power and ground
 
-Cada módulo necesita su positivo y su negativo, y esos no salen en las tablas de señales.
-Aquí están todos, incluidos los que van a 3,3 V.
+Each module needs its positive and its negative, and those do not appear in the signal
+tables. Here they all are, including the ones going to 3.3 V.
 
-| Módulo | Pin | Va a | Cable |
+| Module | Pin | Goes to | Cable |
 |---|---|---|---|
-| Batería | XT60 `+` | Fusible de 5 A | 16 AWG |
-| Batería | XT60 `−` | GND común | 16 AWG |
-| XL4015 | `IN+` | Interruptor general, 12,6 V | 18 AWG |
-| XL4015 | `IN−` | GND común | 18 AWG |
-| XL4015 | `OUT+` | Bus de 5,1 V | 18 AWG |
-| XL4015 | `OUT−` | GND común | 18 AWG |
-| ESP32-P4 | `5V` | Bus de 5,1 V | 22 AWG |
-| ESP32-P4 | `GND` | GND común | 22 AWG |
-| ESP32-P4 | `3V3` | `VCC` del encoder y pull-ups | 22 AWG |
-| ESP32-S3-CAM | `5V` | Bus de 5,1 V | 22 AWG |
-| ESP32-S3-CAM | `GND` | GND común | 22 AWG |
-| L298N | `+12V` | Fusible e interruptor | 16 AWG |
-| L298N | `GND` | GND común | 16 AWG |
-| L298N | `+5V` | Bus de 5,1 V, solo lógica | 22 AWG |
-| Motor | `VCC` | `3V3` del P4 | 22 AWG |
-| Motor | `GND` | GND común | 22 AWG |
-| Adaptador de servo | `DC+` | Bus de 5,1 V | 22 AWG |
-| Adaptador de servo | `DC−` | GND común | 22 AWG |
-| Adaptador de servo | `GND` del header UART | GND común | 22 AWG |
-| Servo | `V`, rojo | Puerto `V` del adaptador | cable del servo |
-| Servo | `G`, negro | Puerto `G` del adaptador | cable del servo |
-| LiDAR | `P5V` | Bus de 5,1 V | 22 AWG |
-| LiDAR | `GND` | GND común | 22 AWG |
-| IMU | `VCC` | Bus de 5,1 V | 22 AWG |
-| IMU | `GND` | GND común | 22 AWG |
-| IMU | `AD0` | GND, para dejar la dirección en 0x68 | 22 AWG |
-| Botón | Terminal 2 | GND común | 22 AWG |
+| Battery | XT60 `+` | 5 A fuse | 16 AWG |
+| Battery | XT60 `−` | Common GND | 16 AWG |
+| XL4015 | `IN+` | Main switch, 12.6 V | 18 AWG |
+| XL4015 | `IN−` | Common GND | 18 AWG |
+| XL4015 | `OUT+` | 5.1 V bus | 18 AWG |
+| XL4015 | `OUT−` | Common GND | 18 AWG |
+| ESP32-P4 | `5V` | 5.1 V bus | 22 AWG |
+| ESP32-P4 | `GND` | Common GND | 22 AWG |
+| ESP32-P4 | `3V3` | Encoder `VCC` and pull-ups | 22 AWG |
+| ESP32-S3-CAM | `5V` | 5.1 V bus | 22 AWG |
+| ESP32-S3-CAM | `GND` | Common GND | 22 AWG |
+| L298N | `+12V` | Fuse and switch | 16 AWG |
+| L298N | `GND` | Common GND | 16 AWG |
+| L298N | `+5V` | 5.1 V bus, logic only | 22 AWG |
+| Motor | `VCC` | P4 `3V3` | 22 AWG |
+| Motor | `GND` | Common GND | 22 AWG |
+| Servo adapter | `DC+` | 5.1 V bus | 22 AWG |
+| Servo adapter | `DC−` | Common GND | 22 AWG |
+| Servo adapter | UART header `GND` | Common GND | 22 AWG |
+| Servo | `V`, red | Adapter `V` port | servo cable |
+| Servo | `G`, black | Adapter `G` port | servo cable |
+| LiDAR | `P5V` | 5.1 V bus | 22 AWG |
+| LiDAR | `GND` | Common GND | 22 AWG |
+| IMU | `VCC` | 5.1 V bus | 22 AWG |
+| IMU | `GND` | Common GND | 22 AWG |
+| IMU | `AD0` | GND, to leave the address at 0x68 | 22 AWG |
+| Button | Terminal 2 | Common GND | 22 AWG |
 
-### Señales
+### Signals
 
-| Módulo | Pin | Va a | Cable |
+| Module | Pin | Goes to | Cable |
 |---|---|---|---|
 | L298N | `IN1` | P4 `GPIO32` | 22 AWG |
 | L298N | `IN2` | P4 `GPIO33` | 22 AWG |
 | L298N | `OUT1` | Motor `M1` | 16 AWG |
 | L298N | `OUT2` | Motor `M2` | 16 AWG |
-| L298N | `ENA` | Jumper puesto, sin cable | — |
+| L298N | `ENA` | Jumper fitted, no cable | — |
 | Motor | `C1` | P4 `GPIO27` | 22 AWG |
 | Motor | `C2` | P4 `GPIO23` | 22 AWG |
-| Motor | `C1` y `C2` | Pull-ups de 4,7 kΩ a 3,3 V | 22 AWG |
-| Adaptador de servo | `TX` | P4 `GPIO26`, TX | 22 AWG |
-| Adaptador de servo | `RX` | P4 `GPIO21`, RX | 22 AWG |
-| Servo | `D`, blanco | Puerto `D` del adaptador | cable del servo |
+| Motor | `C1` and `C2` | 4.7 kΩ pull-ups to 3.3 V | 22 AWG |
+| Servo adapter | `TX` | P4 `GPIO26`, TX | 22 AWG |
+| Servo adapter | `RX` | P4 `GPIO21`, RX | 22 AWG |
+| Servo | `D`, white | Adapter `D` port | servo cable |
 | LiDAR | `TX` | P4 `GPIO22` | 22 AWG |
-| LiDAR | `PWM` | GND, no al P4 | 22 AWG |
+| LiDAR | `PWM` | GND, not to the P4 | 22 AWG |
 | IMU | `SDA` | P4 `GPIO7` | 22 AWG |
 | IMU | `SCL` | P4 `GPIO8` | 22 AWG |
 | S3-CAM | `GPIO1`, TX | P4 `GPIO38` | 22 AWG |
-| S3-CAM | `GPIO14`, RX | P4 `GPIO37`, solo si se usa el retorno | 22 AWG |
-| Botón | Terminal 1 | P4 `GPIO5` | 22 AWG |
+| S3-CAM | `GPIO14`, RX | P4 `GPIO37`, only if the return path is used | 22 AWG |
+| Button | Terminal 1 | P4 `GPIO5` | 22 AWG |
 
-### Lo que se queda sin conectar
+### What is left unconnected
 
-| Módulo | Pines | Por qué |
+| Module | Pins | Why |
 |---|---|---|
-| L298N | `IN3`, `IN4`, `OUT3`, `OUT4`, `ENB` | El segundo canal no se usa: hay un solo motor |
-| IMU | `INT` | Ninguna parte del coche la usa |
-| IMU | `XDA`, `XCL` | Son la pasarela I²C auxiliar del módulo y no hacen falta |
-| S3-CAM | microSD y LED RGB | No se usan en el coche; la tarjeta ocupa `GPIO38` a `GPIO40` y el LED el `GPIO48` |
-| Adaptador de servo | USB-C y jack DC5521 | El USB es para configurarlo desde un PC y el jack duplica la bornera; alimentamos por la bornera |
-| Adaptador de servo | Segundo puerto `D/V/G` | Queda libre para un segundo servo con otra ID |
+| L298N | `IN3`, `IN4`, `OUT3`, `OUT4`, `ENB` | The second channel is not used: there is only one motor |
+| IMU | `INT` | No part of the car uses it |
+| IMU | `XDA`, `XCL` | They are the module's auxiliary I²C gateway and are not needed |
+| S3-CAM | microSD and RGB LED | Not used in the car; the card occupies `GPIO38` to `GPIO40` and the LED `GPIO48` |
+| Servo adapter | USB-C and DC5521 jack | USB is for configuring it from a PC and the jack duplicates the terminal block; we power it through the terminal block |
+| Servo adapter | Second `D/V/G` port | Stays free for a second servo with another ID |
 
-### Las cuatro conexiones que se prestan a confusión
+### The four connections that invite confusion
 
-**El LiDAR tiene una sola señal porque solo habla.** El D500 no recibe órdenes: entrega el
-barrido y nada más. Su conector de cuatro pines es `P5V`, `GND`, `TX` y `PWM`, y de esos
-cuatro solo el `TX` va al P4 (`GPIO22`). El `PWM` no es una señal del micro: se lleva a GND
-para que el sensor gire a 10 Hz por su cuenta. Si se deja al aire, el motor interno no gira
-y no llega ni un dato. La alimentación va aparte, del bus de 5,1 V, con su par de cables.
+**The LiDAR has a single signal because it only talks.** The D500 does not receive commands:
+it delivers the sweep and nothing else. Its four-pin connector is `P5V`, `GND`, `TX` and
+`PWM`, and of those four only `TX` goes to the P4 (`GPIO22`). `PWM` is not a signal from the
+microcontroller: it is taken to GND so that the sensor spins at 10 Hz on its own. If it is
+left floating, the internal motor does not spin and not a single data point arrives. Power
+goes separately, from the 5.1 V bus, with its own pair of cables.
 
-**La IMU lleva cuatro cables, no dos.** `VCC` y `GND` para alimentarla, `SDA` y `SCL` para
-los datos. El `AD0` se ata a GND para que responda en 0x68; si se deja al aire la dirección
-queda indeterminada. La interrupción `INT` no se conecta, y por eso el `GPIO6` del P4 queda
-libre.
+**The IMU has four wires, not two.** `VCC` and `GND` to power it, `SDA` and `SCL` for the
+data. `AD0` is tied to GND so that it responds at 0x68; if it is left floating the address is
+undefined. The `INT` interrupt is not connected, which is why the P4's `GPIO6` stays free.
 
-**En la S3-CAM los pines del enlace están al otro lado del header.** La cámara ocupa
-`GPIO4` a `GPIO13` y `GPIO15` a `GPIO18`, y la microSD los `GPIO38` a `GPIO40`, así que el
-enlace va por `GPIO1` para transmitir y `GPIO14` para recibir, que son dos de los pocos que
-quedan libres. El `GPIO2` también está libre, pero tiene un LED de la placa encima y
-preferimos no confundir el parpadeo con actividad del enlace. Del lado del P4 el enlace
-entra por `GPIO38` y sale por `GPIO37`, y los dos van trenzados con su GND.
+**On the S3-CAM the link pins are on the other side of the header.** The camera occupies
+`GPIO4` to `GPIO13` and `GPIO15` to `GPIO18`, and the microSD occupies `GPIO38` to `GPIO40`,
+so the link uses `GPIO1` to transmit and `GPIO14` to receive, which are two of the few that
+remain free. `GPIO2` is also free, but it has a board LED on it and we prefer not to confuse
+the blinking with link activity. On the P4 side the link comes in on `GPIO38` and goes out on
+`GPIO37`, and both run twisted with their GND.
 
-**El servo no se conecta directo al P4.** El SCS0009 habla por un solo hilo y el P4 tiene
-un UART con TX y RX separados. El adaptador de Waveshare hace esa conversión y deja la
-respuesta en 3,3 V. Por eso el `GPIO26` va al `TX` del adaptador y el `GPIO21` al `RX`, con
-el mismo nombre y sin cruzarlos. La alimentación tampoco sale del P4: entra por `DC+` desde
-el bus de 5,1 V y sale por el pin `V` del puerto `D/V/G`.
+**The servo is not connected straight to the P4.** The SCS0009 talks over a single wire and
+the P4 has a UART with separate TX and RX. The Waveshare adapter makes that conversion and
+keeps the reply at 3.3 V. That is why `GPIO26` goes to the adapter's `TX` and `GPIO21` to
+`RX`, with the same name and without crossing them. Power does not come from the P4 either:
+it enters through `DC+` from the 5.1 V bus and leaves through the `V` pin of the `D/V/G`
+port.
 
-### Los pines del P4 que no se tocan
+### The P4 pins that are left alone
 
-Hay pines que no se usan aunque parezcan libres, porque en esta placa ya tienen dueño.
-`GPIO24` y `GPIO25` son el USB OTG y el JTAG por USB: si los ocupamos perdemos la forma de
-flashear y de ver los logs. `GPIO7` y `GPIO8` son el bus I²C de la propia placa, donde
-cuelgan el códec de audio y el táctil; los usamos para la IMU porque el MPU-6050 responde
-en 0x68 y no choca con el 0x18 del códec ni con el 0x5D del táctil.
+There are pins that are not used even though they look free, because on this board they
+already have an owner. `GPIO24` and `GPIO25` are USB OTG and JTAG over USB: if we occupy them
+we lose the way to flash and to see the logs. `GPIO7` and `GPIO8` are the board's own I²C bus,
+where the audio codec and the touch panel hang; we use them for the IMU because the MPU-6050
+responds at 0x68 and does not clash with the codec's 0x18 or the touch panel's 0x5D.
 
-La placa también tiene ocupados el audio en `GPIO9` a `GPIO13`, la microSD en `GPIO39` a
-`GPIO44`, el Ethernet en `GPIO28` a `GPIO31` y en `GPIO49` a `GPIO52`, el amplificador de
-sonido en `GPIO53`, el reset del chip de Wi-Fi en `GPIO54` y el LED indicador en `GPIO45`.
+The board also has audio on `GPIO9` to `GPIO13`, the microSD on `GPIO39` to `GPIO44`,
+Ethernet on `GPIO28` to `GPIO31` and on `GPIO49` to `GPIO52`, the sound amplifier on
+`GPIO53`, the Wi-Fi chip reset on `GPIO54` and the indicator LED on `GPIO45`.
 
-`GPIO0`, `GPIO34`, `GPIO35` y `GPIO36` son de configuración del arranque. `GPIO37` y
-`GPIO38` también lo son, y además van al CH343P de la consola, pero los usamos para el
-enlace con el S3-CAM: el arranque normal solo mira `GPIO35`, que tiene pull-up propio y no
-tocamos, y el USB de consola queda desconectado durante las rondas.
+`GPIO0`, `GPIO34`, `GPIO35` and `GPIO36` are boot configuration pins. `GPIO37` and `GPIO38`
+are too, and they also go to the console's CH343P, but we use them for the link with the
+S3-CAM: normal boot only looks at `GPIO35`, which has its own pull-up and is not touched, and
+the console USB is disconnected during the rounds.
 
-Con todo eso, los que quedan libres son `GPIO2`, `GPIO3`, `GPIO4`, `GPIO6`, `GPIO20`,
-`GPIO46`, `GPIO47` y `GPIO48`. Los tres primeros son los pines de JTAG de la placa, que no
-usamos porque depuramos por USB, así que quedan como GPIO normal. El `GPIO20` además tiene
-ADC, que es lo que hace falta para el divisor que va a vigilar la batería. `GPIO0` y
-`GPIO1` no los damos por libres: la placa los comparte con el cristal de 32 kHz y habría
-que levantar una resistencia para usarlos limpios.
+With all that, the ones left free are `GPIO2`, `GPIO3`, `GPIO4`, `GPIO6`, `GPIO20`,
+`GPIO46`, `GPIO47` and `GPIO48`. The first three are the board's JTAG pins, which we do not
+use because we debug over USB, so they remain as normal GPIOs. `GPIO20` also has an ADC,
+which is what is needed for the divider that will monitor the battery. We do not count
+`GPIO0` and `GPIO1` as free: the board shares them with the 32 kHz crystal and a resistor
+would have to be lifted to use them cleanly.
 
-### Cómo va cada cable
+### How each cable runs
 
-| Desde | Hasta | Calibre |
+| From | To | Gauge |
 |---|---|---|
-| Batería + | Fusible, interruptor y L298N `+12V` | 16 AWG |
-| Batería − | Punto común de GND | 16 AWG |
-| L298N `OUT1` y `OUT2` | Motor `M1` y `M2` | 16 AWG |
-| XL4015 `OUT+` | Bus de 5,1 V | 18 AWG |
-| Bus de 5,1 V | Las dos placas, LiDAR y lógica del L298N | 22 AWG |
-| Bus de 5,1 V | Adaptador del servo, con su propio par desde el punto de reparto | 22 AWG |
-| Señales y encoder | Placa | 22 AWG |
-| Fuente de 3,3 V | Encoder `VCC` y pull-ups | 22 AWG |
-| Adaptador de servo | Servo | cable del servo, corto |
-| Enlace UART con el S3-CAM | Placa | 22 AWG, corto y trenzado con GND |
+| Battery + | Fuse, switch and L298N `+12V` | 16 AWG |
+| Battery − | Common GND point | 16 AWG |
+| L298N `OUT1` and `OUT2` | Motor `M1` and `M2` | 16 AWG |
+| XL4015 `OUT+` | 5.1 V bus | 18 AWG |
+| 5.1 V bus | Both boards, LiDAR and L298N logic | 22 AWG |
+| 5.1 V bus | Servo adapter, with its own pair from the distribution point | 22 AWG |
+| Signals and encoder | Board | 22 AWG |
+| 3.3 V source | Encoder `VCC` and pull-ups | 22 AWG |
+| Servo adapter | Servo | servo cable, short |
+| UART link to the S3-CAM | Board | 22 AWG, short and twisted with GND |
 
-El pin `PWM` del LiDAR va a GND: si se deja al aire, el motor interno no gira y no hay
-datos. Los conectores de potencia son XT60 y borneras; los dupont quedan solo para señal.
+The LiDAR's `PWM` pin goes to GND: if it is left floating, the internal motor does not spin
+and there is no data. The power connectors are XT60 and terminal blocks; dupont only remains
+for signals.
 
-El enlace entre las dos placas va corto, trenzado con su propio GND y lejos de los cables
-del motor. A 921600 baudios el cable se comporta como una línea de transmisión y un lazo
-largo con el motor al lado mete errores que después son difíciles de encontrar, porque el
-síntoma es una tabla de detecciones que llega a medias.
-
----
-
-## Puesta en marcha
-
-No conectamos nada sin haber hecho esto antes, y lo repetimos cada vez que cambiamos un
-cable.
-
-1. Sin batería, comprobamos con el multímetro que el positivo de 12 V no tiene continuidad
-   con GND, y lo mismo con el de 5 V.
-2. Alimentamos el XL4015 solo, con una fuente de laboratorio a 12 V, y ajustamos la salida
-   a 5,1 V sin carga. Repetimos con una resistencia de 10 Ω conectada y volvemos a ajustar.
-3. Conectamos el bus de 5 V y medimos otra vez en el pin de la placa.
-4. Encendemos la placa sola y confirmamos que arranca.
-5. Conectamos el LiDAR y verificamos que gira y entrega datos.
-6. Conectamos la IMU y comprobamos que responde por I²C en la dirección 0x68.
-7. Alimentamos el S3-CAM y comprobamos el enlace a 921600: que la tabla llegue completa y
-   que no haya tramas cortadas ni errores de trama.
-8. Giramos el eje del motor a mano y vemos que el encoder cuenta en los dos sentidos.
-9. Antes de conectar el servo, comprobamos que los dos jumpers del adaptador estén en la
-   fila `A`, medimos 5,1 V entre `DC+` y `DC−` y 5,1 V entre `V` y `G` del puerto del servo.
-   El LED `PWR` del adaptador tiene que encender: es la señal de que el regulador interno
-   sacó los 3,3 V. Recién ahí conectamos el servo y lo movemos con las ruedas en el aire,
-   primero apenas unos grados, y comprobamos que responde y que devuelve una posición
-   coherente. Si el LED no enciende con 5,1 V de entrada, no seguimos: pasamos el adaptador
-   a una rama de 6 V.
-10. Por último el motor, también en el aire y con el PWM al 10 %.
-
-Si algo falla, se desconecta lo último que se puso y se vuelve atrás. Así el error aparece
-donde está y no en un cable cualquiera de los veinte que hay dentro del coche.
+The link between the two boards runs short, twisted with its own GND and away from the motor
+cables. At 921600 baud the cable behaves like a transmission line and a long loop next to the
+motor introduces errors that are hard to find later, because the symptom is a detection table
+that arrives half complete.
 
 ---
 
-## Decisiones que tomamos
+## Bring-up
 
-**El driver.** Teníamos dos opciones sobre la mesa: dos módulos IRF520 o un L298N. Nos
-quedamos con el L298N porque el IRF520 es un MOSFET de un solo sentido: conecta la carga a
-tierra y no puede invertir la polaridad. Dos de ellos no forman un puente H, siguen siendo
-dos interruptores hacia GND, y el coche necesita avanzar y retroceder. No era una elección
-de gusto.
+We do not connect anything without having done this first, and we repeat it every time we
+change a cable.
 
-**El arranque.** El reglamento pide un interruptor para encender y un pulsador para dar la
-salida, y prohíbe cualquier comunicación inalámbrica, incluido el Wi-Fi que la placa trae
-de fábrica. Por eso descartamos arrancar desde el teléfono y también el botón de la placa,
-que además es un pin de configuración y puede dejar el coche en modo descarga si se pulsa
-en el momento equivocado. La solución es un pulsador externo entre `GPIO5` y GND, con la
-resistencia de pull-up interna.
+1. Without the battery, we check with the multimeter that the 12 V positive has no
+   continuity to GND, and the same for the 5 V one.
+2. We power the XL4015 alone, with a 12 V lab supply, and set the output to 5.1 V with no
+   load. We repeat with a 10 Ω resistor connected and adjust again.
+3. We connect the 5 V bus and measure again at the board's pin.
+4. We turn the board on alone and confirm that it boots.
+5. We connect the LiDAR and check that it spins and delivers data.
+6. We connect the IMU and check that it responds over I²C at address 0x68.
+7. We power the S3-CAM and check the link at 921600: that the table arrives complete and
+   that there are no truncated frames or framing errors.
+8. We turn the motor shaft by hand and see that the encoder counts in both directions.
+9. Before connecting the servo, we check that both adapter jumpers are in row `A`, measure
+   5.1 V between `DC+` and `DC−` and 5.1 V between `V` and `G` on the servo port. The
+   adapter's `PWR` LED must light: it is the sign that the internal regulator produced the
+   3.3 V. Only then do we connect the servo and move it with the wheels in the air, first
+   just a few degrees, and check that it responds and returns a coherent position. If the LED
+   does not light with 5.1 V in, we do not continue: we move the adapter to a 6 V branch.
+10. Finally the motor, also in the air and with PWM at 10 %.
 
-**El servo y su adaptador.** Pasamos del servo de pulsos al SCS0009 por dos razones. La
-primera es que sus engranajes son metálicos y su par es parecido con menos desgaste, algo
-que importa en un coche que va a girar miles de veces. La segunda es que devuelve la
-posición real, así que no dependemos de haber medido los pulsos a mano para saber dónde
-están las ruedas. El precio es que hay que tratarlo como un bus serie y no como una salida
-PWM. Para eso elegimos el adaptador de Waveshare y no la plaquita que viene en la caja: el
-adaptador ya trae el driver de medio dúplex, los niveles de 3,3 V, la bornera de
-alimentación con protección de polaridad y dos puertos de servo, así que el cableado se
-reduce a dos cables de alimentación y tres de señal, y no queda nada soldado al aire. La
-plaquita incluida queda como
-repuesto para probar el servo suelto. Los jumpers van en `A` porque el P4 habla UART; la
-posición `B` es para configurar el servo desde un PC por USB.
-
-**La IMU.** El GY-521 con MPU-6050 es el módulo más documentado que existe para esto, viene
-en paquetes de tres y su biblioteca está en todas partes. Para medir el giro en Z sobra, y
-el hecho de que traiga regulador y pull-ups a bordo simplifica el cableado.
-
-**Las dos placas.** El P4 no trae cámara; el S3-CAM sí, con la lente soldada y PSRAM de
-sobra para los fotogramas. Por eso el coche lleva dos: el P4 se queda con los sensores y el
-control, y el S3-CAM con la cámara y el enlace serie. Cada una tiene su propio regulador a
-3,3 V, así que el ruido de una no se cuela en la otra por la alimentación, y entre las dos
-solo va un enlace serie con el GND compartido.
-
-**El LiDAR.** Nos quedamos con el D500. Comparado con las alternativas de la misma gama,
-trabaja por tiempo de vuelo y no por triangulación, lo que le permite funcionar con luz
-ambiente fuerte y detectar objetos oscuros. La contrapartida es que hay que respetar su
-protocolo al pie de la letra, pero el sensor es claramente mejor para una pista con
-paredes y pilares de colores.
-
-**Los conectores.** La batería ya venía con XT60 y el resto del coche lo pasamos a ese
-mismo tipo. Los dupont quedan solo para las señales, nunca para potencia.
+If something fails, the last thing that was added is disconnected and we go back. That way
+the error shows up where it is and not in any one of the twenty cables inside the car.
 
 ---
 
-## Lo que falta
+## Decisions we made
 
-Nos queda medir la corriente real del motor con el coche completo, porque los 2,5 A de
-bloqueo los tomamos del catálogo del motor de 1000 rpm y no de una medición propia; el de
-600 rpm que está montado ahora puede dar otro número. También hay que probar el servo a
-1 Mbit/s con el adaptador y el cable real, y confirmar que el largo del cable no mete
-errores, porque el bus es de medio dúplex y es sensible a la capacidad del hilo. La prueba
-se hace con el servo montado, no con el cable corto de banco.
+**The driver.** We had two options on the table: two IRF520 modules or an L298N. We went
+with the L298N because the IRF520 is a one-way MOSFET: it connects the load to ground and
+cannot reverse polarity. Two of them do not make an H-bridge, they are still two switches to
+GND, and the car needs to go forward and backward. It was not a matter of taste.
 
-Con el osciloscopio hay que mirar el `RX` del adaptador, que es lo que llega al `GPIO21`.
-Tiene que quedar entre 0 y 3,3 V. El adaptador ya debería entregarlo así porque sus buffers
-se alimentan de los 3,3 V internos; si aparece un pico de 5 V, no conectamos el `GPIO21` y
-revisamos la placa antes de seguir.
+**Starting.** The rules require a switch to turn on and a button to start, and forbid any
+wireless communication, including the Wi-Fi the board ships with. That is why we ruled out
+starting from the phone and also the board's button, which is also a configuration pin and
+can leave the car in download mode if pressed at the wrong moment. The solution is an
+external button between `GPIO5` and GND, with the internal pull-up.
 
-Falta medir el par del servo a 5,1 V con la dirección montada. Si no alcanza para girar las
-ruedas paradas, cambiamos solo la alimentación del adaptador a una rama de 6 V; el resto del
-coche sigue en 5,1 V. Y confirmar que el regulador interno del adaptador arranca con 5,1 V
-de entrada, que es lo que dice el LED `PWR`.
+**The servo and its adapter.** We moved from the pulse servo to the SCS0009 for two reasons.
+The first is that its gears are metal and its torque is similar with less wear, which matters
+in a car that will turn thousands of times. The second is that it returns the actual
+position, so we do not depend on having measured the pulses by hand to know where the wheels
+are. The price is that it has to be treated as a serial bus and not as a PWM output. For that
+we chose the Waveshare adapter and not the small board that comes in the box: the adapter
+already brings the half-duplex driver, the 3.3 V levels, the power terminal block with
+reverse-polarity protection and two servo ports, so the wiring reduces to two power cables
+and three signal cables, and nothing is left soldered in the air. The included board stays as
+a spare to test the servo on its own. The jumpers go in `A` because the P4 speaks UART;
+position `B` is for configuring the servo from a PC over USB.
 
-Y queda el cambio de motor: pasar del de 600 rpm al de 1000 y volver a medir velocidad,
-corriente y odometría. El encoder y el cableado no cambian, pero la relación entre el ciclo
-de trabajo y la velocidad sí, y hay que volver a medirla.
+**The IMU.** The GY-521 with MPU-6050 is the most documented module there is for this, it
+comes in packs of three and its library is everywhere. For measuring rotation in Z it is more
+than enough, and the fact that it has a regulator and pull-ups on board simplifies the
+wiring.
 
-Aparte, montar el divisor de tensión en `GPIO20`, que tiene ADC, para vigilar la batería
-durante la ronda, y fijar la posición definitiva del interruptor y del pulsador, de modo
-que el juez los vea y pueda accionarlos sin desarmar nada.
+**The two boards.** The P4 does not have a camera; the S3-CAM does, with the lens soldered on
+and PSRAM to spare for the frames. That is why the car carries two: the P4 keeps the sensors
+and the control, and the S3-CAM the camera and the serial link. Each has its own 3.3 V
+regulator, so the noise of one does not leak into the other through the power supply, and
+between the two there is only a serial link with shared GND.
 
-Del S3-CAM hay que confirmar la cámara al recibir la placa: el texto del proveedor dice
-OV3660 y en la foto aparece serigrafiada una OV2640, así que la revisión real se mira en el
-módulo y se anota aquí. La alimentación y el enlace no cambian, pero el modelo sí afecta a
-lo que hay que configurar en el sensor.
+**The LiDAR.** We went with the D500. Compared with alternatives in the same range, it works
+by time of flight and not by triangulation, which lets it work under strong ambient light and
+detect dark objects. The trade-off is that its protocol has to be followed to the letter, but
+the sensor is clearly better for a track with walls and colored pillars.
 
-Cuando el coche esté cerrado haremos una prueba de tres minutos seguidos con todo
-encendido, que es exactamente lo que dura una ronda, y anotaremos aquí los valores finales
-de corriente y temperatura.
+**The connectors.** The battery already came with XT60 and we moved the rest of the car to
+that same type. Dupont only remains for signals, never for power.
+
+---
+
+## What is still missing
+
+We still have to measure the real motor current with the complete car, because the 2.5 A
+stall figure is taken from the 1000 rpm motor's catalogue and not from our own measurement;
+the 600 rpm one fitted now may give another number. We also have to test the servo at
+1 Mbit/s with the adapter and the real cable, and confirm that the cable length does not
+introduce errors, because the bus is half-duplex and sensitive to wire capacitance. The test
+is done with the servo mounted, not with the short bench cable.
+
+With the oscilloscope we have to look at the adapter's `RX`, which is what arrives at
+`GPIO21`. It must stay between 0 and 3.3 V. The adapter should already deliver it that way
+because its buffers are powered from the internal 3.3 V; if a 5 V spike appears, we do not
+connect `GPIO21` and we check the board before continuing.
+
+We still have to measure the servo torque at 5.1 V with the steering mounted. If it is not
+enough to turn the wheels while stopped, we change only the adapter's power to a 6 V branch;
+the rest of the car stays at 5.1 V. And confirm that the adapter's internal regulator starts
+with 5.1 V in, which is what the `PWR` LED says.
+
+And the motor swap is pending: going from the 600 rpm one to the 1000 rpm one and measuring
+speed, current and odometry again. The encoder and the wiring do not change, but the
+relationship between duty cycle and speed does, and it has to be measured again.
+
+Separately, building the voltage divider on `GPIO20`, which has an ADC, to monitor the
+battery during the round, and fixing the final position of the switch and the button, so that
+the judge can see them and operate them without taking anything apart.
+
+On the S3-CAM we have to confirm the camera when the board arrives: the supplier's text says
+OV3660 and in the photo an OV2640 is silkscreened, so the real revision is checked on the
+module and noted here. Power and the link do not change, but the model does affect what has
+to be configured in the sensor.
+
+When the car is closed up we will do a three-minute continuous test with everything on,
+which is exactly how long a round lasts, and note the final current and temperature values
+here.
