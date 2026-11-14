@@ -163,8 +163,8 @@ Known limits: on random but *feasible* layouts (the ones the interface draws) 24
 | Role | Name |
 |---|---|
 | **Software Engineer** | [Eddy Manuel Piantini Martinez](https://github.com/Eddym06) |
-| **Mechanical & Design Engineer** | Sebastian <!-- add surname and profile link --> |
-| **Electronics Engineer (collaborator)** | Yeremmy <!-- add surname and profile link --> |
+| **Mechanical & Design Engineer** | Sebastian Josue Diaz Encarnacion |
+| **Electronics Engineer (collaborator)** | Yeremy Manuel Bautista Portes |
 
 ## Competition compliance
 
