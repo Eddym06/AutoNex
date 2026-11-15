@@ -1,6 +1,6 @@
 # Vehicle photos
 
-Six views of the vehicle, as required by the WRO Future Engineers rules.
+Six views of the car, as the WRO Future Engineers rules ask for it.
 
 | File | View |
 |---|---|
@@ -11,6 +11,4 @@ Six views of the vehicle, as required by the WRO Future Engineers rules.
 | `top.jpg` | Top |
 | `bottom.jpg` | Bottom |
 
-**Current state:** these are renders of the complete CAD assembly, not photographs of the physical car. They are here to show the geometry and the packaging, and they will be replaced with real photographs once the chassis is assembled. The date on each replacement is noted in the commit message.
-
-The isometric render used in the documentation lives in `docs/assets/vehicle/dimetric.jpg`, because it is an illustration and not one of the six required views.
+These six images are renders of the CAD assembly. The isometric view that appears in the documentation is in `docs/assets/vehicle/dimetric.jpg`, because it is not one of the six required views.
