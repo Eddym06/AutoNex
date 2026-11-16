@@ -107,6 +107,8 @@ bool it_plan_build(it_plan_t *p, const it_config_t *cfg, int direction, const it
  * mucho `budget` evaluaciones (~30 us cada una en un PC) y devuelve true al terminar; p->valid dice si hay plan. */
 bool it_plan_begin(it_plan_t *p, const it_config_t *cfg, int direction, const it_obstacle_t *obs, int count);
 bool it_plan_step(it_plan_t *p, int budget);
+/* Refinado desde un plan valido (busqueda aleatoria de `evals` evaluaciones, por rebanadas con it_plan_step). El resultado queda en `work`. */
+bool it_plan_refine_begin(it_plan_t *work, const it_plan_t *base, int evals);
 
 void it_tracker_reset(it_tracker_t *t);
 /* Pose del eje trasero (cm, grados horario desde el norte) y velocidad medida. Devuelve false si no hay plan o el robot esta

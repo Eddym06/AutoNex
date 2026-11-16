@@ -120,7 +120,9 @@ typedef struct {
      * al parqueo). El controlador reactivo sigue corriendo en la sombra (cuenta esquinas y vueltas) y recupera el mando si IT falla. */
     bool it_enabled;
     uint8_t it_stop_before_end;     /* IT cede el mando cuando faltan tantas esquinas para terminar */
+    int it_refine_evals, it_refine_step_evals;            /* evaluaciones de refinado en segundo plano tras el primer plan valido (0 = sin refinar) */
     int it_step_evals;              /* evaluaciones de la busqueda por escaneo (reparte el calculo del plan) */
+    bool it_external_worker;        /* el plan de IT lo calcula otra tarea (wro_controller_it_worker_step, en el P4 el nucleo 1) en vez de en rebanadas dentro del escaneo */
     float it_grip_max;              /* tope del agarre aprendido */
     float it_engage_dist_cm, it_engage_heading_deg;   /* IT toma el mando a menos de esto de la trayectoria y con el morro a menos de esto de su rumbo */
     float it_accel_cm_s2;           /* cuanto sube como mucho la velocidad ordenada por segundo */
@@ -272,12 +274,20 @@ typedef struct {
     it_plan_t it_plan;              /* plan en uso */
     it_plan_t it_work;              /* plan en construccion */
     it_tracker_t it_tr;
-    bool it_building, it_active, it_failed, it_engaged, it_rebuild;
+    bool it_building, it_active, it_failed, it_engaged, it_rebuild, it_refining, it_refined;
+    /* Peticion al trabajador externo: el controlador escribe los datos y sube it_req_seq; el trabajador sube it_done_seq al terminar. */
+    volatile uint32_t it_req_seq, it_done_seq;
+    uint32_t it_taken_seq;
+    bool it_worker_active, it_begin_failed;
+    int it_req_kind, it_req_dir, it_req_count;          /* kind 0: plan nuevo; 1: refinado del plan en uso */
+    it_config_t it_req_cfg;
+    it_obstacle_t it_req_obs[IT_MAX_OBS];
     int it_arc_bad, it_unk_bad, it_stats_ticks;
     const local_lidar_point_t *it_points;   /* puntos del barrido en curso (solo valido dentro de wro_controller_scan) */
     size_t it_point_count;
     float it_unk_x, it_unk_z, it_unk_t;   /* ultimo objeto desconocido detectado en la trayectoria (depuracion) */
     int it_unk_n;
+    float dbg_acq[4];                      /* ultima adquisicion del cajon: puntos de pared, tope trasero, tope delantero y puntuacion (depuracion) */
     int it_plan_lap, it_lap;        /* vuelta del plan en uso / vuelta en curso */
     float it_grip, it_v_prev, it_hold_left_s, it_active_s, it_stuck_s;
     it_lap_stats_t it_stats;
@@ -373,6 +383,9 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
  * encoders y el giroscopio y vuelve a calcular direccion y velocidad (maximo cada 20 ms). Devuelve true si hay una orden nueva en `out`. A 150 cm/s un
  * escaneo cada 100 ms son 15 cm sin corregir: sin este lazo el error lateral se duplica. */
 bool wro_controller_it_fast(wro_controller_t *c, uint64_t now_us, wro_command_t *out);
+/* Trabajador del plan de IT (con it_external_worker): llamalo en un bucle desde otra tarea; hace como mucho `budget` evaluaciones y devuelve true si
+ * queda trabajo (volver a llamar enseguida) o false si esta ocioso (esperar unos ms). No toca nada del control salvo el plan en construccion. */
+bool wro_controller_it_worker_step(wro_controller_t *c, int budget);
 /* Perro guardian: si no llegan escaneos, la orden pasa a parar (devuelve true). */
 bool wro_controller_watchdog(wro_controller_t *c, uint64_t now_us, wro_command_t *out);
 

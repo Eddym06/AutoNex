@@ -2,7 +2,11 @@
 CONFIG_FREERTOS_HZ=1000
 
 # La localizacion experimental del parqueo añade trabajo temporal a la pila del control.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+# El controlador necesita mas de 6 KB de pila (medido en el P4: 'Stack protection fault' en el 7.o barrido con 6144 en el banco de rendimiento).
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
+
+# Optimizacion de velocidad (no depuracion): el C del robot es el camino caliente (IT, parqueo, mapa). -Og con aserciones era ~17 % mas lento.
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
 
 # La rejilla del planificador de parqueo (~900 KB) va a la PSRAM del P4.
 CONFIG_SPIRAM=y

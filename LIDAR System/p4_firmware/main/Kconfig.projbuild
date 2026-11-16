@@ -28,6 +28,12 @@ menu "WRO - pines y hardware del P4"
         int "L298N pin de habilitacion (ENA/ENB) que el P4 pone a nivel alto; -1 = puenteado"
         default -1
 
+    config WRO_PERF_BENCH
+        bool "Banco de rendimiento: mide el tiempo del IT, el parqueo y el controlador con datos sinteticos (no mueve el motor)"
+        default n
+        help
+            Al arrancar ejecuta perf_bench_run() y manda lineas 'PERF ...' por la consola USB. No vuelve: no arranca el control normal.
+
     config WRO_BENCH_WEB
         bool "Banco por USB: telemetria en tiempo real y mando manual del motor desde la pagina banco_p4.html"
         default n

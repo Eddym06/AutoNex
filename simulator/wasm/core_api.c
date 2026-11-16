@@ -416,6 +416,8 @@ static void export_command(void)
 
 /* Un barrido: core_points_ptr() tiene `count` puntos de 4 floats
  * (angulo, distancia, valido, ciego). */
+static int g_worker_budget = 250;   /* evaluaciones por escaneo del trabajador de IT simulado */
+EXPORT("core_it_worker_budget") void core_it_worker_budget(int n) { g_worker_budget = n; }
 EXPORT("core_ctrl_scan") void core_ctrl_scan(int count, double t_us)
 {
     if (count > LOCAL_MAP_MAX_POINTS) count = LOCAL_MAP_MAX_POINTS;
@@ -426,6 +428,12 @@ EXPORT("core_ctrl_scan") void core_ctrl_scan(int count, double t_us)
                                             .valid = s[2] > 0.5f, .blind = s[3] > 0.5f};
     }
     wro_controller_scan(&g_ctrl, g_points, (size_t)count, (uint64_t)t_us, &g_cmd);
+    /* Trabajador externo de IT (it_external_worker): hace de otro nucleo con un presupuesto de evaluaciones por escaneo (en el P4 ~250: 100 ms a
+     * 0,4 ms por evaluacion). Una llamada toma la peticion y la prepara, la siguiente avanza la busqueda. */
+    if (g_ctrl.cfg.it_external_worker) {
+        for (int k = 0; k < 2; ++k)
+            if (!wro_controller_it_worker_step(&g_ctrl, g_worker_budget)) break;
+    }
     export_command();
     export_debug();
 }
@@ -442,7 +450,7 @@ EXPORT("core_ctrl_watchdog") int core_ctrl_watchdog(double now_us)
 }
 
 /* Estado de IT dentro del controlador: banderas, agarre, posicion en el plan y la trayectoria (x, z, v por estacion) para dibujarla. */
-static float g_itc_out[16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS + 4];
+static float g_itc_out[16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS + 8];
 EXPORT("core_it_ctrl_ptr") float *core_it_ctrl_ptr(void)
 {
     const wro_controller_t *c = &g_ctrl;
@@ -456,7 +464,7 @@ EXPORT("core_it_ctrl_ptr") float *core_it_ctrl_ptr(void)
     const int base = 16 + 3 * IT_MAX_N;
     g_itc_out[base] = (float)p->obstacles;
     for (int i = 0; i < p->obstacles; ++i) { g_itc_out[base + 1 + 3 * i] = p->obs[i].x_cm; g_itc_out[base + 2 + 3 * i] = p->obs[i].z_cm; g_itc_out[base + 3 + 3 * i] = (float)p->obs[i].color; }
-    { const int tail = 16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS; g_itc_out[tail] = c->it_unk_x; g_itc_out[tail + 1] = c->it_unk_z; g_itc_out[tail + 2] = (float)c->it_unk_n; g_itc_out[tail + 3] = c->it_unk_t; }
+    { const int tail = 16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS; g_itc_out[tail] = c->it_unk_x; g_itc_out[tail + 1] = c->it_unk_z; g_itc_out[tail + 2] = (float)c->it_unk_n; g_itc_out[tail + 3] = c->it_unk_t; for (int k = 0; k < 4; ++k) g_itc_out[tail + 4 + k] = c->dbg_acq[k]; }
     return g_itc_out;
 }
 

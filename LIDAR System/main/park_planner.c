@@ -116,9 +116,90 @@ static bool pose_collides(const park_params_t *p, float u, float w, float theta_
            hits_rect(c, half, half + t, 0.0f, p->lot_width_cm, p->margin_cm);       /* tope delantero */
 }
 
+/* Lo mismo con el seno y el coseno del rumbo ya calculados y los ejes del chasis conocidos: un rectangulo girado theta tiene por ejes de separacion
+ * (-sen, cos) y (cos, sen), asi que no hace falta sacarlos de las aristas con hypotf y dividir. Es el camino caliente del A* (miles de poses por plan). */
+static bool hits_rect_cs(const float poly[4][2], float c, float s, float x0, float x1, float y0, float y1, float margin)
+{
+    x0 -= margin; x1 += margin; y0 -= margin; y1 += margin;
+    float minx = poly[0][0], maxx = minx, miny = poly[0][1], maxy = miny;
+    for (int n = 1; n < 4; ++n) {
+        if (poly[n][0] < minx) minx = poly[n][0];
+        if (poly[n][0] > maxx) maxx = poly[n][0];
+        if (poly[n][1] < miny) miny = poly[n][1];
+        if (poly[n][1] > maxy) maxy = poly[n][1];
+    }
+    if (maxx < x0 || minx > x1 || maxy < y0 || miny > y1) return false;
+    static const float dummy = 0.0f;
+    (void)dummy;
+    const float ax[2][2] = {{-s, c}, {c, s}};
+    for (int e = 0; e < 2; ++e) {
+        const float nx = ax[e][0], ny = ax[e][1];
+        float pmin = 1e9f, pmax = -1e9f;
+        for (int q = 0; q < 4; ++q) {
+            const float d = poly[q][0] * nx + poly[q][1] * ny;
+            if (d < pmin) pmin = d;
+            if (d > pmax) pmax = d;
+        }
+        const float r0 = x0 * nx + y0 * ny, r1 = x1 * nx + y0 * ny, r2 = x0 * nx + y1 * ny, r3 = x1 * nx + y1 * ny;
+        const float lo01 = r0 < r1 ? r0 : r1, lo23 = r2 < r3 ? r2 : r3, hi01 = r0 > r1 ? r0 : r1, hi23 = r2 > r3 ? r2 : r3;
+        const float rmin = lo01 < lo23 ? lo01 : lo23, rmax = hi01 > hi23 ? hi01 : hi23;
+        if (pmax < rmin || pmin > rmax) return false;
+    }
+    return true;
+}
+
+static bool pose_hits_cs(const park_params_t *p, float u, float w, float c, float s, float margin)
+{
+    const float fs[4][2] = {{-p->rear_overhang_cm, -p->robot_width_cm * 0.5f},
+                            {p->robot_length_cm - p->rear_overhang_cm, -p->robot_width_cm * 0.5f},
+                            {p->robot_length_cm - p->rear_overhang_cm, p->robot_width_cm * 0.5f},
+                            {-p->rear_overhang_cm, p->robot_width_cm * 0.5f}};
+    float poly[4][2];
+    for (int n = 0; n < 4; ++n) {
+        poly[n][0] = u + fs[n][0] * c - fs[n][1] * s;
+        poly[n][1] = w + fs[n][0] * s + fs[n][1] * c;
+    }
+    const float half = lot_len(p) * 0.5f, t = p->limiter_thickness_cm;
+    return hits_rect_cs(poly, c, s, -400.0f, 400.0f, -100.0f, 0.0f, margin) ||
+           hits_rect_cs(poly, c, s, -half - t, -half, 0.0f, p->lot_width_cm, margin) ||
+           hits_rect_cs(poly, c, s, half, half + t, 0.0f, p->lot_width_cm, margin);
+}
+
+bool park_pose_free2cs(const park_params_t *p, float extra_margin_cm, const park_pose_t *pose, float c, float s, bool *free_wide)
+{
+    if (!p || !pose) return false;
+    {
+        /* Descarte barato y exacto: ningun punto del chasis esta a mas de `reach` del eje trasero, y todo lo que puede chocar (pared y topes) esta por
+         * debajo de w = ancho del cajon + holgura. Si el eje esta mas arriba que eso mas el alcance, no hay choque con ninguna holgura. */
+        static float k_len = -1.0f, k_rear, k_wid, k_reach;     /* el alcance solo cambia con la geometria del chasis: se cachea */
+        if (k_len != p->robot_length_cm || k_rear != p->rear_overhang_cm || k_wid != p->robot_width_cm) {
+            const float front = p->robot_length_cm - p->rear_overhang_cm, far = front > p->rear_overhang_cm ? front : p->rear_overhang_cm;
+            const float hw = 0.5f * p->robot_width_cm;
+            k_reach = sqrtf(far * far + hw * hw);
+            k_len = p->robot_length_cm; k_rear = p->rear_overhang_cm; k_wid = p->robot_width_cm;
+        }
+        const float reach = k_reach;
+        const float extra = extra_margin_cm > 0.0f ? extra_margin_cm : 0.0f;
+        if (pose->w_cm - reach > p->lot_width_cm + p->margin_cm + extra + 0.01f) { if (free_wide) *free_wide = true; return true; }
+    }
+    if (pose_hits_cs(p, pose->u_cm, pose->w_cm, c, s, p->margin_cm)) return false;
+    if (free_wide) *free_wide = !pose_hits_cs(p, pose->u_cm, pose->w_cm, c, s, p->margin_cm + extra_margin_cm);
+    return true;
+}
+
+bool park_pose_free2(const park_params_t *p, float extra_margin_cm, const park_pose_t *pose, bool *free_wide)
+{
+    if (!p || !pose) return false;
+    const float th = pose->theta_deg * DEG2RAD, c = cosf(th), s = sinf(th);
+    if (pose_hits_cs(p, pose->u_cm, pose->w_cm, c, s, p->margin_cm)) return false;
+    if (free_wide) *free_wide = !pose_hits_cs(p, pose->u_cm, pose->w_cm, c, s, p->margin_cm + extra_margin_cm);
+    return true;
+}
+
+bool park_pose_free2(const park_params_t *p, float extra_margin_cm, const park_pose_t *pose, bool *free_wide);
 bool park_pose_free(const park_params_t *p, const park_pose_t *pose)
 {
-    return p && pose && !pose_collides(p, pose->u_cm, pose->w_cm, pose->theta_deg);
+    return park_pose_free2(p, 0.0f, pose, NULL);   /* mismo camino que el A* */
 }
 
 static float rect_boundary_distance(float u, float w, float x0, float x1, float y0, float y1)

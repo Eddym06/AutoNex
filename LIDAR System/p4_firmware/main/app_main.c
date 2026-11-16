@@ -29,6 +29,7 @@
 #include "map_pose.h"
 #include "motor_test.h"
 #include "p4_runtime.h"
+#include "perf_bench.h"
 #include "wro_config.h"
 
 static const char *TAG = "wro_p4";
@@ -146,6 +147,7 @@ static void reset_runtime(void)
     cfg.sidestep_enabled = false;
     cfg.peek_enabled = false;
     cfg.parking_enabled = false;     /* el parqueo actual incluye giros sobre el eje */
+    cfg.it_external_worker = true;   /* el plan de IT lo calcula it_worker_task en el nucleo 1, no en el barrido */
     cfg.start_in_lot = false;
     cfg.odometry_enabled = CONFIG_WRO_AXLE_ENCODER_CALIBRATED && hw_encoders_ready();
     cfg.odom.wheel_diameter_cm = 0.2f * (float)CONFIG_WRO_WHEEL_RADIUS_MM;   /* rueda de 68 mm */
@@ -318,6 +320,17 @@ static bool mission_finished(void)
     return rt.controller.phase == WRO_PHASE_DONE || rt.controller.phase == WRO_PHASE_FAULT;
 }
 
+/* Plan de la trayectoria inteligente (y su refinado) en el nucleo 1: el bucle de control (nucleo 0) no espera por el. Cede 1 tick entre rebanadas para que
+ * la tarea ociosa del nucleo 1 alimente su watchdog. */
+static void it_worker_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        if (wro_controller_it_worker_step(&rt.controller, 200)) vTaskDelay(1);
+        else vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "WRO P4: motores %s (tope 12 V = %d %% de PWM, bateria %d mV), S3 por USB %s, LiDAR RX GPIO %d",
@@ -325,6 +338,9 @@ void app_main(void)
              100 * CONFIG_WRO_MOTOR_VMAX_MV / CONFIG_WRO_BATT_MV, CONFIG_WRO_BATT_MV,
              CONFIG_WRO_CAM_USB ? "si" : "no", CONFIG_WRO_LIDAR_RX_GPIO);
     hw_motors_safe_boot();                       /* primero: el puente no se mueve durante el arranque */
+#if CONFIG_WRO_PERF_BENCH
+    perf_bench_run();                            /* mide y no vuelve: sin motores, LiDAR, IMU ni camara */
+#endif
     if (CONFIG_WRO_PIN_SCAN) hw_pinscan_run();   /* antes de configurar ningun pin */
     init_nvs();   /* las tablas de calibracion de los encoders se guardan en NVS */
     s_scan_lock = xSemaphoreCreateMutex();
@@ -349,6 +365,7 @@ void app_main(void)
     reset_runtime();
     hw_mapstore_init(&rt.controller.trace_map, mission_finished);   /* copia del mapa en flash al terminar */
     xTaskCreate(link_tx_task, "link_tx", 6144, NULL, 2, NULL);
+    xTaskCreatePinnedToCore(it_worker_task, "it_worker", 16384, NULL, 3, NULL, 1);
     bench_web_start();   /* solo hace algo con WRO_BENCH_WEB */
 
     uint64_t last_report = now_us(NULL);

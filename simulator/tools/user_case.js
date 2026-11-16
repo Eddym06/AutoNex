@@ -26,5 +26,5 @@ const fl = (n, d) => { const i = process.argv.indexOf(n); return i >= 0 ? proces
   const r = sim.run(0.1);
   console.log(JSON.stringify({ end: r.endReason, points: r.points, t: +sim.t.toFixed(1), contacts: r.contacts, parking: r.parking, marks }, null, 1));
   if (fl('--out')) fs.writeFileSync(fl('--out'), JSON.stringify(rows));
-  if (fl('--plan') && it) fs.writeFileSync(fl('--plan'), JSON.stringify(core.itState(true).line));
+  if (fl('--plan') && it) { const st = core.itState(true); fs.writeFileSync(fl('--plan'), JSON.stringify(st.line)); fs.writeFileSync(fl('--plan').replace('.json', '_obs.json'), JSON.stringify(st.obs.map(o => ({ x: o.x, z: o.z, color: o.color === 1 ? 'red' : o.color === 2 ? 'green' : 'bar' })))); }
 })().catch(e => { console.error(e); process.exit(1); });

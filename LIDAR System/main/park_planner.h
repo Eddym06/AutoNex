@@ -75,6 +75,11 @@ float park_field_cost(const park_pose_t *pose);
 bool park_field_free(const park_pose_t *pose);
 /* Geometria continua, sin depender de la rejilla del planificador diferencial. */
 bool park_pose_free(const park_params_t *params, const park_pose_t *pose);
+/* Libre con la holgura de `params` y, si free_wide no es NULL, ademas dice si lo seguiria estando con `extra_margin_cm` mas: el seno y el coseno se calculan una sola vez
+ * (el A* de parqueo lo llama miles de veces por plan). */
+bool park_pose_free2(const park_params_t *params, float extra_margin_cm, const park_pose_t *pose, bool *free_wide);
+/* Igual con cos(theta) y sen(theta) ya conocidos (el A* los arrastra de nodo en nodo sin llamar a la libm). */
+bool park_pose_free2cs(const park_params_t *params, float extra_margin_cm, const park_pose_t *pose, float c, float s, bool *free_wide);
 
 size_t park_heading_count(void);
 float park_heading_deg(size_t k);

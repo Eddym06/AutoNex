@@ -131,3 +131,46 @@ Conclusión: pasar de 600 a 800 rpm acorta la ronda unos 2 s (3 %) y la vuelta 3
 Sin atar al motor: `race.v_max_cm_s` (52 cm/s, tope de la línea de carrera sin IT, ni se alcanza: 34 cm/s), `speedTauS` y `speedGain` de la planta (respuesta del lazo cerrado de MIC) y los valores por defecto en C del firmware del P4 (150 y 350).
 
 Prueba con movimiento (ají agitado a mano a ~20-30 cm, ráfagas de 4 cuadros, checksum correcto en todos): hay **borrón de movimiento** marcado (la exposición está en el máximo: 21 ms a `total_x=2300` y 14 ms a 1500) y no se aprecia un desfase del obturador rodante que destaque sobre el borrón. Lo que hay que atacar es la exposición (más luz), no cambiar a global shutter.
+
+## 8. Rendimiento del P4 con el C real del robot (16 nov)
+
+Medido con `LIDAR System/p4_firmware/main/perf_bench.c` (opción `CONFIG_WRO_PERF_BENCH`, apagada por defecto; compilar con `sdkconfig.perf` en otro directorio de compilación):
+ESP32-P4 a 360 MHz, ESP-IDF 5.5.4, PSRAM de 29 MB, optimización `-O2` (la de fábrica es `-Og` con aserciones: solo un 17 % más lenta). Datos sintéticos (la pista de `plano_it_ovalo.json`, 5 letreros; un LiDAR simulado de 400 puntos por vuelta). No mueve el motor. Memoria interna libre: 302 KB, PSRAM: 28,9 MB libres.
+
+| Qué | P4 (360 MHz) | PC (para comparar) | Presupuesto |
+|---|---|---|---|
+| Controlador completo, un barrido (sin parqueo) | **160 ms** (p95 168; el primero, con `arena_acquire`, 2,58 s) | ~1,5 ms en wasm | 100 ms (10 barridos/s) |
+| IT: una evaluación del coste | **1,5 ms** | 35 us (43 veces menos) | |
+| IT: plan completo (11.961 evaluaciones) | **18 s** | 0,4 s | |
+| IT: una rebanada de 300 evaluaciones (como el controlador) | **393 ms** (máx. 2,4 s: la preparación del corredor) | ~10 ms | unos pocos ms |
+| IT: refinado de 20.000 evaluaciones en rebanadas de 800 | 1,06 s por rebanada, 28 s en total (el plan baja de 7,839 a 7,798 s) | | |
+| IT: seguidor (`it_track`) | **8,7 us** | | despreciable |
+| Parqueo: A* de entrada (5 variantes, hasta 24.000 nodos cada una) | **11,5 a 27,5 s por plan** (120.000 nodos expandidos sin plan en una pose, 27,5 s) | 0,30 a 0,74 s | un plan por arco |
+| Parqueo: maniobra de tres tramos | 1,7 s (no encontró solución en esa pose) | 47 ms | |
+
+**Pila.** La tarea principal (`app_main`) tiene 6144 bytes de pila (`CONFIG_ESP_MAIN_TASK_STACK_SIZE`) y el bucle del control corre en ella. Con ese tamaño el controlador cayó con *Stack protection fault* en su 7.o barrido. En una tarea de 32 KB usó unos 6,3 KB como mínimo (quedaron libres 26.476 bytes). Hace falta subir la pila (12288 sería prudente) antes de ejecutar el controlador en el robot.
+
+Lectura sin adornos:
+- **El P4 es unas 40 veces más lento que el PC en este código**, y el simulador no lo modela (en el wasm el plan es instantáneo). Con los tiempos de hoy el robot **no puede** hacer el parqueo en tiempo real: cada replan del A* son 12 a 27 s con el coche quieto, y un escaneo del controlador (160 ms) ya supera los 100 ms.
+- El IT no puede construirse en el bucle de control: una rebanada de 300 evaluaciones son 393 ms. Haría falta una tarea aparte (el P4 tiene dos núcleos), menos estaciones, menos evaluaciones o una evaluación más barata.
+- Lo más barato de arreglar: pasar el A* a una sola variante (`PARK_PLAN_VARIANTS 1`, 5 veces menos), bajar `MAX_NODES`, y repartir el cálculo en una tarea de baja prioridad en el segundo núcleo.
+- Todo esto es con datos sintéticos y un solo recorrido de prueba: los tiempos reales del parqueo dependen de la pose. La carga de la CPU con el LiDAR, la IMU, la cámara y el enlace activos no se midió.
+
+## 9. Tras optimizar (16 nov, misma noche)
+
+Mismo banco (`perf_bench.c`), mismo P4 (360 MHz, `-O2` global y `-O3` sin errno en los archivos calientes). **Los planes salen iguales**: 7,838 s en la pista de prueba (IT) y los mismos pasos del A* (26, 18 y 12).
+
+| Qué | Antes (seccion 8) | Ahora |
+|---|---|---|
+| IT: plan completo (11.961 evaluaciones) | 18,0 s | **4,2 s** |
+| IT: una evaluacion | 1,5 ms | **0,35 ms** |
+| IT: rebanada de 300 evaluaciones | 393 ms | **54 ms** (la primera, con 6 relajaciones, 2,0 s) |
+| IT: refinado de 20.000 evaluaciones | 28 s (1,06 s por rebanada) | ~6 s (0,23 s por rebanada de 800) |
+| Parqueo: A* de entrada (5 variantes) | 11,5 a 27,5 s | **4,8 a 11,1 s** |
+| Parqueo: un arco (6 subpasos con colision) | | 9,9 us |
+| Primer barrido del controlador | 2,58 s | 0,90 s |
+| Barrido del controlador | 160 ms | 142 ms (presupuesto 100) |
+
+Que se hizo (todo conserva el resultado): evaluacion **incremental** del coste del IT (solo se recalculan las ~30 estaciones que mueve cada candidato; comprobada contra la completa: error 0 en 31.952 casos con `IT_VERIFY_INCREMENTAL`), matematica barata (`sqrtf` en vez de `hypotf`, `atanf` de Cephes, barrido de velocidad en v^2, descarte exacto de obstaculos lejanos), A* sin llamadas a `sinf/cosf` por subpaso (composicion de giros), colision con los ejes del chasis conocidos, tabla de celdas en 16 bits, `-O3`/`-fno-math-errno` en los archivos calientes, pila de `app_main` a 12 KB y el plan del IT en una tarea del nucleo 1 (`it_external_worker`, `wro_controller_it_worker_step`).
+
+Lo que queda: el A* sigue tardando **5 a 11 s por plan** (el limite de 24.000 nodos por variante se alcanza en las cinco), asi que el parqueo no es de tiempo real. Las salidas que cambian el algoritmo (tabla de politica precalculada, planificar durante la aproximacion para la pose esperada, o 1 variante) estan sin decidir. El barrido del controlador (142 ms) sigue por encima de 100 ms.

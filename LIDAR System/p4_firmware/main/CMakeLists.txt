@@ -22,6 +22,7 @@ idf_component_register(
         "hw_link.c"
         "hw_mapstore.c"
         "bench_web.c"
+        "perf_bench.c"
         ${WRO_CORE_SRC}
         "${WRO_CORE_DIR}/trace_map.c"
         "${WRO_CORE_DIR}/trace_parking.c"
@@ -39,3 +40,9 @@ idf_component_register(
         "${WRO_MIC_DIR}"
     REQUIRES driver esp_timer nvs_flash esp_driver_gpio esp_driver_ledc esp_driver_pcnt esp_partition esp_driver_usb_serial_jtag
 )
+
+# Camino caliente del robot (IT, parqueo, mapa local, localizadores): -O3 y sin errno/trampas de punto flotante. Con errno cada sqrtf/fminf lleva una
+# comprobacion y una llamada a la libm de newlib. (NO -ffinite-math-only: el codigo valida entradas con isfinite.)
+foreach(hot it_plan park_ackermann park_planner park_localize local_obstacle_map arena_localizer odometry)
+    set_source_files_properties("${WRO_CORE_DIR}/${hot}.c" PROPERTIES COMPILE_OPTIONS "-O3;-fno-math-errno;-fno-trapping-math")
+endforeach()

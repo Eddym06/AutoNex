@@ -26,3 +26,5 @@ LIDAR System/diag_motores/build/
 LIDAR System/diag_motores/sdkconfig
 
 .claude/
+LIDAR System/p4_firmware/build_perf/
+LIDAR System/p4_firmware/build_normal/

@@ -7,7 +7,7 @@ from numba import njit
 G = 981.0
 DEF = dict(outer=150.0, inner=50.0, rc=40.0, wb=18.45, hw=6.5, front=22.225, rear=3.775, steer_max=40.0, steer_rate=420.0,
            steer_use=0.72, rate_use=0.45, mu=0.8, rear_w=0.62, cg=4.0, grip=0.7, safety=0.85, a_motor=350.0, vmax=150.0, vmin=15.0,
-           wall_m=1.0, obs_m=1.0, obs_half=3.5, pose_err=0.8, track_err=14.0, curtain=100.0, side_red=1, side_green=-1, station=5.0)
+           wall_m=1.0, obs_m=1.0, obs_half=3.5, pose_err=0.8, track_err=14.0, curtain=100.0, side_red=1, side_green=-1, station=5.0, motor_slope=0.0)
 
 
 def cfg(**kw):
@@ -60,7 +60,7 @@ class Track:
             if self.direction > 0:
                 tx, tz = -tx, -tz
             self.cx[i], self.cz[i], self.nx[i], self.nz[i] = x, z, tz, -tx
-        self.obs = np.array([[s['x'], s['z'], 1 if s['color'] == 'red' else 2] for s in signs], float).reshape(-1, 3)
+        self.obs = np.array([[s['x'], s['z'], 1 if s['color'] == 'red' else 2 if s['color'] == 'green' else 0] for s in signs], float).reshape(-1, 3)
         self.orx = np.zeros(len(self.obs))
         self.orz = np.zeros(len(self.obs))
         for j, o in enumerate(self.obs):
@@ -78,7 +78,7 @@ class Track:
         for j, o in enumerate(self.obs):
             if math.hypot(x - o[0], z - o[1]) < rs:
                 return False
-            side = c['side_red'] if o[2] == 1 else c['side_green']
+            side = c['side_red'] if o[2] == 1 else c['side_green'] if o[2] == 2 else 0
             if side == 0:
                 continue
             rx, rz = self.orx[j], self.orz[j]
@@ -157,7 +157,7 @@ class Track:
         c = self.c
         return np.array([c['hw'], c['front'], c['rear'], c['outer'], c['inner'], c['obs_half'], c['wall_m'], c['wb'], c['steer_use'], c['steer_max'],
                          c['steer_rate'], c['rate_use'], c['mu'], c['grip'], c['safety'], c['rear_w'], c['cg'], c['a_motor'], c['vmax'], c['vmin'],
-                         c['pose_err'], c['track_err']])
+                         c['pose_err'], c['track_err'], c['motor_slope']])
 
 
 @njit(cache=True)
@@ -218,6 +218,7 @@ def profile(P, x, z, lo0, hi0, d, obs):
     wb = P[7]
     steer_use, steer_max, steer_rate, rate_use = P[8], P[9], P[10], P[11]
     mu, grip, safety, rear_w, cg, a_motor, vmax, vmin, pose_err, track_err = P[12], P[13], P[14], P[15], P[16], P[17], P[18], P[19], P[20], P[21]
+    slope = P[22]
     h = np.empty(n)
     ks = np.empty(n)
     kt = np.empty(n)
@@ -299,7 +300,10 @@ def profile(P, x, z, lo0, hi0, d, obs):
             j = (i + 1) % n
             ay = v[i] * v[i] * kap[i]
             ar = math.sqrt(max(0.0, a_full * a_full - ay * ay))
-            vm = math.sqrt(v[i] * v[i] + 2 * min(cap_acc, ar) * h[i])
+            aa = min(cap_acc, ar)
+            if slope > 0:
+                aa = min(aa, max(5.0, slope * (vmax - v[i])))
+            vm = math.sqrt(v[i] * v[i] + 2 * aa * h[i])
             if v[j] > vm:
                 v[j] = vm
         for i in range(n - 1, -1, -1):

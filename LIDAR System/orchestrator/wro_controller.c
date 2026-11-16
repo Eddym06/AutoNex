@@ -1,4 +1,11 @@
 #include "wro_controller.h"
+/* Evaluaciones de refinado del plan de IT en segundo plano (ver it_plan_refine_begin): con el mapa real el primer plan queda ~15 % por encima de lo que el modelo permite. */
+#ifndef IT_REFINE_EVALS_DEFAULT
+#define IT_REFINE_EVALS_DEFAULT 0       /* apagado: 48 rondas con 20000 no mejoraron el total (88,7 s frente a 86,9) y una ronda perdio puntos */
+#endif
+#ifndef IT_REFINE_STEP_DEFAULT
+#define IT_REFINE_STEP_DEFAULT 800   /* evaluaciones por escaneo del refinado (~30 ms en un PC; en el P4 sin medir) */
+#endif
 
 #include <math.h>
 #include <string.h>
@@ -58,6 +65,8 @@ void wro_controller_config_default(wro_controller_config_t *c)
     c->it_enabled = false;           /* opcional: validado solo en el simulador; activar tras calibrar el chasis (ver simulator/INTELLIGENT_TRAJECTORY.md) */
     c->it_stop_before_end = 1;   /* IT lleva todo menos la ultima esquina (con 0 el parqueo falla; con 2 la ronda tarda ~3 s mas): medido en 12 rondas con IT+MIC */
     c->it_step_evals = 300;
+    c->it_refine_evals = IT_REFINE_EVALS_DEFAULT;
+    c->it_refine_step_evals = IT_REFINE_STEP_DEFAULT;
     c->it_grip_max = 1.0f;
     c->it_engage_dist_cm = 25.0f;
     c->it_engage_heading_deg = 35.0f;
@@ -175,6 +184,10 @@ static void sanitize(wro_controller_config_t *c)
     race_config_sanitize(&c->race);
     it_config_sanitize(&c->it);
     if (c->it_stop_before_end > 8u) c->it_stop_before_end = 8u;
+    if (c->it_refine_step_evals < 20) c->it_refine_step_evals = 20;
+    if (c->it_refine_step_evals > 20000) c->it_refine_step_evals = 20000;
+    if (c->it_refine_evals < 0) c->it_refine_evals = 0;
+    if (c->it_refine_evals > 400000) c->it_refine_evals = 400000;
     if (c->it_step_evals < 20) c->it_step_evals = 20;
     if (c->it_step_evals > 20000) c->it_step_evals = 20000;
     if (!(c->it_grip_max >= 0.2f)) c->it_grip_max = 0.2f;
@@ -302,7 +315,7 @@ static const cf_field_t FIELDS[] = {
     CF("race.sign_after_cm", CF_F32, race.sign_after_cm), CF("race.corner_before_cm", CF_F32, race.corner_before_cm),
     CF("race.corner_after_cm", CF_F32, race.corner_after_cm), CF("race.corner_radius_cm", CF_F32, race.corner_radius_cm), CF("race.max_offset_cm", CF_F32, race.max_offset_cm),
     CF("race_blend_before_cm", CF_F32, race_blend_before_cm), CF("race_blend_after_cm", CF_F32, race_blend_after_cm),
-    CF("it_enabled", CF_BOOL, it_enabled), CF("it_stop_before_end", CF_U8, it_stop_before_end), CF("it_step_evals", CF_INT, it_step_evals),
+    CF("it_enabled", CF_BOOL, it_enabled), CF("it_stop_before_end", CF_U8, it_stop_before_end), CF("it_step_evals", CF_INT, it_step_evals), CF("it_external_worker", CF_BOOL, it_external_worker), CF("it_refine_evals", CF_INT, it_refine_evals), CF("it_refine_step_evals", CF_INT, it_refine_step_evals),
     CF("it_grip_max", CF_F32, it_grip_max), CF("it_engage_dist_cm", CF_F32, it_engage_dist_cm), CF("it_engage_heading_deg", CF_F32, it_engage_heading_deg),
     CF("it_accel_cm_s2", CF_F32, it_accel_cm_s2), CF("it_hold_s", CF_F32, it_hold_s),
     CF("it.grip", CF_F32, it.grip), CF("it.v_max_cm_s", CF_F32, it.v_max_cm_s), CF("it.v_min_cm_s", CF_F32, it.v_min_cm_s), CF("it.mu", CF_F32, it.mu),
@@ -1932,6 +1945,7 @@ static bool park_search_step(wro_controller_t *c, const local_lidar_point_t *poi
     park_fix_t fix;
     if (park_localize_acquire(&loc, points, count, 20.0f, &fix) && fix.pose.u_cm >= -36.0f &&
         fix.pose.u_cm <= 34.0f && fabsf(fix.pose.theta_deg) < 35.0f) {
+        c->dbg_acq[0] = (float)fix.wall_hits; c->dbg_acq[1] = (float)fix.rear_hits; c->dbg_acq[2] = (float)fix.front_hits; c->dbg_acq[3] = fix.score;
         c->park_pose = fix.pose;
         c->park_course_deg = imu_wrap_deg(c->yaw.yaw_deg + (float)mirror * fix.pose.theta_deg);
         c->park_prev = PARK_MOVE_NONE;
@@ -2195,18 +2209,43 @@ static void it_manage(wro_controller_t *c)
         c->it_stats_ticks = 0;
         c->it_slips0 = c->odom.slip_count;
     }
+    if (c->it_building && c->it_refining && c->it_rebuild) { c->it_building = false; c->it_refining = false; }   /* un plan nuevo (agarre) manda sobre el refinado */
     if (c->it_building) {
-        if (it_plan_step(&c->it_work, c->cfg.it_step_evals)) {
+        const bool done = c->cfg.it_external_worker
+            ? (__atomic_load_n(&c->it_done_seq, __ATOMIC_ACQUIRE) == c->it_req_seq)
+            : it_plan_step(&c->it_work, c->it_refining ? c->cfg.it_refine_step_evals : c->cfg.it_step_evals);
+        if (done && c->cfg.it_external_worker && c->it_begin_failed) {
+            /* El trabajador no pudo preparar el plan (sin paso libre): como cuando it_plan_begin falla en el propio escaneo. */
+            c->it_building = false; c->it_refining = false; c->it_failed = true; c->it_fail_why = 2;
+        } else if (done) {
             c->it_building = false;
-            if (c->it_work.valid) {
+            if (c->it_refining) {
+                /* Refinado terminado: se cambia el plan en uso solo si baja el tiempo (con mapa y agarre del mismo plan). */
+                c->it_refining = false;
+                if (c->it_work.valid && c->it_work.time_s < c->it_plan.time_s - 0.02f) {
+                    memcpy(&c->it_plan, &c->it_work, sizeof(c->it_plan));
+                    it_tracker_reset(&c->it_tr);
+                }
+            } else if (c->it_work.valid) {
                 memcpy(&c->it_plan, &c->it_work, sizeof(c->it_plan));
                 c->it_plan_lap = lap;
                 it_tracker_reset(&c->it_tr);
+                c->it_refined = false;
             } else {
                 c->it_failed = true;
                 c->it_fail_why = (uint8_t)(4u | ((unsigned)c->it_work.why << 3));
             }
         }
+        return;
+    }
+    if (c->it_plan.valid && !c->it_rebuild && !c->it_refined && !c->it_failed && c->cfg.it_refine_evals > 0) {
+        /* Primer plan listo: se refina en segundo plano (una sola vez por plan). */
+        c->it_refined = true;
+        if (c->cfg.it_external_worker) {
+            c->it_req_kind = 1; c->it_req_cfg.relax_iterations = c->cfg.it_refine_evals;   /* en refinado este campo lleva las evaluaciones */
+            c->it_building = true; c->it_refining = true;
+            __atomic_add_fetch(&c->it_req_seq, 1u, __ATOMIC_RELEASE);
+        } else if (it_plan_refine_begin(&c->it_work, &c->it_plan, c->cfg.it_refine_evals)) { c->it_building = true; c->it_refining = true; }
         return;
     }
     if (c->it_failed || (c->it_plan.valid && !c->it_rebuild)) return;
@@ -2215,9 +2254,49 @@ static void it_manage(wro_controller_t *c)
     it_config_t ic;
     it_make_config(c, &ic);
     if (!it_collect(c, obs, &count)) { c->it_failed = true; c->it_fail_why = 1; return; }
+    if (c->cfg.it_external_worker) {
+        c->it_req_kind = 0; c->it_req_cfg = ic; c->it_req_dir = c->direction; c->it_req_count = count;
+        for (int i = 0; i < count; ++i) c->it_req_obs[i] = obs[i];
+        c->it_refining = false;
+        c->it_building = true;
+        c->it_rebuild = false;
+        __atomic_add_fetch(&c->it_req_seq, 1u, __ATOMIC_RELEASE);     /* publica la peticion: el trabajador la toma */
+        return;
+    }
     if (!it_plan_begin(&c->it_work, &ic, c->direction, obs, count)) { c->it_failed = true; c->it_fail_why = 2; return; }
     c->it_building = true;
     c->it_rebuild = false;
+}
+
+/* Trabajador del plan de IT (otra tarea / otro nucleo). Solo toca it_work y lee la peticion y, en un refinado, el plan en uso (que el controlador no
+ * cambia mientras haya una peticion pendiente). */
+bool wro_controller_it_worker_step(wro_controller_t *c, int budget)
+{
+    if (!c) return false;
+    const uint32_t seq = __atomic_load_n(&c->it_req_seq, __ATOMIC_ACQUIRE);
+    if (c->it_worker_active) {
+        if (seq != c->it_taken_seq) { c->it_worker_active = false; return true; }     /* peticion nueva: se abandona la vieja */
+    } else {
+        if (seq == c->it_taken_seq) return false;                                      /* nada que hacer */
+        c->it_taken_seq = seq;
+        bool began;
+        if (c->it_req_kind == 1) began = it_plan_refine_begin(&c->it_work, &c->it_plan, c->it_req_cfg.relax_iterations);
+        else began = it_plan_begin(&c->it_work, &c->it_req_cfg, c->it_req_dir, c->it_req_obs, c->it_req_count);
+        if (!began) {
+            c->it_begin_failed = true;
+            __atomic_store_n(&c->it_done_seq, seq, __ATOMIC_RELEASE);
+            return false;
+        }
+        c->it_begin_failed = false;
+        c->it_worker_active = true;
+        return true;
+    }
+    if (it_plan_step(&c->it_work, budget > 0 ? budget : 100)) {
+        c->it_worker_active = false;
+        __atomic_store_n(&c->it_done_seq, c->it_taken_seq, __ATOMIC_RELEASE);
+        return false;
+    }
+    return true;
 }
 
 #ifndef IT_UNK_WALL_CM

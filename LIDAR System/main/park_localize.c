@@ -6,6 +6,12 @@
 #define DEG2RAD 0.017453292519943295f
 #define TAU_CM 1.5f          /* distancia maxima de un punto al modelo para contar */
 #define MAX_RANGE_CM 100.0f
+#ifndef PARK_ACQ_MIN_WALL
+#define PARK_ACQ_MIN_WALL 50
+#endif
+#ifndef PARK_ACQ_MIN_SCORE
+#define PARK_ACQ_MIN_SCORE 50.0f
+#endif
 
 static float g_x[LOCAL_MAP_MAX_POINTS], g_f[LOCAL_MAP_MAX_POINTS];
 static int g_n;
@@ -149,8 +155,11 @@ bool park_localize_acquire(const park_loc_t *loc, const local_lidar_point_t *poi
     /* Un tope visto a menos de ~1 m deja unos 15 puntos; con menos es coincidencia con otra cosa. */
     const bool behind = fix->rear_hits >= 8 && fix->rear_hits >= fix->front_hits;   /* solo se ve el trasero (o mas) */
     const bool both = fix->rear_hits >= 6 && fix->front_hits >= 6;                  /* se ven los dos: sin ambiguedad */
-    fix->valid = fix->wall_hits >= 10 && (behind || both) && (fix->rear_hits + fix->front_hits) >= 10 &&
-                 fix->score >= 20.0f;
+    /* Evidencia minima del ajuste. Con 20 se aceptaba una coincidencia con el tope equivocado: en la ronda ccw 22 el coche, a 54 cm del cajon y a 50 de la
+     * pared, ajusto el cajon 44 cm mas cerca (38 puntos de pared, 6 del tope trasero, puntuacion 38,6) y aparco donde no era: 44 puntos. En 79 rondas
+     * (tools/park_acq_stats.js) los ajustes buenos tienen pared >= 65 y puntuacion >= 65,5; no aceptar uno malo solo retrasa la adquisicion unos barridos. */
+    fix->valid = fix->wall_hits >= PARK_ACQ_MIN_WALL && (behind || both) && (fix->rear_hits + fix->front_hits) >= 10 &&
+                 fix->score >= PARK_ACQ_MIN_SCORE;
     (void)prior;
     return fix->valid;
 }

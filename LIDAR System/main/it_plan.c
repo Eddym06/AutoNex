@@ -34,6 +34,18 @@
 #ifndef IT_GAP_ERR_SCALE_SQ
 #define IT_GAP_ERR_SCALE_SQ 1.0f   /* 1 = como antes (la huella usa el mismo margen); 4 = un cuarto del error en la huella */
 #endif
+#ifndef IT_SA_T0
+#define IT_SA_T0 0.05f
+#endif
+#ifndef IT_SA_T1
+#define IT_SA_T1 0.0005f
+#endif
+#ifndef IT_START_MASK
+#define IT_START_MASK 63   /* arranques de la etapa 0 que se usan (bit q = MIX[q]) */
+#endif
+#ifndef IT_RELAX_ITER_DEFAULT
+#define IT_RELAX_ITER_DEFAULT 300   /* 4000 y 300 dan el mismo plan (120 pistas: 7,65 y 7,64 s, 108 validas las dos) y 300 tarda la mitad. La ronda ccw 22 que fallaba con 300 era una adquisicion falsa del cajon (park_localize), no el plan */
+#endif
 #ifndef IT_STEER_RETRIES
 #define IT_STEER_RETRIES 2
 #endif
@@ -44,6 +56,28 @@
 #define PI_F 3.14159265358979323846f
 #define RAD2DEG 57.29577951308232f
 #define DEG2RAD 0.017453292519943295f
+
+
+/* Matematica barata. hypotf y atan2f de newlib cuestan cientos de ciclos en el P4 (se llaman ~15 veces por estacion y evaluacion); sqrtf es una
+ * instruccion. atanf de Cephes: error de ~1 ulp en float, sin diferencia apreciable con la de la libm. */
+#define IT_HYP(a, b) sqrtf((a) * (a) + (b) * (b))
+static float it_atanf(float x)
+{
+    float sgn = 1.0f, y = 0.0f;
+    if (x < 0.0f) { x = -x; sgn = -1.0f; }
+    if (x > 2.414213562373095f) { y = 1.5707963267948966f; x = -1.0f / x; }
+    else if (x > 0.4142135623730950f) { y = 0.7853981633974483f; x = (x - 1.0f) / (x + 1.0f); }
+    const float z = x * x;
+    y += (((8.05374449538e-2f * z - 1.38776856032e-1f) * z + 1.99777106478e-1f) * z - 3.33329491539e-1f) * z * x + x;
+    return sgn * y;
+}
+static float it_atan2f(float y, float x)
+{
+    if (x == 0.0f) return y > 0.0f ? 1.5707963267948966f : (y < 0.0f ? -1.5707963267948966f : 0.0f);
+    float a = it_atanf(y / x);
+    if (x < 0.0f) a += (y >= 0.0f ? PI_F : -PI_F);
+    return a;
+}
 
 void it_config_default(it_config_t *c)
 {
@@ -59,7 +93,7 @@ void it_config_default(it_config_t *c)
     c->pose_err_cm = 0.8f; c->track_err_cm = IT_TRACK_ERR_DEFAULT; c->track_floor_cm = IT_TRACK_FLOOR_DEFAULT; c->track_exp = IT_TRACK_EXP_DEFAULT;     /* error lateral de seguimiento a 100 cm/s dentro de la mision (escaneo a 10 Hz + lazo rapido + pose del LiDAR): 6 en el banco ideal, 14 medido en la mision completa */
     c->curtain_cm = 100.0f; c->approach_cm = 0.0f;     /* el lado se exige a la altura del letrero; cambiar de lado antes es decision del optimizador */
     c->side_red = 1; c->side_green = -1;
-    c->station_cm = 5.0f; c->passes = 3; c->sweeps = 3; c->relax_iterations = 4000;
+    c->station_cm = 5.0f; c->passes = 3; c->sweeps = 3; c->relax_iterations = IT_RELAX_ITER_DEFAULT;
 }
 
 static bool in_range(float *v, float lo, float hi)
@@ -185,11 +219,15 @@ static float footprint_gap(const it_config_t *c, float x, float z, float psi, co
     }
     if (g_in < gap) gap = g_in;
     const float rs = c->obs_half_cm;
+    const float reach = IT_HYP(f > r ? f : r, w);    /* ningun punto del chasis esta mas lejos que esto del eje trasero */
     for (int j = 0; j < count; ++j) {
         const float dx = obs[j].x_cm - x, dz = obs[j].z_cm - z;
+        /* Un obstaculo mas lejos que gap + alcance + radio no puede bajar el minimo: se salta sin cambiar el resultado. */
+        const float lim = gap + reach + rs;
+        if (lim > 0.0f && dx * dx + dz * dz > lim * lim) continue;
         const float u = dx * s + dz * co, v = dx * co - dz * s;
         const float du = fmaxf(fmaxf(-r - u, u - f), 0.0f), dv = fmaxf(fabsf(v) - w, 0.0f);
-        const float dd = hypotf(du, dv) - rs;
+        const float dd = IT_HYP(du, dv) - rs;
         if (dd < gap) gap = dd;
     }
     return gap;
@@ -218,104 +256,161 @@ static bool free_at(const it_plan_t *p, float x, float z)
 
 /* ------------------------------------------------------------ perfil de velocidad y tiempo */
 
-/* Rellena s, h, curvatura, rumbo y velocidad de la linea (x, z) y devuelve el tiempo de vuelta (con penalizacion si el volante
- * no llega a la curvatura). */
-static float profile(it_plan_t *p, const float *d)
+/* Evaluacion del coste de una trayectoria (desplazamientos d por estacion).
+ *
+ * Cada magnitud de una estacion depende solo de las vecinas: la posicion de la propia, h y el rumbo del tramo de la siguiente, la curvatura cruda de
+ * las dos de al lado, la suavizada de las dos siguientes, y el limite de velocidad de las tres. Una "joroba" del optimizador mueve ~20 de 146
+ * estaciones: recalcularlas todas costaba 1,5 ms en el P4 (36 us en un PC). `eval_inc` rehace solo la ventana afectada (+-3 estaciones) con LAS
+ * MISMAS funciones por estacion que la evaluacion completa (mismos operandos, mismo orden de suma): el resultado es identico bit a bit (se comprueba con
+ * IT_VERIFY_INCREMENTAL). Solo el barrido adelante-atras de velocidad y las sumas recorren todo el anillo (barato: 4 raices por estacion).
+ *
+ * Estado en cache = el de la ultima trayectoria evaluada o aceptada: p->{x,z,h,heading_deg,gap,kappa,kappa_s,room,vcap} y los estaticos g_*. */
+static float g_ks[IT_MAX_N];     /* curvatura cruda (derecha positiva) */
+static float g_seg[IT_MAX_N];    /* rumbo del tramo i -> i+1 */
+static float g_dl[IT_MAX_N];     /* angulo de volante equivalente a la curvatura suavizada */
+static float g_viol[IT_MAX_N];   /* exceso de curvatura sobre lo que el volante puede dar, por estacion */
+static float g_vlim[IT_MAX_N];   /* limite de velocidad propio de la estacion (antes del barrido adelante-atras) */
+static const it_plan_t *g_owner;   /* plan al que pertenece la cache de arriba */
+
+typedef struct { float a_lim, a_full, cap_acc, cap_dec, kmax, rate; } prof_const_t;
+
+static prof_const_t prof_const(const it_config_t *c)
+{
+    prof_const_t k;
+    const float mu_e = c->mu * c->grip, hL = c->cg_height_cm / c->wheelbase_cm;
+    k.a_lim = mu_e * G_CM * c->safety;
+    k.a_full = mu_e * G_CM;
+    k.cap_acc = fminf(c->a_motor_cm_s2, mu_e * G_CM * c->rear_weight / (1.0f - mu_e * hL));
+    k.cap_dec = mu_e * G_CM * c->rear_weight / (1.0f + mu_e * hL);
+    /* El plan no usa todo el volante ni toda la velocidad del servo: el resto es reserva para que el seguidor corrija. */
+    k.kmax = tanf(c->steer_use * c->steer_max_deg * DEG2RAD) / c->wheelbase_cm;
+    k.rate = c->rate_use * c->steer_rate_dps * DEG2RAD;
+    return k;
+}
+
+static inline int wrap_i(int i, int n) { i %= n; return i < 0 ? i + n : i; }
+
+static void st_xz(it_plan_t *p, const float *d, int i)
+{
+    p->x[i] = p->cx[i] + d[i] * p->nx[i];
+    p->z[i] = p->cz[i] + d[i] * p->nz[i];
+}
+/* Longitud y rumbo del tramo i -> i+1. */
+static void st_h_seg(it_plan_t *p, int i)
+{
+    const int j = (i + 1) % p->n;
+    p->h[i] = IT_HYP(p->x[j] - p->x[i], p->z[j] - p->z[i]);
+    if (p->h[i] < 0.01f) p->h[i] = 0.01f;
+    g_seg[i] = it_atan2f(p->x[j] - p->x[i], p->z[j] - p->z[i]);
+}
+/* Curvatura cruda y rumbo de la estacion (circulo por tres puntos). */
+static void st_ks_hdg(it_plan_t *p, int i)
+{
+    const int n = p->n, a = (i + n - 1) % n, b = (i + 1) % n;
+    const float ux = p->x[i] - p->x[a], uz = p->z[i] - p->z[a], vx = p->x[b] - p->x[i], vz = p->z[b] - p->z[i];
+    const float wx = p->x[b] - p->x[a], wz = p->z[b] - p->z[a];
+    const float la = IT_HYP(ux, uz), lb = IT_HYP(vx, vz), lc = IT_HYP(wx, wz);
+    const float cross = ux * vz - uz * vx;      /* > 0: giro a la izquierda (x este, z norte) */
+    g_ks[i] = (la > 0.01f && lb > 0.01f && lc > 0.01f) ? -2.0f * cross / (la * lb * lc) : 0.0f;   /* derecha positiva */
+    p->heading_deg[i] = it_atan2f(wx, wz) * RAD2DEG;
+}
+/* Holgura de la huella del chasis (con su rumbo) en la estacion: la que de verdad limita la velocidad cerca de una pared. */
+static void st_gap(it_plan_t *p, int i)
+{
+    p->gap[i] = footprint_gap(&p->cfg, p->x[i], p->z[i], p->heading_deg[i] * DEG2RAD, p->obs, p->obstacles) - p->cfg.wall_margin_cm;
+}
+/* Curvatura suavizada: una sola pasada [1 2 1] / 4 (dos escondian las ondulaciones: el optimizador las aprovechaba) y el 80 % de la cruda como piso,
+ * de modo que una trayectoria ondulada cuesta velocidad. */
+static void st_kt(it_plan_t *p, int i)
+{
+    const int n = p->n;
+    float kt = 0.25f * g_ks[(i + n - 1) % n] + 0.5f * g_ks[i] + 0.25f * g_ks[(i + 1) % n];
+    const float raw = 0.8f * fabsf(g_ks[i]);
+    kt = fabsf(kt) >= raw ? kt : (kt < 0.0f ? -raw : raw);
+    p->kappa_s[i] = kt;
+    p->kappa[i] = fabsf(kt);
+    g_dl[i] = it_atanf(p->cfg.wheelbase_cm * kt);
+}
+/* Curvatura SIN suavizar a partir del giro del rumbo entre tramos: la suavizada esconde un salto lateral entre estaciones vecinas (el optimizador lo
+ * aprovecharia). Esta es la que acota lo que el volante puede hacer. */
+static void st_viol(it_plan_t *p, const prof_const_t *pc, int i)
+{
+    const int n = p->n, a = (i + n - 1) % n;
+    float dth = g_seg[i] - g_seg[a];
+    while (dth > PI_F) dth -= 2.0f * PI_F;
+    while (dth < -PI_F) dth += 2.0f * PI_F;
+    const float kr = fabsf(dth) / (0.5f * (p->h[a] + p->h[i]));
+    g_viol[i] = kr > 1.05f * pc->kmax ? (kr - 1.05f * pc->kmax) * 0.5f * (p->h[a] + p->h[i]) : 0.0f;
+}
+static void st_vlim(it_plan_t *p, const prof_const_t *pc, const float *d, int i)
 {
     const it_config_t *c = &p->cfg;
+    const int n = p->n, a = (i + n - 1) % n, b = (i + 1) % n;
+    float v = c->v_max_cm_s;
+    const float k = p->kappa[i];
+    if (k > 1.0e-4f) { const float vk = sqrtf(pc->a_lim / k); if (vk < v) v = vk; }
+    const float dds = fabsf(g_dl[b] - g_dl[a]) / (p->h[a] + p->h[i]);
+    if (dds > 1.0e-5f) { const float vr = pc->rate / dds; if (vr < v) v = vr; }
+    /* Holgura: a mas velocidad hace falta mas margen (error de pose + error de seguimiento, que crece con v^2; el morro barre
+     * hacia fuera en curva). La velocidad maxima de la estacion es la que deja el margen dentro de la holgura que la
+     * trayectoria tiene: un paso estrecho se cruza despacio, y una trayectoria con holgura permite ir rapido. */
+    const float rl = d[i] - p->lo0[i], rr = p->hi0[i] - d[i];
+    p->room[i] = rl < rr ? rl : rr;
+    float allowed = (rl < rr ? rl : rr);
+    /* La holgura de la HUELLA (en cualquier direccion) no sufre el error de seguimiento lateral como el pasillo del eje: con el mismo margen el
+     * control optimo da 1,4 s mas de vuelta (7,77 frente a 6,41 s en la pista de prueba). Se le aplica solo la fraccion IT_GAP_ERR_SCALE. */
+    const float gap_allowed = c->pose_err_cm + (p->gap[i] - c->pose_err_cm - 0.3f) * IT_GAP_ERR_SCALE_SQ;
+    if (gap_allowed + 0.3f < allowed) allowed = gap_allowed + 0.3f;
+    allowed -= 0.3f;
+    float vc;
+    const float spare = allowed - c->pose_err_cm - c->track_floor_cm;
+    if (spare <= 0.0f) vc = c->v_min_cm_s;
+    else {
+        const float ratio = spare / fmaxf(c->track_err_cm, 0.01f);
+        vc = 100.0f * (c->track_exp == 2.0f ? sqrtf(ratio) : powf(ratio, 1.0f / c->track_exp));
+    }
+    p->vcap[i] = vc;
+    if (vc < v) v = vc;
+    if (v < c->v_min_cm_s) v = c->v_min_cm_s;
+    g_vlim[i] = v;
+}
+
+/* Barrido adelante-atras de velocidad (aceleracion y frenada limitadas por la friccion), tiempo de vuelta y penalizaciones.
+ *
+ * Es lo unico que recorre todo el anillo en cada evaluacion incremental, asi que domina el coste. Se hace en el dominio de v^2 (no hace falta v*v ni dos
+ * raices por estacion) y la raiz del circulo de friccion solo se calcula cuando la curvatura la hace falta: si a_full^2 - ay^2 >= cap^2 la aceleracion
+ * es simplemente cap (una recta). Mismo resultado que antes salvo el redondeo del ultimo bit. */
+static float g_k2[IT_MAX_N];     /* curvatura suavizada al cuadrado (la usa el barrido de velocidad) */
+static float g_v2[IT_MAX_N];
+
+static float finish_eval(it_plan_t *p, const prof_const_t *pc)
+{
     const int n = p->n;
-    static float ks[IT_MAX_N], kt[IT_MAX_N];
-    float acc = 0.0f;
+    float viol = 0.0f, clip = 0.0f;
+    for (int i = 0; i < n; ++i) viol += g_viol[i];
+    const float af2 = pc->a_full * pc->a_full, thr_acc = af2 - pc->cap_acc * pc->cap_acc, thr_dec = af2 - pc->cap_dec * pc->cap_dec;
     for (int i = 0; i < n; ++i) {
-        const int j = (i + 1) % n;
-        p->s[i] = acc;
-        p->h[i] = hypotf(p->x[j] - p->x[i], p->z[j] - p->z[i]);
-        if (p->h[i] < 0.01f) p->h[i] = 0.01f;
-        acc += p->h[i];
-    }
-    p->length_cm = acc;
-    for (int i = 0; i < n; ++i) {
-        const int a = (i + n - 1) % n, b = (i + 1) % n;
-        const float ux = p->x[i] - p->x[a], uz = p->z[i] - p->z[a], vx = p->x[b] - p->x[i], vz = p->z[b] - p->z[i];
-        const float wx = p->x[b] - p->x[a], wz = p->z[b] - p->z[a];
-        const float la = hypotf(ux, uz), lb = hypotf(vx, vz), lc = hypotf(wx, wz);
-        const float cross = ux * vz - uz * vx;      /* > 0: giro a la izquierda (x este, z norte) */
-        ks[i] = (la > 0.01f && lb > 0.01f && lc > 0.01f) ? -2.0f * cross / (la * lb * lc) : 0.0f;   /* derecha positiva */
-        p->heading_deg[i] = atan2f(wx, wz) * RAD2DEG;
-    }
-    /* Holgura de la huella del chasis (con su rumbo) en cada estacion: la que de verdad limita la velocidad cerca de una pared. */
-    for (int i = 0; i < n; ++i)
-        p->gap[i] = footprint_gap(c, p->x[i], p->z[i], p->heading_deg[i] * DEG2RAD, p->obs, p->obstacles) - c->wall_margin_cm;
-    /* Una sola pasada [1 2 1] / 4 (dos escondian las ondulaciones): el optimizador las aprovechaba. El perfil usa ademas el 80 %
-     * de la curvatura sin suavizar, de modo que una trayectoria ondulada cuesta velocidad. */
-    for (int i = 0; i < n; ++i) kt[i] = 0.25f * ks[(i + n - 1) % n] + 0.5f * ks[i] + 0.25f * ks[(i + 1) % n];
-    for (int i = 0; i < n; ++i) { const float raw = 0.8f * fabsf(ks[i]); kt[i] = fabsf(kt[i]) >= raw ? kt[i] : (kt[i] < 0.0f ? -raw : raw); }
-    memcpy(ks, kt, sizeof(float) * (size_t)n);
-    const float mu_e = c->mu * c->grip, hL = c->cg_height_cm / c->wheelbase_cm;
-    const float a_lim = mu_e * G_CM * c->safety, a_full = mu_e * G_CM;
-    const float cap_acc = fminf(c->a_motor_cm_s2, mu_e * G_CM * c->rear_weight / (1.0f - mu_e * hL));
-    const float cap_dec = mu_e * G_CM * c->rear_weight / (1.0f + mu_e * hL);
-    /* El plan no usa todo el volante ni toda la velocidad del servo: el resto es reserva para que el seguidor corrija. */
-    const float kmax = tanf(c->steer_use * c->steer_max_deg * DEG2RAD) / c->wheelbase_cm;
-    const float rate = c->rate_use * c->steer_rate_dps * DEG2RAD;
-    float viol = 0.0f;
-    static float dl[IT_MAX_N], seg[IT_MAX_N];
-    /* Curvatura SIN suavizar a partir del giro del rumbo entre tramos: la suavizada esconde un salto lateral entre estaciones
-     * vecinas (el optimizador lo aprovecharia). Esta es la que acota lo que el volante puede hacer. */
-    for (int i = 0; i < n; ++i) { const int j = (i + 1) % n; seg[i] = atan2f(p->x[j] - p->x[i], p->z[j] - p->z[i]); }
-    for (int i = 0; i < n; ++i) {
-        const int a = (i + n - 1) % n;
-        float dth = seg[i] - seg[a];
-        while (dth > PI_F) dth -= 2.0f * PI_F;
-        while (dth < -PI_F) dth += 2.0f * PI_F;
-        const float kr = fabsf(dth) / (0.5f * (p->h[a] + p->h[i]));
-        if (kr > 1.05f * kmax) viol += (kr - 1.05f * kmax) * 0.5f * (p->h[a] + p->h[i]);
-    }
-    for (int i = 0; i < n; ++i) { p->kappa_s[i] = ks[i]; p->kappa[i] = fabsf(ks[i]); dl[i] = atanf(c->wheelbase_cm * ks[i]); }
-    for (int i = 0; i < n; ++i) {
-        const int a = (i + n - 1) % n, b = (i + 1) % n;
-        float v = c->v_max_cm_s;
-        const float k = p->kappa[i];
-        if (k > 1.0e-4f) { const float vk = sqrtf(a_lim / k); if (vk < v) v = vk; }
-        const float dds = fabsf(dl[b] - dl[a]) / (p->h[a] + p->h[i]);
-        if (dds > 1.0e-5f) { const float vr = rate / dds; if (vr < v) v = vr; }
-        /* Holgura: a mas velocidad hace falta mas margen (error de pose + error de seguimiento, que crece con v^2; el morro barre
-         * hacia fuera en curva). La velocidad maxima de la estacion es la que deja el margen dentro de la holgura que la
-         * trayectoria tiene: un paso estrecho se cruza despacio, y una trayectoria con holgura permite ir rapido. */
-        float rl = d[i] - p->lo0[i], rr = p->hi0[i] - d[i];
-        p->room[i] = rl < rr ? rl : rr;
-        float allowed = (rl < rr ? rl : rr);
-        /* La holgura de la HUELLA (en cualquier direccion) no sufre el error de seguimiento lateral como el pasillo del eje: con el mismo margen el
-         * control optimo da 1,4 s mas de vuelta (7,77 frente a 6,41 s en la pista de prueba). Se le aplica solo la fraccion IT_GAP_ERR_SCALE. */
-        const float gap_allowed = c->pose_err_cm + (p->gap[i] - c->pose_err_cm - 0.3f) * IT_GAP_ERR_SCALE_SQ;
-        if (gap_allowed + 0.3f < allowed) allowed = gap_allowed + 0.3f;
-        allowed -= 0.3f;
-        float vc = c->v_max_cm_s;
-        const float spare = allowed - c->pose_err_cm - c->track_floor_cm;
-        vc = spare <= 0.0f ? c->v_min_cm_s : 100.0f * powf(spare / fmaxf(c->track_err_cm, 0.01f), 1.0f / c->track_exp);
-        p->vcap[i] = vc;
-        if (vc < v) v = vc;
-        if (v < c->v_min_cm_s) v = c->v_min_cm_s;
-        p->v[i] = v;
+        g_v2[i] = g_vlim[i] * g_vlim[i];
+        g_k2[i] = p->kappa[i] * p->kappa[i];
+        if (p->gap[i] < 0.0f) clip -= p->gap[i];
     }
     for (int pass = 0; pass < 2; ++pass) {
         for (int i = 0; i < n; ++i) {
-            const int j = (i + 1) % n;
-            const float ay = p->v[i] * p->v[i] * p->kappa[i];
-            const float ar = sqrtf(fmaxf(0.0f, a_full * a_full - ay * ay));
-            const float a = fminf(cap_acc, ar);
-            const float vm = sqrtf(p->v[i] * p->v[i] + 2.0f * a * p->h[i]);
-            if (p->v[j] > vm) p->v[j] = vm;
+            const int j = (i + 1 == n) ? 0 : i + 1;
+            const float ay2 = g_v2[i] * g_v2[i] * g_k2[i];            /* (v^2 k)^2 */
+            const float a = (ay2 <= thr_acc) ? pc->cap_acc : fminf(pc->cap_acc, sqrtf(fmaxf(0.0f, af2 - ay2)));
+            const float vm2 = g_v2[i] + 2.0f * a * p->h[i];
+            if (g_v2[j] > vm2) g_v2[j] = vm2;
         }
         for (int k = n - 1; k >= 0; --k) {
-            const int i = k, j = (k + 1) % n;
-            const float ay = p->v[j] * p->v[j] * p->kappa[i];
-            const float ar = sqrtf(fmaxf(0.0f, a_full * a_full - ay * ay));
-            const float a = fminf(cap_dec, ar);
-            const float vm = sqrtf(p->v[j] * p->v[j] + 2.0f * a * p->h[i]);
-            if (p->v[i] > vm) p->v[i] = vm;
+            const int i = k, j = (k + 1 == n) ? 0 : k + 1;
+            const float ay2 = g_v2[j] * g_v2[j] * g_k2[i];
+            const float a = (ay2 <= thr_dec) ? pc->cap_dec : fminf(pc->cap_dec, sqrtf(fmaxf(0.0f, af2 - ay2)));
+            const float vm2 = g_v2[j] + 2.0f * a * p->h[i];
+            if (g_v2[i] > vm2) g_v2[i] = vm2;
         }
     }
+    for (int i = 0; i < n; ++i) p->v[i] = sqrtf(g_v2[i]);
     float t = 0.0f;
     for (int i = 0; i < n; ++i) {
         const int j = (i + 1) % n;
@@ -323,19 +418,104 @@ static float profile(it_plan_t *p, const float *d)
     }
     p->violation = viol;
     p->time_s = t;
-    return t + 2000.0f * viol;
+    p->clip = clip;
+    /* Penalizaciones: el volante que no llega a la curvatura cuesta 2000 s por cm de exceso; cada cm de penetracion de la huella, 4000 s. */
+    return t + 2000.0f * viol + 4000.0f * clip;
 }
 
+/* Estaciones desde `from`, `count` seguidas (en el anillo). */
+#define IT_FOR_WINDOW(i, from, count) for (int _k = 0, i = wrap_i((from), p->n); _k < (count); ++_k, i = (i + 1) % p->n)
+
+static void eval_stages(it_plan_t *p, const prof_const_t *pc, const float *d, int from, int count)
+{
+    IT_FOR_WINDOW(i, from, count) st_xz(p, d, i);
+    IT_FOR_WINDOW(i, from, count) st_h_seg(p, i);
+    IT_FOR_WINDOW(i, from, count) st_ks_hdg(p, i);
+    IT_FOR_WINDOW(i, from, count) st_gap(p, i);
+    IT_FOR_WINDOW(i, from, count) st_kt(p, i);
+    IT_FOR_WINDOW(i, from, count) st_viol(p, pc, i);
+    IT_FOR_WINDOW(i, from, count) st_vlim(p, pc, d, i);
+}
+
+/* Evaluacion completa: deja en cache la trayectoria d y rellena s y la longitud. */
 static float eval(it_plan_t *p, const float *d)
 {
-    for (int i = 0; i < p->n; ++i) { p->x[i] = p->cx[i] + d[i] * p->nx[i]; p->z[i] = p->cz[i] + d[i] * p->nz[i]; }
+    const int n = p->n;
+    const prof_const_t pc = prof_const(&p->cfg);
     p->evals++;
-    const float t = profile(p, d);
-    /* Huella del chasis con el rumbo de la trayectoria que se esta probando: cada cm de penetracion cuesta como una vuelta entera. */
-    float clip = 0.0f;
-    for (int i = 0; i < p->n; ++i) if (p->gap[i] < 0.0f) clip -= p->gap[i];
-    p->clip = clip;
-    return t + 4000.0f * clip;
+    eval_stages(p, &pc, d, 0, n);
+    g_owner = p;
+    float acc = 0.0f;
+    for (int i = 0; i < n; ++i) { p->s[i] = acc; acc += p->h[i]; }
+    p->length_cm = acc;
+    return finish_eval(p, &pc);
+}
+
+/* Evaluacion incremental: d difiere del ultimo estado en cache solo en las estaciones [first, first+count). Se puede deshacer una vez (eval_undo) si
+ * el optimizador rechaza la prueba. */
+#define IT_UNDO_MAX 128
+static struct {
+    bool valid;
+    int from, count;
+    float x[IT_UNDO_MAX], z[IT_UNDO_MAX], h[IT_UNDO_MAX], hd[IT_UNDO_MAX], gap[IT_UNDO_MAX], kappa[IT_UNDO_MAX], kappa_s[IT_UNDO_MAX], room[IT_UNDO_MAX],
+          vcap[IT_UNDO_MAX], ks[IT_UNDO_MAX], seg[IT_UNDO_MAX], dl[IT_UNDO_MAX], viol[IT_UNDO_MAX], vlim[IT_UNDO_MAX];
+} g_undo;
+
+#ifdef IT_VERIFY_INCREMENTAL
+float it_verify_max_err;   /* mayor diferencia (coste) entre la evaluacion incremental y la completa */
+unsigned it_verify_count;
+#endif
+
+static float eval_inc(it_plan_t *p, const float *d, int first, int count)
+{
+    const int n = p->n;
+    const int from = first - 3, win = count + 6;       /* +-3: la ventana de dependencias de la cadena de magnitudes */
+    if (g_owner != p || win >= n || win > IT_UNDO_MAX) { g_undo.valid = false; return eval(p, d); }
+    g_undo.valid = true; g_undo.from = wrap_i(from, n); g_undo.count = win;
+    {
+        int i = g_undo.from;
+        for (int k = 0; k < win; ++k, i = (i + 1) % n) {
+            g_undo.x[k] = p->x[i]; g_undo.z[k] = p->z[i]; g_undo.h[k] = p->h[i]; g_undo.hd[k] = p->heading_deg[i]; g_undo.gap[k] = p->gap[i];
+            g_undo.kappa[k] = p->kappa[i]; g_undo.kappa_s[k] = p->kappa_s[i]; g_undo.room[k] = p->room[i]; g_undo.vcap[k] = p->vcap[i];
+            g_undo.ks[k] = g_ks[i]; g_undo.seg[k] = g_seg[i]; g_undo.dl[k] = g_dl[i]; g_undo.viol[k] = g_viol[i]; g_undo.vlim[k] = g_vlim[i];
+        }
+    }
+    const prof_const_t pc = prof_const(&p->cfg);
+    p->evals++;
+    eval_stages(p, &pc, d, from, win);
+    const float cost = finish_eval(p, &pc);
+#ifdef IT_VERIFY_INCREMENTAL
+    {
+        const int ev = p->evals;
+        const float full = eval(p, d);       /* la completa sobre el mismo estado: si la cache era correcta, no cambia nada */
+        p->evals = ev;
+        const float err = fabsf(full - cost);
+        if (err > it_verify_max_err) it_verify_max_err = err;
+        ++it_verify_count;
+    }
+#endif
+    return cost;
+}
+
+static void eval_undo(it_plan_t *p);
+/* La prueba se rechaza: la cache vuelve a ser la de d (ultima aceptada). Si la prueba se evaluo entera (ventana grande), se reevalua d. */
+static void eval_reject(it_plan_t *p, const float *d)
+{
+    if (g_undo.valid) { eval_undo(p); return; }
+    eval(p, d);
+}
+
+static void eval_undo(it_plan_t *p)
+{
+    if (!g_undo.valid) return;
+    const int n = p->n;
+    int i = g_undo.from;
+    for (int k = 0; k < g_undo.count; ++k, i = (i + 1) % n) {
+        p->x[i] = g_undo.x[k]; p->z[i] = g_undo.z[k]; p->h[i] = g_undo.h[k]; p->heading_deg[i] = g_undo.hd[k]; p->gap[i] = g_undo.gap[k];
+        p->kappa[i] = g_undo.kappa[k]; p->kappa_s[i] = g_undo.kappa_s[k]; p->room[i] = g_undo.room[k]; p->vcap[i] = g_undo.vcap[k];
+        g_ks[i] = g_undo.ks[k]; g_seg[i] = g_undo.seg[k]; g_dl[i] = g_undo.dl[k]; g_viol[i] = g_undo.viol[k]; g_vlim[i] = g_undo.vlim[k];
+    }
+    g_undo.valid = false;
 }
 
 /* Mejor trayectoria de longitud + mix * curvatura con cotas lo <= d <= hi: minimos cuadrados con cotas resueltos por conjunto
@@ -481,7 +661,8 @@ static bool compute_corridor(it_plan_t *p)
 /* Construccion por rebanadas: `it_plan_begin` prepara el corredor y `it_plan_step` reparte la busqueda en trozos de pocos milisegundos, de modo
  * que el controlador puede llamarla en cada escaneo sin parar el control. Hay un solo trabajo a la vez (estado estatico). */
 static struct {
-    int stage, q, sw, ai, wi, i, sg, sweeps, rcount, attempt;
+    int stage, q, sw, ai, wi, i, sg, sweeps, rcount, attempt, rand_limit;
+    float best_cur;
     uint32_t rng;
     bool improved;
     float best, best_t;
@@ -536,6 +717,7 @@ bool it_plan_begin(it_plan_t *p, const it_config_t *cfg, int direction, const it
     job.best_t = 1.0e18f;
     job.sg = -1;
     job.rng = 12345u;
+    job.rand_limit = IT_RAND_EVALS;
     p->building = true;
     return true;
 }
@@ -554,6 +736,7 @@ bool it_plan_step(it_plan_t *p, int budget)
     while (budget > 0 && job.stage == 0) {
         /* Varios arranques (de la ruta mas corta a la de curvatura minima): se parte del que da la vuelta mas rapida. */
         for (int i = 0; i < n; ++i) jd[i] = fminf(fmaxf(0.5f * (p->lo[i] + p->hi[i]), p->lo[i]), p->hi[i]);
+        if (!((IT_START_MASK >> job.q) & 1)) { budget -= 1; if (++job.q >= 6) { memcpy(jd, jbest, sizeof(float) * (size_t)n); job.best = eval(p, jd); job.stage = 1; } continue; }
         relax(p, MIX[job.q], jd);
         float t = eval(p, jd);
 #ifdef IT_ONLY_MIX
@@ -575,9 +758,10 @@ bool it_plan_step(it_plan_t *p, int budget)
             if (v > p->hi[j]) v = p->hi[j];
             trial[j] = v;
         }
-        const float t = eval(p, trial);
+        const float t = eval_inc(p, trial, job.i - w, 2 * w + 1);
         --budget;
         if (t < job.best - 1.0e-4f) { job.best = t; memcpy(jd, trial, sizeof(float) * (size_t)n); job.improved = true; }
+        else eval_reject(p, jd);
         job.sg += 2;
         if (job.sg > 1) {
             job.sg = -1;
@@ -589,7 +773,7 @@ bool it_plan_step(it_plan_t *p, int budget)
                     if (++job.ai >= IT_NA) {
                         job.ai = 0;
                         ++job.sw;
-                        if (!job.improved || job.sw >= job.sweeps) job.stage = 5;
+                        if (!job.improved || job.sw >= job.sweeps) { job.stage = 5; job.best_cur = job.best; memcpy(jbest, jd, sizeof(float) * (size_t)n); }
                         job.improved = false;
                     }
                 }
@@ -599,7 +783,7 @@ bool it_plan_step(it_plan_t *p, int budget)
     /* Etapa 5: busqueda aleatoria con jorobas de ancho y amplitud al azar (la local determinista se atasca en un minimo: no cruza de un
      * lado al otro del corredor ni mueve un tramo largo a la vez). Solo acepta lo que baja el tiempo. */
     while (budget > 0 && job.stage == 5) {
-        if (job.rcount >= IT_RAND_EVALS) { job.stage = 2; break; }
+        if (job.rcount >= job.rand_limit) { if (job.rand_limit > 0) memcpy(jd, jbest, sizeof(float) * (size_t)n); job.stage = 2; break; }
         job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r1 = job.rng >> 8;
         job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r2 = job.rng >> 8;
         job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r3 = job.rng >> 8;
@@ -616,9 +800,20 @@ bool it_plan_step(it_plan_t *p, int budget)
             if (v > p->hi[j]) v = p->hi[j];
             trial[j] = v;
         }
-        const float t = eval(p, trial);
+        const float t = eval_inc(p, trial, ci - w, 2 * w + 1);
         --budget; ++job.rcount;
-        if (t < job.best - 1.0e-4f) { job.best = t; memcpy(jd, trial, sizeof(float) * (size_t)n); }
+        /* Recocido: acepta tambien subidas pequenas (temperatura que baja de 0,05 a 0,0005 s) y guarda la mejor; solo aceptar lo que mejora deja la busqueda
+         * en el primer valle (con el mapa real del robot: 9,2 s frente a 8,0 s). */
+        const float frac = (float)job.rcount / (float)(job.rand_limit > 0 ? job.rand_limit : 1);
+        const float temp = IT_SA_T0 * powf(IT_SA_T1 / IT_SA_T0, frac);
+        job.rng = job.rng * 1664525u + 1013904223u;
+        const float u01 = (float)(job.rng >> 8) / 16777216.0f;
+        if (t < job.best_cur || (IT_SA_T0 > 0.0f && u01 < expf(-(t - job.best_cur) / temp))) {
+            job.best_cur = t; memcpy(jd, trial, sizeof(float) * (size_t)n);
+            if (t < job.best - 1.0e-4f) { job.best = t; memcpy(jbest, trial, sizeof(float) * (size_t)n); }
+        } else {
+            eval_reject(p, jd);
+        }
     }
     if (job.stage != 2) return false;
     eval(p, jd);
@@ -639,6 +834,7 @@ bool it_plan_step(it_plan_t *p, int budget)
         for (int i = 0; i < n; ++i) { p->lo[i] = p->lo0[i]; p->hi[i] = p->hi0[i]; }
         memset(&job, 0, sizeof(job));
         job.attempt = attempt;
+        job.rand_limit = IT_RAND_EVALS;
         job.sweeps = c->sweeps * c->passes;
         job.best_t = 1.0e18f;
         job.sg = -1;
@@ -653,6 +849,28 @@ bool it_plan_step(it_plan_t *p, int budget)
     for (int i = 0; i < n; ++i) if (p->room[i] < p->room_min) p->room_min = p->room[i];
     p->valid = p->why == 0;
     p->building = false;
+    return true;
+}
+
+/* Refinado: continua la busqueda desde un plan ya valido (el que el coche esta usando) con jorobas aleatorias (etapa 5), repartido en rebanadas como
+ * it_plan_begin. El plan en uso no se toca: `work` recibe el resultado y el llamador lo cambia si `time_s` baja. La busqueda local determinista se queda
+ * en un minimo (con el mapa real del robot: 9,2 s frente a 8,0 s que el mismo modelo permite); asi el IT arranca con el primer plan y mejora mientras conduce. */
+bool it_plan_refine_begin(it_plan_t *work, const it_plan_t *base, int evals)
+{
+    if (!work || !base || !base->valid || evals <= 0) return false;
+    memcpy(work, base, sizeof(*work));
+    const int n = work->n;
+    for (int i = 0; i < n; ++i) { jd[i] = base->d[i]; work->lo[i] = work->lo0[i]; work->hi[i] = work->hi0[i]; }
+    memset(&job, 0, sizeof(job));
+    job.stage = 5;
+    job.attempt = IT_STEER_RETRIES;
+    job.rng = 987654321u;
+    job.rand_limit = evals;
+    job.best = eval(work, jd);
+    job.best_cur = job.best;
+    memcpy(jbest, jd, sizeof(float) * (size_t)n);
+    work->valid = false;
+    work->building = true;
     return true;
 }
 

@@ -45,10 +45,12 @@
 #define PARK_SCORE_CLEAR_WEIGHT 10.0f     /* cm de coste por cada cm de holgura que falta */
 #endif
 
-typedef struct { float u, w, theta, cost; int32_t parent; int8_t dir, steer; } node_t;
+typedef struct { float u, w, theta, cost; int32_t parent; int8_t dir, steer; float c, s; } node_t;   /* c, s = cos y sen del rumbo, arrastrados sin libm */
 typedef struct { float score; int32_t id; } heap_item_t;
 static BIG_DATA node_t nodes[MAX_NODES];
-static BIG_DATA int32_t cells[N];
+/* int16: la tabla de celdas (309 mil) ocupa 0,6 MB en vez de 1,2 MB; en el P4 vive en la PSRAM y cada consulta al azar es un fallo de cache. */
+_Static_assert(MAX_NODES < 32767, "cells guarda indices de nodo en int16");
+static BIG_DATA int16_t cells[N];
 static BIG_DATA heap_item_t heap[HEAP_CAP];
 static int heap_n, node_n;
 
@@ -103,27 +105,57 @@ static float heuristic(const park_params_t *p, const park_pose_t *s, park_goal_t
     const float target_u = goal == PARK_GOAL_OUT ? s->u_cm : -(p->robot_length_cm * 0.5f - p->rear_overhang_cm);
     return 2.5f * hypotf(s->u_cm - target_u, s->w_cm - target_w) + fabsf(wrap(s->theta_deg)) * 0.12f;
 }
-static bool travel_pen(const park_params_t *p, const park_params_t *wide, const park_ackermann_config_t *cfg,
-                       const park_pose_t *in, int dir, int steer, park_pose_t *out, int *pen)
+/* Constantes de un arco (dos sentidos x tres volantes): seno y coseno del giro de un subpaso y de su mitad. Cada subpaso gira el chasis lo mismo, asi que
+ * el seno y coseno del rumbo se obtienen por composicion de giros (4 multiplicaciones) en vez de 4 llamadas a sinf/cosf por subpaso: en el P4 la libm
+ * era lo que mas costaba del A* (~1 us por llamada). */
+typedef struct { float step, steer_max, wb; bool ok; float ch[2][3], sh[2][3], cd[2][3], sd[2][3], dth_deg[2][3]; } arc_cache_t;
+static arc_cache_t g_arc;
+static void arc_consts(const park_ackermann_config_t *cfg)
 {
-    *out = *in;
+    if (g_arc.ok && g_arc.step == cfg->step_cm && g_arc.steer_max == cfg->steer_max_deg && g_arc.wb == cfg->wheelbase_cm) return;
+    for (int d = 0; d < 2; ++d)
+        for (int st = 0; st < 3; ++st) {
+            const float ds = (d ? 1.0f : -1.0f) * cfg->step_cm / 6.0f;
+            const float curvature = tanf((float)(st - 1) * cfg->steer_max_deg * RAD) / cfg->wheelbase_cm;
+            const float dtheta = ds * curvature;
+            g_arc.ch[d][st] = cosf(0.5f * dtheta); g_arc.sh[d][st] = sinf(0.5f * dtheta);
+            g_arc.cd[d][st] = cosf(dtheta); g_arc.sd[d][st] = sinf(dtheta);
+            g_arc.dth_deg[d][st] = dtheta / RAD;
+        }
+    g_arc.step = cfg->step_cm; g_arc.steer_max = cfg->steer_max_deg; g_arc.wb = cfg->wheelbase_cm; g_arc.ok = true;
+}
+static bool travel_pen2(const park_params_t *p, const park_params_t *wide, const park_ackermann_config_t *cfg,
+                        const park_pose_t *in, float in_c, float in_s, int dir, int steer, park_pose_t *out, float *out_c, float *out_s, int *pen)
+{
+    arc_consts(cfg);
+    const int d = dir > 0, st = steer + 1;
+    const float ch = g_arc.ch[d][st], sh = g_arc.sh[d][st], cd = g_arc.cd[d][st], sd = g_arc.sd[d][st], dth = g_arc.dth_deg[d][st];
     const float ds = dir * cfg->step_cm / 6.0f;
-    const float curvature = tanf(steer * cfg->steer_max_deg * RAD) / cfg->wheelbase_cm;
+    const float extra = wide ? wide->margin_cm - p->margin_cm : 0.0f;
+    *out = *in;
+    float c = in_c, s = in_s;
     int v = 0;
     for (int i = 0; i < 6; ++i) {
-        const float dtheta = ds * curvature, mid = out->theta_deg * RAD + dtheta * 0.5f;
-        out->u_cm += ds * cosf(mid); out->w_cm += ds * sinf(mid);
-        out->theta_deg = wrap(out->theta_deg + dtheta / RAD);
-        if (!park_pose_free(p, out)) return false;
-        if (wide && !park_pose_free(wide, out)) ++v;
+        const float cm = c * ch - s * sh, sm = s * ch + c * sh;       /* rumbo a mitad del subpaso */
+        out->u_cm += ds * cm; out->w_cm += ds * sm;
+        const float nc = c * cd - s * sd, ns = s * cd + c * sd;
+        c = nc; s = ns;
+        out->theta_deg = wrap(out->theta_deg + dth);
+        bool fw = true;
+        if (!park_pose_free2cs(p, extra, out, c, s, wide ? &fw : NULL)) return false;
+        if (wide && !fw) ++v;
     }
+    const float nrm = 1.0f / sqrtf(c * c + s * s);                      /* el redondeo de 6 giros no pasa de 1e-6; se renormaliza una vez por arco */
+    *out_c = c * nrm; *out_s = s * nrm;
     if (pen) *pen = v;
     return true;
 }
 static bool travel(const park_params_t *p, const park_ackermann_config_t *cfg, const park_pose_t *in,
                    int dir, int steer, park_pose_t *out)
 {
-    return travel_pen(p, NULL, cfg, in, dir, steer, out, NULL);
+    float c, s;
+    const float th = in->theta_deg * RAD;
+    return travel_pen2(p, NULL, cfg, in, cosf(th), sinf(th), dir, steer, out, &c, &s, NULL);
 }
 
 bool park_ackermann_arc_free(const park_params_t *p, const park_ackermann_config_t *cfg,
@@ -152,7 +184,8 @@ static park_ackermann_result_t plan_core(const park_params_t *p, const park_acke
     heap_n = 0; node_n = 1;
     const int start_id = 0;
     cells[start_cell] = start_id;
-    nodes[start_id] = (node_t){start->u_cm, start->w_cm, wrap(start->theta_deg), 0, -1, (int8_t)cfg->previous_direction, 0};
+    nodes[start_id] = (node_t){start->u_cm, start->w_cm, wrap(start->theta_deg), 0, -1, (int8_t)cfg->previous_direction, 0,
+                               cosf(wrap(start->theta_deg) * RAD), sinf(wrap(start->theta_deg) * RAD)};
     push(start_id, heuristic(p, start, goal));
     /* Coste suave de holgura (solo al entrar): las soluciones del A* con exactamente la holgura de
      * planeo rozan el tope y el error de pose (~0,5-1 cm) las aborta; las que tienen 1-2 cm de mas
@@ -170,7 +203,8 @@ static park_ackermann_result_t plan_core(const park_params_t *p, const park_acke
         for (int dir = -1; dir <= 1; dir += 2) for (int steer = -1; steer <= 1; ++steer) {
             park_pose_t next;
             int pen = 0;
-            if (!travel_pen(p, use_wide ? &wide : NULL, cfg, &pose, dir, steer, &next, &pen)) continue;
+            float nc, ns;
+            if (!travel_pen2(p, use_wide ? &wide : NULL, cfg, &pose, cur.c, cur.s, dir, steer, &next, &nc, &ns, &pen)) continue;
             int cell = index_of(next.u_cm, next.w_cm, next.theta_deg);
             if (cell < 0) continue;
             int id = cells[cell];
@@ -185,7 +219,7 @@ static park_ackermann_result_t plan_core(const park_params_t *p, const park_acke
                 if (node_n >= MAX_NODES) continue;
                 id = node_n++; cells[cell] = id;
             }
-            nodes[id] = (node_t){next.u_cm, next.w_cm, next.theta_deg, cost, item.id, (int8_t)dir, (int8_t)steer};
+            nodes[id] = (node_t){next.u_cm, next.w_cm, next.theta_deg, cost, item.id, (int8_t)dir, (int8_t)steer, nc, ns};
             if (!push(id, cost + heuristic(p, &next, goal))) return result;
         }
     }
