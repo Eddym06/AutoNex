@@ -1,4 +1,14 @@
 menu "WRO Vision"
+config WRO_CAM_LINE_TOTAL
+    int "OV3660 X_TOTAL_SIZE (0 = no tocar el sensor; 2300 es el de fabrica, 1500 da ~71 fps)"
+    default 1500
+    range 0 2300
+    help
+        Medido el 16 nov con el S3 conectado: 2300 (fabrica) 46,6 fps; 1500 71,4 fps estables durante 120 s (8570 tramas, 0 malas);
+        1700 pierde cuadros; 1400 corrompe; 1200 o menos no da imagen. No usar valores entre 1400 y 2300 sin medirlos.
+config WRO_CAM_LAB
+    bool "Laboratorio de camara (diagnostico): mide el sensor y vuelca imagenes por UART0; NO envia tablas"
+    default n
 config WRO_PARKING_MODE
     bool "Enable experimental magenta parking guidance"
     default n

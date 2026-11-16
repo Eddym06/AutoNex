@@ -29,7 +29,7 @@
 
 typedef struct {
     float x_cm, z_cm;
-    uint8_t color;               /* 1 rojo, 2 verde, 0 sin regla de lado */
+    uint8_t color;               /* 1 rojo, 2 verde, 0 sin regla de lado (barra), 3 pilar de color desconocido (sin regla; el controlador cede el mando cerca) */
 } it_obstacle_t;
 
 typedef struct {
@@ -50,7 +50,8 @@ typedef struct {
     /* Margenes. */
     float wall_margin_cm, obs_margin_cm, obs_half_cm;
     float pose_err_cm;           /* error de pose (0,8 en el simulador) */
-    float track_err_cm;          /* error de seguimiento a 100 cm/s; crece con el cuadrado de la velocidad */
+    float track_err_cm;          /* error de seguimiento a 100 cm/s (ademas de track_floor_cm); crece como (v/100)^track_exp */
+    float track_floor_cm, track_exp;
     float curtain_cm, approach_cm;
     int8_t side_red, side_green; /* +1 derecha, -1 izquierda */
     /* Busqueda. */

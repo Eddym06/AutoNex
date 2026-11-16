@@ -308,7 +308,7 @@ static const cf_field_t FIELDS[] = {
     CF("it.grip", CF_F32, it.grip), CF("it.v_max_cm_s", CF_F32, it.v_max_cm_s), CF("it.v_min_cm_s", CF_F32, it.v_min_cm_s), CF("it.mu", CF_F32, it.mu),
     CF("it.rear_weight", CF_F32, it.rear_weight), CF("it.cg_height_cm", CF_F32, it.cg_height_cm), CF("it.a_motor_cm_s2", CF_F32, it.a_motor_cm_s2),
     CF("it.steer_rate_dps", CF_F32, it.steer_rate_dps), CF("it.steer_use", CF_F32, it.steer_use), CF("it.rate_use", CF_F32, it.rate_use),
-    CF("it.lag_s", CF_F32, it.lag_s), CF("it.safety", CF_F32, it.safety), CF("it.pose_err_cm", CF_F32, it.pose_err_cm), CF("it.track_err_cm", CF_F32, it.track_err_cm),
+    CF("it.lag_s", CF_F32, it.lag_s), CF("it.safety", CF_F32, it.safety), CF("it.pose_err_cm", CF_F32, it.pose_err_cm), CF("it.track_err_cm", CF_F32, it.track_err_cm), CF("it.track_floor_cm", CF_F32, it.track_floor_cm), CF("it.track_exp", CF_F32, it.track_exp),
     CF("it.wall_margin_cm", CF_F32, it.wall_margin_cm), CF("it.obs_margin_cm", CF_F32, it.obs_margin_cm), CF("it.sweeps", CF_INT, it.sweeps),
     CF("race.station_cm", CF_F32, race.station_cm), CF("race.iterations", CF_INT, race.iterations),
     CF("lap_memory_enabled", CF_BOOL, lap_memory_enabled), CF("sidestep_enabled", CF_BOOL, sidestep_enabled), CF("sidestep_after_s", CF_F32, sidestep_after_s),
@@ -550,6 +550,14 @@ static void analyze(const local_lidar_point_t *p, size_t n, float lane_cm, float
 
 /* ---------------------------------------------------------------- ordenes */
 
+#ifndef PARK_STEER_MAX_DEG
+#define PARK_STEER_MAX_DEG 30.0f   /* giro maximo del volante (Ackermann) en las maniobras de parqueo */
+#endif
+static float park_steer_max(const local_planner_config_t *pl)
+{
+    return pl->steer_hard_deg < PARK_STEER_MAX_DEG ? pl->steer_hard_deg : PARK_STEER_MAX_DEG;
+}
+
 static void command_from_action(const wro_controller_t *c, uint8_t action, wro_command_t *out)
 {
     const local_planner_config_t *p = &c->cfg.planner;
@@ -572,6 +580,12 @@ static void command_from_action(const wro_controller_t *c, uint8_t action, wro_c
     case LOCAL_ACTION_REVERSE: out->speed_cm_s = -p->maneuver_speed_cm_s; break;
     case LOCAL_ACTION_FORWARD: break;
     default: out->speed_cm_s = 0.0f; break;
+    }
+    /* La busqueda del cajon tambien es parqueo: mismo tope de volante (30 grados) que las maniobras. */
+    if (c->phase == WRO_PHASE_PARK_SEARCH || c->phase == WRO_PHASE_PARKING || c->phase == WRO_PHASE_PARK_EXIT) {
+        const float lim = park_steer_max(p);
+        if (out->steer_deg > lim) out->steer_deg = lim;
+        if (out->steer_deg < -lim) out->steer_deg = -lim;
     }
     /* Con la ruta libre cerca de su fin se baja la velocidad: la siguiente
      * lectura llega 100 ms despues y el chasis recorre 2 cm en cada una. */
@@ -1185,6 +1199,28 @@ static park_params_t g_ack_park_params;
 #define PARK_RETRACE_ENABLED 0
 #endif
 static int park_mirror(const wro_controller_t *c);
+/* Pose de arranque de la reversa (eje trasero, marco del cajon): ver park_cruise_step. */
+#ifndef PARK_APPROACH_MODE
+#define PARK_APPROACH_MODE 1   /* 0 = la antigua (apuntar a la pose de la salida) */
+#endif
+#ifndef PARK_APPROACH_U_CM
+#define PARK_APPROACH_U_CM 20.0f
+#endif
+#ifndef PARK_APPROACH_TILT_DEG
+#define PARK_APPROACH_TILT_DEG 20.0f
+#endif
+#ifndef PARK_APPROACH_TILT_LEN_CM
+#define PARK_APPROACH_TILT_LEN_CM 12.0f
+#endif
+#ifndef PARK_APPROACH_TILT_STEER_DEG
+#define PARK_APPROACH_TILT_STEER_DEG 22.0f
+#endif
+#ifndef PARK_APPROACH_W_MIN
+#define PARK_APPROACH_W_MIN 30.0f
+#endif
+#ifndef PARK_APPROACH_W_MAX
+#define PARK_APPROACH_W_MAX 36.0f
+#endif
 
 static void park_params_from_cfg(const wro_controller_t *c, park_params_t *p)
 {
@@ -1208,7 +1244,7 @@ static void park_plan_advance(wro_controller_t *c, int dir, int steer, float ste
 {
     const local_planner_config_t *pl = &c->cfg.planner;
     const float ds = (float)dir * step_cm;
-    const float k = tanf((float)steer * pl->steer_hard_deg * DEG_TO_RAD) / pl->wheelbase_cm;
+    const float k = tanf((float)steer * park_steer_max(pl) * DEG_TO_RAD) / pl->wheelbase_cm;
     const float dth = ds * k * RAD_TO_DEG;
     const float mid = (c->park_plan_pose.theta_deg + 0.5f * dth) * DEG_TO_RAD;
     c->park_plan_pose.u_cm += ds * cosf(mid);
@@ -1229,6 +1265,38 @@ static bool park_cruise_step(wro_controller_t *c, float dt, wro_command_t *out)
      * misma maniobra cabe con una, que es lo que se busca (medido en el planificador: 1 repasada
      * desde (25,30,5) y 2 desde (25,28,5)). */
     const bool retrace = PARK_RETRACE_ENABLED && c->park_trace_n > 8;
+    if (!retrace && PARK_APPROACH_MODE) {
+        /* Aproximacion en dos tiempos (como aparca una persona en paralelo):
+         *  a) PARALELO a la pared, a la distancia a la que ya viene (entre PARK_APPROACH_W_MIN y _MAX: con menos el morro rozaria los topes)
+         *     hasta casi la altura de PARK_APPROACH_U_CM. Antes se apuntaba directo a la pose de la salida con hasta 22 grados hacia la
+         *     pared: el morro y las ruedas delanteras se metian en el cajon, y para entrar de espaldas habia que salir y corregir (2 repasadas
+         *     y un giro de 40-45 grados fuera, medido en el simulador).
+         *  b) un poco antes de esa altura, avanzar GIRANDO PROGRESIVAMENTE el morro hacia el carril hasta PARK_APPROACH_TILT_DEG: asi
+         *     la cola queda hacia la pared y la reversa que sigue entra con un solo arco, sin la correccion brusca del enderezado. */
+        const float p_u = c->park_pose.u_cm, p_w = c->park_pose.w_cm, p_th = c->park_pose.theta_deg;
+        const float speed_a = fmaxf(c->cfg.park_speed_cm_s, c->cfg.park_search_speed_cm_s);
+        const bool tilting = p_u >= PARK_APPROACH_U_CM - PARK_APPROACH_TILT_LEN_CM;
+        if (p_u >= PARK_APPROACH_U_CM + 6.0f || (p_u >= PARK_APPROACH_U_CM - 1.0f && p_th >= PARK_APPROACH_TILT_DEG - 4.0f)) return true;
+        float th_ref, steer_cap;
+        if (tilting) {
+            th_ref = PARK_APPROACH_TILT_DEG; steer_cap = PARK_APPROACH_TILT_STEER_DEG;
+        } else {
+            const float w_t = fminf(fmaxf(p_w, PARK_APPROACH_W_MIN), PARK_APPROACH_W_MAX);
+            th_ref = atan2f(w_t - p_w, 25.0f) * RAD_TO_DEG;
+            if (th_ref > 6.0f) th_ref = 6.0f;
+            if (th_ref < -6.0f) th_ref = -6.0f;
+            steer_cap = 14.0f;
+        }
+        float st = 2.5f * (th_ref - p_th);
+        if (st > steer_cap) st = steer_cap;
+        if (st < -steer_cap) st = -steer_cap;
+        out->speed_cm_s = speed_a;
+        out->steer_deg = -(float)park_mirror(c) * st;
+        out->yaw_rate_dps = speed_a * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
+        out->explicit_yaw_rate = false;
+        out->action = LOCAL_ACTION_FORWARD;
+        return false;
+    }
     const float du = t->u_cm + (retrace ? 0.0f : 2.0f) - c->park_pose.u_cm;
     const float dw = t->w_cm + (retrace ? 0.0f : 1.5f) - c->park_pose.w_cm;
     const float speed = fmaxf(c->cfg.park_speed_cm_s, c->cfg.park_search_speed_cm_s);
@@ -1245,8 +1313,8 @@ static bool park_cruise_step(wro_controller_t *c, float dt, wro_command_t *out)
     if (th_ref > 22.0f) th_ref = 22.0f;
     if (th_ref < -22.0f) th_ref = -22.0f;
     float steer = 2.5f * (th_ref - c->park_pose.theta_deg);
-    if (steer > pl->steer_hard_deg) steer = pl->steer_hard_deg;
-    if (steer < -pl->steer_hard_deg) steer = -pl->steer_hard_deg;
+    if (steer > park_steer_max(pl)) steer = park_steer_max(pl);
+    if (steer < -park_steer_max(pl)) steer = -park_steer_max(pl);
     out->speed_cm_s = speed;
     out->steer_deg = -(float)park_mirror(c) * steer;
     out->yaw_rate_dps = speed * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
@@ -1379,7 +1447,7 @@ static bool park_retrace_step(wro_controller_t *c, const park_params_t *params, 
      * de siempre), se cede al A* para que lo confirme; seguir hasta el ultimo punto lo sacaba de ella. */
     if (turn == 0 && c->park_trace_cur_dir != 0 && k < (int)c->park_trace_n - 2) {
         const park_ackermann_result_t g = park_ackermann_plan(params, &(park_ackermann_config_t)
-            {pl->wheelbase_cm, pl->steer_hard_deg, 3.5f, c->park_trace_cur_dir}, &p, PARK_GOAL_IN);
+            {pl->wheelbase_cm, park_steer_max(pl), 3.5f, c->park_trace_cur_dir}, &p, PARK_GOAL_IN);
         if (g.at_goal) return false;
     }
     if (k <= 0) {
@@ -1389,7 +1457,7 @@ static bool park_retrace_step(wro_controller_t *c, const park_params_t *params, 
         if (e0 > PARK_END_TH_TOL_DEG && c->park_trace_extra < 8 && c->park_trace_cur_dir != 0) {
             ++c->park_trace_extra;
             const float sg = (float)c->park_trace_cur_dir;
-            const float sd = -sg * pl->steer_hard_deg;   /* hacia rumbo menor */
+            const float sd = -sg * park_steer_max(pl);   /* hacia rumbo menor */
             out->speed_cm_s = sg * fminf(c->cfg.park_speed_cm_s, 3.0f);
             out->steer_deg = -(float)park_mirror(c) * sd;
             out->yaw_rate_dps = out->speed_cm_s * tanf(out->steer_deg * DEG_TO_RAD) / pl->wheelbase_cm * RAD_TO_DEG;
@@ -1413,8 +1481,8 @@ static bool park_retrace_step(wro_controller_t *c, const park_params_t *params, 
     float kappa = kappa_rec - (float)dir * TRACE_GAIN_TH * eth - TRACE_GAIN_Y * ey;
     c->park_plan_expanded = k; c->park_plan_count = (int)(c->park_trace_kappa[k] * 1000.0f); c->park_plan_step = (int)(ey * 10.0f); c->park_plan_found = (int)(eth * 57.3f * 10.0f);
     float s_deg = atanf(kappa * pl->wheelbase_cm) * RAD_TO_DEG;
-    if (s_deg > pl->steer_hard_deg) s_deg = pl->steer_hard_deg;
-    if (s_deg < -pl->steer_hard_deg) s_deg = -pl->steer_hard_deg;
+    if (s_deg > park_steer_max(pl)) s_deg = park_steer_max(pl);
+    if (s_deg < -park_steer_max(pl)) s_deg = -park_steer_max(pl);
     const float steer_out = -(float)park_mirror(c) * s_deg;
     /* Cambio de sentido o primer tramo: parado, con el volante ya puesto (el servo tarda ~0,2 s). */
     if (dir != c->park_trace_cur_dir) {
@@ -1647,12 +1715,12 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                  * al tanteo de siempre. */
                 if (!exiting && c->park_stage == 2) {
                     a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
                         &c->park_pose, PARK_GOAL_IN);
                     if (!a.found) {
                         step_cm = 2.5f;
                         a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                            {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                            {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
                             &c->park_pose, PARK_GOAL_IN);
                     }
                     planned = a.found;
@@ -1662,16 +1730,16 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                  * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
                 if (!planned && !exiting && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
                     s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
                         &c->park_pose, &a);
                 if (!planned && !s_plan) {
                     a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
                         &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
                     if (!a.found) {
                         step_cm = 2.5f;
                         a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                            {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction},
+                            {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
                             &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
                     }
                 }
@@ -1685,7 +1753,7 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                      * corto y libre (atras antes que adelante, recto antes que girando) para cambiar de pose y replanificar. */
                     if (++c->park_noplan < 2 || c->park_noplan_moves >= 12) return;
                     park_params_t fb_check = *params; fb_check.margin_cm = fminf(params->margin_cm, PARK_ENTRY_CHECK_MARGIN_CM);
-                    const park_ackermann_config_t fb = {pl->wheelbase_cm, pl->steer_hard_deg, 3.5f, c->park_arc_direction};
+                    const park_ackermann_config_t fb = {pl->wheelbase_cm, park_steer_max(pl), 3.5f, c->park_arc_direction};
                     const int first = c->park_arc_direction > 0 ? -1 : 1;
                     static const int steer_order[3] = {0, 1, -1};
                     for (int di = 0; di < 2 && !a.found; ++di) for (int si = 0; si < 3 && !a.found; ++si) {
@@ -1717,7 +1785,7 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 memcpy(c->park_arc_directions, a.directions, a.count * sizeof(a.directions[0]));
                 memcpy(c->park_arc_steering, a.steering, a.count * sizeof(a.steering[0]));
             }
-            const park_ackermann_config_t acfg = {pl->wheelbase_cm, pl->steer_hard_deg, step_cm, c->park_arc_direction};
+            const park_ackermann_config_t acfg = {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction};
             /* El plan se ejecuta a ciegas: lo que se vigila es que el chasis siga donde el plan
              * cree. El servo tarda ~0,2 s en invertir el volante, asi que los primeros arcos de
              * cada cambio de sentido giran menos que el modelo y el avance a ciegas se separa sin
@@ -2062,8 +2130,9 @@ static bool it_collect(const wro_controller_t *c, it_obstacle_t *obs, int *count
     int k = 0;
     for (size_t i = 0; i < n && k < IT_MAX_OBS; ++i) {
         if (o[i].kind == TRACE_OBJ_PILLAR) {
-            const uint8_t col = o[i].color == TRACE_COLOR_RED ? 1 : o[i].color == TRACE_COLOR_GREEN ? 2 : 0;
-            if (col == 0 && o[i].color != TRACE_COLOR_MAGENTA) return false;
+            /* Un pilar sin color (3) se planea como obstaculo sin regla de lado y IT cede el mando junto a el: el reactivo lo ve con la camara y
+             * lo pasa por su lado. Antes un solo pilar sin color cancelaba el plan de TODA la ronda (medido: 1 de cada 8 rondas con 5 letreros). */
+            const uint8_t col = o[i].color == TRACE_COLOR_RED ? 1 : o[i].color == TRACE_COLOR_GREEN ? 2 : o[i].color == TRACE_COLOR_MAGENTA ? 0 : 3;
             obs[k].x_cm = o[i].x_cm; obs[k].z_cm = o[i].z_cm; obs[k].color = col; ++k;
         } else if (o[i].kind == TRACE_OBJ_BAR) {
             obs[k].x_cm = o[i].x_cm; obs[k].z_cm = o[i].z_cm; obs[k].color = 0; ++k;
@@ -2135,6 +2204,7 @@ static void it_manage(wro_controller_t *c)
                 it_tracker_reset(&c->it_tr);
             } else {
                 c->it_failed = true;
+                c->it_fail_why = (uint8_t)(4u | ((unsigned)c->it_work.why << 3));
             }
         }
         return;
@@ -2144,11 +2214,85 @@ static void it_manage(wro_controller_t *c)
     int count = 0;
     it_config_t ic;
     it_make_config(c, &ic);
-    if (!it_collect(c, obs, &count) || !it_plan_begin(&c->it_work, &ic, c->direction, obs, count)) { c->it_failed = true; return; }
+    if (!it_collect(c, obs, &count)) { c->it_failed = true; c->it_fail_why = 1; return; }
+    if (!it_plan_begin(&c->it_work, &ic, c->direction, obs, count)) { c->it_failed = true; c->it_fail_why = 2; return; }
     c->it_building = true;
     c->it_rebuild = false;
 }
 
+#ifndef IT_UNK_WALL_CM
+#define IT_UNK_WALL_CM 10.0f    /* un punto a menos de esto de una pared, o del bloque interior, es la pared */
+#endif
+#ifndef IT_UNK_OBS_CM
+#define IT_UNK_OBS_CM 14.0f     /* idem de un obstaculo del plan (radio 3,5 + error del mapa + ruido del LiDAR) */
+#endif
+#ifndef IT_UNK_SIDE_CM
+#define IT_UNK_SIDE_CM 3.0f     /* holgura lateral del chasis al buscar objetos desconocidos */
+#endif
+#ifndef IT_UNK_HOLD_S
+#define IT_UNK_HOLD_S 0.6f      /* tiempo sin volver a tomar el mando tras dejar de ver el objeto */
+#endif
+#ifndef IT_UNK_MIN_POINTS
+#define IT_UNK_MIN_POINTS 3
+#endif
+/* Objetos que el plan NO conoce, en la trayectoria que va a recorrer: puntos del LiDAR (en el marco del campo) que no son pared, ni bloque interior, ni un
+ * obstaculo del plan, y que caen dentro de la huella del chasis en alguna de las proximas estaciones. Sirve en curvas, donde la guardia de arco recto no
+ * puede usarse (la pared de enfrente da falsos positivos). Devuelve el numero de puntos desconocidos en el camino y, en *dist_cm, lo que falta hasta
+ * el primero medido a lo largo de la trayectoria. */
+static int it_unknown_ahead(const wro_controller_t *c, const local_lidar_point_t *pts, size_t count, float x, float z, float yaw_deg,
+                            float look_cm, float *dist_cm, float *hx, float *hz)
+{
+    const it_plan_t *p = &c->it_plan;
+    const it_config_t *ic = &p->cfg;
+    if (!pts || count == 0 || c->it_tr.idx < 0) return 0;
+    const float lf = c->cfg.planner.lidar_forward_cm, yr = yaw_deg * DEG_TO_RAD, sy = sinf(yr), cy = cosf(yr);
+    const float wall = ic->outer_half_cm - IT_UNK_WALL_CM, block = ic->inner_half_cm + IT_UNK_WALL_CM;
+    int hits = 0;
+    float best = 1.0e9f;
+    for (size_t k = 0; k < count; ++k) {
+        if (!pts[k].valid || pts[k].blind) continue;
+        const float a = pts[k].angle_deg * DEG_TO_RAD, right = pts[k].distance_cm * sinf(a), fwd = pts[k].distance_cm * cosf(a) + lf;
+        if (fwd < 0.0f || fwd > look_cm + 30.0f) continue;
+        const float X = x + right * cy + fwd * sy, Z = z - right * sy + fwd * cy;
+        if (fabsf(X) > wall || fabsf(Z) > wall || fmaxf(fabsf(X), fabsf(Z)) < block) continue;
+        bool known = false;
+        for (int j = 0; j < p->obstacles && !known; ++j)
+            if (hypotf(X - p->obs[j].x_cm, Z - p->obs[j].z_cm) < IT_UNK_OBS_CM) known = true;
+        if (known) continue;
+        float along = 0.0f;
+        int i = c->it_tr.idx % p->n;
+        for (int step = 0; step < p->n && along <= look_cm; ++step) {
+            const float h = p->heading_deg[i] * DEG_TO_RAD, hs = sinf(h), hc = cosf(h);
+            const float dx = X - p->x[i], dz = Z - p->z[i];
+            const float u = dx * hs + dz * hc, v = dx * hc - dz * hs;
+            if (u >= -ic->rear_ext_cm - 2.0f && u <= ic->front_ext_cm + 2.0f && fabsf(v) <= ic->half_width_cm + IT_UNK_SIDE_CM) {
+                ++hits;
+                if (along < best) { best = along; if (hx) *hx = X; if (hz) *hz = Z; }
+                break;
+            }
+            along += p->h[i];
+            i = (i + 1) % p->n;
+        }
+    }
+    if (dist_cm) *dist_cm = best;
+    return hits;
+}
+
+#ifndef IT_LOOK_BASE_CM
+#define IT_LOOK_BASE_CM 20.0f
+#endif
+#ifndef IT_LOOK_PER_CM_S
+#define IT_LOOK_PER_CM_S 0.75f
+#endif
+#ifndef IT_SURPRISE_DROP_SCANS
+#define IT_SURPRISE_DROP_SCANS 2
+#endif
+#ifndef IT_SURPRISE_SPEED_CM_S
+#define IT_SURPRISE_SPEED_CM_S 45.0f
+#endif
+#ifndef IT_UNKNOWN_YIELD_CM
+#define IT_UNKNOWN_YIELD_CM 60.0f
+#endif
 /* Al final del ciclo: si el plan es valido y el robot esta sobre la trayectoria, direccion y velocidad son las del seguidor. */
 static void it_override(wro_controller_t *c, const local_planner_config_t *pc, float dt, wro_command_t *out)
 {
@@ -2162,8 +2306,27 @@ static void it_override(wro_controller_t *c, const local_planner_config_t *pc, f
     const float th = c->arena.pose.theta_deg * DEG_TO_RAD;
     const float x = c->arena.pose.x_cm + c->map_lead_cm * sinf(th), z = c->arena.pose.z_cm + c->map_lead_cm * cosf(th);
     const float yaw = imu_wrap_deg(c->arena.pose.theta_deg + c->map_lead_deg);
-    float steer = 0.0f, speed = 0.0f;
+    float steer = 0.0f, speed = 0.0f, it_surprise_cap = 0.0f;
     if (!it_track(&c->it_tr, &c->it_plan, x, z, yaw, v_now, &steer, &speed)) { it_drop(c, 1); return; }
+    /* Junto a un pilar de color desconocido manda el reactivo (ve el letrero con la camara y respeta su lado). */
+    for (int i = 0; i < c->it_plan.obstacles; ++i)
+        if (c->it_plan.obs[i].color == 3 && hypotf(c->it_plan.obs[i].x_cm - x, c->it_plan.obs[i].z_cm - z) < IT_UNKNOWN_YIELD_CM) { it_drop(c, 6); c->it_hold_left_s = 0.3f; return; }
+    {
+        /* Objeto desconocido en el camino (en recta o en curva): frena ya y, si sigue en el siguiente barrido, cede el mando. */
+        float ud = 0.0f;
+        const float look_u = fmaxf(40.0f, IT_LOOK_BASE_CM + IT_LOOK_PER_CM_S * v_now);
+        float hx = 0.0f, hz = 0.0f;
+        const int nu = it_unknown_ahead(c, c->it_points, c->it_point_count, x, z, yaw, look_u, &ud, &hx, &hz);
+        if (nu >= IT_UNK_MIN_POINTS) {
+            c->it_unk_x = hx; c->it_unk_z = hz; c->it_unk_n = nu; c->it_unk_t = (float)c->last_scan_us * 1.0e-6f;
+            /* Sin estar al mando tampoco se engancha mientras el objeto siga delante (antes volvia a los 0,3 s y lo atropellaba a 48 cm/s). */
+            if (!c->it_engaged) { c->it_hold_left_s = IT_UNK_HOLD_S; return; }
+            if (++c->it_unk_bad >= IT_SURPRISE_DROP_SCANS) { c->it_unk_bad = 0; it_drop(c, 7); c->it_hold_left_s = IT_UNK_HOLD_S; return; }
+            it_surprise_cap = IT_SURPRISE_SPEED_CM_S;
+        } else {
+            c->it_unk_bad = 0;
+        }
+    }
     if (!c->it_engaged) {
         if (c->it_hold_left_s > 0.0f || fabsf(c->it_tr.e_cm) > c->cfg.it_engage_dist_cm || fabsf(c->it_tr.psi_err_deg) > c->cfg.it_engage_heading_deg) return;
         c->it_engaged = true;
@@ -2176,8 +2339,12 @@ static void it_override(wro_controller_t *c, const local_planner_config_t *pc, f
     else c->it_stuck_s = 0.0f;
     /* Sorpresa en el LiDAR: en una recta (sin curva en los proximos cm del plan) el arco recto que va a recorrer no esta libre y no hay
      * ningun objeto del plan cerca de la proa. En una curva la pared de enfrente da falsos positivos, ahi no se comprueba. */
+    /* La guardia tiene que caber en lo que el coche tarda en frenar: a 150 cm/s la orden llega ~0,15 s tarde (22 cm) y frenar ocupa 37 cm (415 cm/s2), mas
+     * los ~25 cm del morro. Antes miraba max(30, v/2) = 75 cm y exigia 4 barridos seguidos (0,4 s = 60 cm): un letrero que el mapa no tenia (ccw 13: se
+     * habia perdido en la vuelta 1) se atropellaba a 150 cm/s. Ahora mira 20 + 0,75 v (132 cm a 150), BAJA la velocidad en la primera deteccion y cede el
+     * mando en la segunda (IT_SURPRISE_DROP_SCANS). */
     if (fabsf(steer) < 10.0f && v_now > 20.0f) {
-        const float look = fmaxf(30.0f, 0.5f * v_now);
+        const float look = fmaxf(30.0f, IT_LOOK_BASE_CM + IT_LOOK_PER_CM_S * v_now);
         bool straight = true, known = false;
         for (float a = 0.0f; a <= look + 40.0f && straight; a += 5.0f)
             if (fabsf(c->it_plan.kappa_s[advance_station(&c->it_plan, c->it_tr.idx, a)]) > 0.008f) straight = false;
@@ -2185,11 +2352,14 @@ static void it_override(wro_controller_t *c, const local_planner_config_t *pc, f
         for (int i = 0; i < c->it_plan.obstacles; ++i)
             if (hypotf(c->it_plan.obs[i].x_cm - fx, c->it_plan.obs[i].z_cm - fz) < 45.0f) known = true;
         if (straight && !known && !local_planner_arc_clear(&c->map, pc, steer, look)) {
-            if (++c->it_arc_bad >= 4) { it_drop(c, 4); return; }
+            ++c->it_arc_bad;
+            if (c->it_arc_bad >= IT_SURPRISE_DROP_SCANS) { it_drop(c, 4); return; }
+            it_surprise_cap = IT_SURPRISE_SPEED_CM_S;
         } else {
             c->it_arc_bad = 0;
         }
     }
+    if (it_surprise_cap > 0.0f && speed > it_surprise_cap) speed = it_surprise_cap;
     const float up = c->it_v_prev + c->cfg.it_accel_cm_s2 * dt;
     const float v_cmd = speed > up ? up : speed;
     c->it_v_prev = v_cmd;
@@ -2546,7 +2716,9 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         const float f = out->speed_cm_s / pc->speed_cm_s;
         out->speed_cm_s = c->race_v_cmd * (f < 1.0f ? f : 1.0f);
     }
+    c->it_points = points; c->it_point_count = count;
     it_override(c, pc, dt, out);
+    c->it_points = NULL; c->it_point_count = 0;
     c->last_speed_cm_s = out->speed_cm_s;
     fill_status(c, &per, out);
 }

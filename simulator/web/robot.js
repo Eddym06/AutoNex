@@ -15,6 +15,8 @@
 
   /* Perfil provisional para el 12-móvil; no son medidas oficiales ni reales.
    * Todos los valores se reemplazarán después de medir el vehículo montado. */
+  /* rpm en vacio a 12 V del eje de salida (etiqueta del motor real: 800). UNICA fuente: la usan el motor fisico de aqui y el modelo de MIC del wasm (sim.js). */
+  const MOTOR_RPM = 800;
   const DEFAULT_ROBOT = {
     drive: 'bicycle', wheelbase: 14, bodyWidth: 14, bodyLength: 22, rearOverhang: 4,
     trackWidth: 12, wheelTauS: 0.09, wheelDeadband: 2.5, wheelMismatch: 0.03, maxWheelSpeed: 60,
@@ -46,9 +48,9 @@
     /* Motor fisico del JGB37-520 (R, Ke, masa, friccion, caida del L298N) gobernado por un controlador externo
      * (MIC). Los parametros reales son DISTINTOS de los que MIC supone: ese es el punto de la prueba. */
     enableMotor(drive, cfg) {
-      const w_nl = 1000 * 10 * 2 * Math.PI / 60, r_w = 0.033, R0 = 2.6;
+      const k = Object.assign({ rpm: MOTOR_RPM, kR: 1.10, kMass: 1.08, kFric: 1.2, kKe: 0.98, kWheel: 1.002, vbat: 11.1, vdrop: 2.0 }, cfg || {});
+      const w_nl = k.rpm * 10 * 2 * Math.PI / 60, r_w = 0.033, R0 = 2.6;   /* rpm en vacio del eje de salida, reductora 10:1 */
       const ke = (12 - 0.15 * R0) / w_nl;
-      const k = Object.assign({ kR: 1.10, kMass: 1.08, kFric: 1.2, kKe: 0.98, kWheel: 1.002, vbat: 11.1, vdrop: 2.0 }, cfg || {});
       const refl = 10 / r_w;
       this.drive = drive;
       this.motor = {
@@ -148,7 +150,8 @@
           this.axleBefore = this.axleS;
           this.motorStep(dt);
         } else {
-        const vt = this.cmd.speed * c.speedGain;
+        const vLim = c.maxSpeed > 0 ? c.maxSpeed : Infinity;       /* tope de velocidad que da el motor (sim.js lo calcula con MIC) */
+        const vt = Math.max(-vLim, Math.min(vLim, this.cmd.speed * c.speedGain));
         const dv = Math.max(-c.maxAccel * dt, Math.min(c.maxAccel * dt, (vt - this.v) * (1 - Math.exp(-dt / c.speedTauS))));
         this.v += dv;
         }
@@ -252,6 +255,7 @@
      * simetricos de 37,75 mm ((260 - 184,5) / 2). Es el mismo robot que `ackermann` en todo
      * lo demas; se separa para poder comparar y para que los planos puedan declararlo. */
     largo26: {
+      motorModel: true,   /* velocidad y aceleracion salen del modelo del motor (MOTOR_RPM), ver sim.js */
       drive: 'bicycle', wheelbase: 18.45, bodyWidth: 13, bodyLength: 26, rearOverhang: 3.775,
       wheelDiameterL: 6.6, wheelDiameterR: 6.6, maxSteerDeg: 40
     },
@@ -261,6 +265,7 @@
      * y la electronica suman ~20 ms; zona muerta ~0,5 grados) y neumaticos que saturan con el peso detras (62 % sobre el eje
      * trasero). TODO provisional: mu, reparto de peso y rigidez de curva se miden con el chasis montado (ver MEDICION_*). */
     largo26d: {
+      motorModel: true,
       drive: 'bicycle', wheelbase: 18.45, bodyWidth: 13, bodyLength: 26, rearOverhang: 3.775,
       wheelDiameterL: 6.6, wheelDiameterR: 6.6, maxSteerDeg: 40,
       steerRateDegS: 420, steerDelayS: 0.02, steerDeadbandDeg: 0.5,
@@ -272,6 +277,6 @@
     }
   };
 
-  WRO.robot = { Robot, DEFAULT_ROBOT, PROFILES };
+  WRO.robot = { Robot, DEFAULT_ROBOT, PROFILES, MOTOR_RPM };
   if (typeof module !== 'undefined') module.exports = WRO;
 })(typeof window !== 'undefined' ? window : globalThis);

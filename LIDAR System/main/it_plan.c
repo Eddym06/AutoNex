@@ -6,6 +6,40 @@
 #include <stdio.h>
 #endif
 
+#ifndef IT_WIDTHS
+#define IT_WIDTHS {2, 5, 10}
+#endif
+#ifndef IT_AMPS
+#define IT_AMPS {3.0f, 1.5f, 0.6f}
+#endif
+#define IT_NW ((int)(sizeof((int[])IT_WIDTHS) / sizeof(int)))
+#define IT_NA ((int)(sizeof((float[])IT_AMPS) / sizeof(float)))
+#ifndef IT_STEER_USE_DEFAULT
+#define IT_STEER_USE_DEFAULT 0.72f
+#endif
+/* Error de seguimiento que el plan reserva (cm) a la velocidad v: floor + err * (v/100)^exp, ademas del error de pose. Calibrado con el error REAL
+ * de IT en la mision simulada (32 rondas, 5 letreros, sin los 2 s de enganche; tools/it_err_stats.js): p99 = 2,4 cm a 45 cm/s, 4,2 a 75, 5,3 a 105,
+ * 6,4 a 125 y 7,4 a 145 (max 8,1): casi lineal en v, y 14 * (v/100)^2 da 29 cm a 145 cm/s (4 veces lo medido). AUN ASI el modelo medido
+ * NO se usa: en 32 rondas con 5 letreros, piso 1 + 5*(v/100) dio 74,1 s (antes 73,9), vuelta 2 de 12,7 s (11,4) y 11 contactos en una ronda; 8 cm: 83,9 s,
+ * 2 rondas sin acabar; 11 cm: 80,8 s; piso 2 + 8: 81,9 s. El plan baja de 7,8 a 6,6 s pero el seguidor no lo ejecuta: se queda en los valores de siempre. */
+#ifndef IT_TRACK_ERR_DEFAULT
+#define IT_TRACK_ERR_DEFAULT 14.0f
+#endif
+#ifndef IT_TRACK_FLOOR_DEFAULT
+#define IT_TRACK_FLOOR_DEFAULT 0.0f
+#endif
+#ifndef IT_TRACK_EXP_DEFAULT
+#define IT_TRACK_EXP_DEFAULT 2.0f
+#endif
+#ifndef IT_GAP_ERR_SCALE_SQ
+#define IT_GAP_ERR_SCALE_SQ 1.0f   /* 1 = como antes (la huella usa el mismo margen); 4 = un cuarto del error en la huella */
+#endif
+#ifndef IT_STEER_RETRIES
+#define IT_STEER_RETRIES 2
+#endif
+#ifndef IT_RAND_EVALS
+#define IT_RAND_EVALS 0
+#endif
 #define G_CM 981.0f
 #define PI_F 3.14159265358979323846f
 #define RAD2DEG 57.29577951308232f
@@ -17,12 +51,12 @@ void it_config_default(it_config_t *c)
     memset(c, 0, sizeof(*c));
     c->outer_half_cm = 150.0f; c->inner_half_cm = 50.0f; c->corner_radius_cm = 40.0f;
     c->wheelbase_cm = 18.45f; c->half_width_cm = 6.5f; c->front_ext_cm = 22.2f; c->rear_ext_cm = 3.8f;
-    c->steer_max_deg = 40.0f; c->steer_rate_dps = 420.0f; c->lag_s = 0.09f; c->steer_use = 0.72f; c->rate_use = 0.45f; c->ctrl_mode = 0; c->k_psi = 0.6f; c->k_e = 2.0f;
+    c->steer_max_deg = 40.0f; c->steer_rate_dps = 420.0f; c->lag_s = 0.09f; c->steer_use = IT_STEER_USE_DEFAULT; c->rate_use = 0.45f; c->ctrl_mode = 0; c->k_psi = 0.6f; c->k_e = 2.0f;
     c->mu = 0.8f; c->rear_weight = 0.62f; c->cg_height_cm = 4.0f;
     c->grip = 0.7f; c->safety = 0.85f; c->a_motor_cm_s2 = 350.0f;
     c->v_max_cm_s = 150.0f; c->v_min_cm_s = 15.0f;
     c->wall_margin_cm = 1.0f; c->obs_margin_cm = 1.0f; c->obs_half_cm = 3.5f;     /* obs_half: radio circunscrito del letrero (5 cm de lado) */
-    c->pose_err_cm = 0.8f; c->track_err_cm = 14.0f;     /* error lateral de seguimiento a 100 cm/s dentro de la mision (escaneo a 10 Hz + lazo rapido + pose del LiDAR): 6 en el banco ideal, 14 medido en la mision completa */
+    c->pose_err_cm = 0.8f; c->track_err_cm = IT_TRACK_ERR_DEFAULT; c->track_floor_cm = IT_TRACK_FLOOR_DEFAULT; c->track_exp = IT_TRACK_EXP_DEFAULT;     /* error lateral de seguimiento a 100 cm/s dentro de la mision (escaneo a 10 Hz + lazo rapido + pose del LiDAR): 6 en el banco ideal, 14 medido en la mision completa */
     c->curtain_cm = 100.0f; c->approach_cm = 0.0f;     /* el lado se exige a la altura del letrero; cambiar de lado antes es decision del optimizador */
     c->side_red = 1; c->side_green = -1;
     c->station_cm = 5.0f; c->passes = 3; c->sweeps = 3; c->relax_iterations = 4000;
@@ -69,6 +103,8 @@ bool it_config_sanitize(it_config_t *c)
     ok &= in_range(&c->obs_half_cm, 1.0f, 15.0f);
     ok &= in_range(&c->pose_err_cm, 0.0f, 10.0f);
     ok &= in_range(&c->track_err_cm, 0.0f, 20.0f);
+    ok &= in_range(&c->track_floor_cm, 0.0f, 10.0f);
+    ok &= in_range(&c->track_exp, 0.5f, 3.0f);
     ok &= in_range(&c->curtain_cm, 20.0f, 300.0f);
     ok &= in_range(&c->approach_cm, 0.0f, 100.0f);
     ok &= in_range(&c->station_cm, 3.0f, 12.0f);
@@ -249,10 +285,14 @@ static float profile(it_plan_t *p, const float *d)
         float rl = d[i] - p->lo0[i], rr = p->hi0[i] - d[i];
         p->room[i] = rl < rr ? rl : rr;
         float allowed = (rl < rr ? rl : rr);
-        if (p->gap[i] < allowed) allowed = p->gap[i];
+        /* La holgura de la HUELLA (en cualquier direccion) no sufre el error de seguimiento lateral como el pasillo del eje: con el mismo margen el
+         * control optimo da 1,4 s mas de vuelta (7,77 frente a 6,41 s en la pista de prueba). Se le aplica solo la fraccion IT_GAP_ERR_SCALE. */
+        const float gap_allowed = c->pose_err_cm + (p->gap[i] - c->pose_err_cm - 0.3f) * IT_GAP_ERR_SCALE_SQ;
+        if (gap_allowed + 0.3f < allowed) allowed = gap_allowed + 0.3f;
         allowed -= 0.3f;
         float vc = c->v_max_cm_s;
-        vc = allowed <= c->pose_err_cm ? c->v_min_cm_s : 100.0f * sqrtf((allowed - c->pose_err_cm) / fmaxf(c->track_err_cm, 0.01f));
+        const float spare = allowed - c->pose_err_cm - c->track_floor_cm;
+        vc = spare <= 0.0f ? c->v_min_cm_s : 100.0f * powf(spare / fmaxf(c->track_err_cm, 0.01f), 1.0f / c->track_exp);
         p->vcap[i] = vc;
         if (vc < v) v = vc;
         if (v < c->v_min_cm_s) v = c->v_min_cm_s;
@@ -441,7 +481,8 @@ static bool compute_corridor(it_plan_t *p)
 /* Construccion por rebanadas: `it_plan_begin` prepara el corredor y `it_plan_step` reparte la busqueda en trozos de pocos milisegundos, de modo
  * que el controlador puede llamarla en cada escaneo sin parar el control. Hay un solo trabajo a la vez (estado estatico). */
 static struct {
-    int stage, q, sw, ai, wi, i, sg, sweeps;
+    int stage, q, sw, ai, wi, i, sg, sweeps, rcount, attempt;
+    uint32_t rng;
     bool improved;
     float best, best_t;
 } job;
@@ -494,6 +535,7 @@ bool it_plan_begin(it_plan_t *p, const it_config_t *cfg, int direction, const it
     job.sweeps = c->sweeps * c->passes;
     job.best_t = 1.0e18f;
     job.sg = -1;
+    job.rng = 12345u;
     p->building = true;
     return true;
 }
@@ -506,14 +548,17 @@ bool it_plan_step(it_plan_t *p, int budget)
     const it_config_t *c = &p->cfg;
     const int n = p->n;
     static const float MIX[6] = {0.0f, 0.3f, 1.0f, 3.0f, 10.0f, 30.0f};
-    static const int W[3] = {2, 5, 10};
-    static const float A[3] = {3.0f, 1.5f, 0.6f};
+    static const int W[IT_NW] = IT_WIDTHS;
+    static const float A[IT_NA] = IT_AMPS;
     static float trial[IT_MAX_N];
     while (budget > 0 && job.stage == 0) {
         /* Varios arranques (de la ruta mas corta a la de curvatura minima): se parte del que da la vuelta mas rapida. */
         for (int i = 0; i < n; ++i) jd[i] = fminf(fmaxf(0.5f * (p->lo[i] + p->hi[i]), p->lo[i]), p->hi[i]);
         relax(p, MIX[job.q], jd);
-        const float t = eval(p, jd);
+        float t = eval(p, jd);
+#ifdef IT_ONLY_MIX
+        if (job.q != IT_ONLY_MIX) t = 1.0e17f;
+#endif
         if (t < job.best_t) { job.best_t = t; memcpy(jbest, jd, sizeof(float) * (size_t)n); }
         budget -= 40;
         if (++job.q >= 6) { memcpy(jd, jbest, sizeof(float) * (size_t)n); job.best = eval(p, jd); job.stage = 1; }
@@ -539,29 +584,67 @@ bool it_plan_step(it_plan_t *p, int budget)
             job.i += W[job.wi] / 2 > 1 ? W[job.wi] / 2 : 1;
             if (job.i >= n) {
                 job.i = 0;
-                if (++job.wi >= 3) {
+                if (++job.wi >= IT_NW) {
                     job.wi = 0;
-                    if (++job.ai >= 3) {
+                    if (++job.ai >= IT_NA) {
                         job.ai = 0;
                         ++job.sw;
-                        if (!job.improved || job.sw >= job.sweeps) job.stage = 2;
+                        if (!job.improved || job.sw >= job.sweeps) job.stage = 5;
                         job.improved = false;
                     }
                 }
             }
         }
     }
-    if (job.stage < 2) return false;
+    /* Etapa 5: busqueda aleatoria con jorobas de ancho y amplitud al azar (la local determinista se atasca en un minimo: no cruza de un
+     * lado al otro del corredor ni mueve un tramo largo a la vez). Solo acepta lo que baja el tiempo. */
+    while (budget > 0 && job.stage == 5) {
+        if (job.rcount >= IT_RAND_EVALS) { job.stage = 2; break; }
+        job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r1 = job.rng >> 8;
+        job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r2 = job.rng >> 8;
+        job.rng = job.rng * 1664525u + 1013904223u; const uint32_t r3 = job.rng >> 8;
+        const int ci = (int)(r1 % (uint32_t)n);
+        const int w = 2 + (int)(r2 % 26u);
+        const float u = (float)(r3 & 0xFFFFu) / 65535.0f;
+        const float amp = (0.3f * powf(30.0f, u)) * ((r3 >> 16) & 1u ? 1.0f : -1.0f);   /* 0,3 .. 9 cm */
+        memcpy(trial, jd, sizeof(float) * (size_t)n);
+        for (int k = -w; k <= w; ++k) {
+            const int j = ((ci + k) % n + n) % n;
+            const float wt = 0.5f * (1.0f + cosf(PI_F * (float)k / (float)(w + 1)));
+            float v = trial[j] + amp * wt;
+            if (v < p->lo[j]) v = p->lo[j];
+            if (v > p->hi[j]) v = p->hi[j];
+            trial[j] = v;
+        }
+        const float t = eval(p, trial);
+        --budget; ++job.rcount;
+        if (t < job.best - 1.0e-4f) { job.best = t; memcpy(jd, trial, sizeof(float) * (size_t)n); }
+    }
+    if (job.stage != 2) return false;
     eval(p, jd);
     for (int i = 0; i < n; ++i) {
         p->d[i] = jd[i];
         const float vr = p->v[i] / 100.0f;
-        p->margin[i] = c->pose_err_cm + c->track_err_cm * vr * vr;
+        p->margin[i] = c->pose_err_cm + c->track_floor_cm + c->track_err_cm * powf(vr, c->track_exp);
     }
     /* Valida solo si el volante llega a la curvatura, la linea es continua (ningun salto mayor que 2 estaciones) y la huella del
      * chasis, con el rumbo de la trayectoria final, no toca nada. */
     float jump = 0.0f;
     for (int i = 0; i < n; ++i) if (p->h[i] > jump) jump = p->h[i];
+    /* El volante no llega a la curvatura que pide la pista (pasos en S seguidos): se reintenta con mas volante antes de rendirse. El plan
+     * normal reserva el 28 % del volante para que el seguidor corrija; sin plan no hay IT, y con el volante casi a tope si (despacio). */
+    if (p->violation >= 0.02f && job.attempt < IT_STEER_RETRIES && p->cfg.steer_use < 0.999f) {
+        const int attempt = job.attempt + 1;
+        p->cfg.steer_use = fminf(1.0f, p->cfg.steer_use + 0.14f);
+        for (int i = 0; i < n; ++i) { p->lo[i] = p->lo0[i]; p->hi[i] = p->hi0[i]; }
+        memset(&job, 0, sizeof(job));
+        job.attempt = attempt;
+        job.sweeps = c->sweeps * c->passes;
+        job.best_t = 1.0e18f;
+        job.sg = -1;
+        job.rng = 12345u;
+        return false;
+    }
     p->why = 0;
     if (p->violation >= 0.02f) p->why |= 1u;
     if (jump >= 2.0f * c->station_cm * 1.5f + 3.0f) p->why |= 2u;

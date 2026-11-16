@@ -9,6 +9,9 @@
 #include "sdkconfig.h"
 #include "esp_timer.h"
 #define PERF_WINDOW_FRAMES 100
+#if CONFIG_WRO_CAM_LAB
+void cam_lab_run(void);
+#endif
 static vision_workspace_t workspace;
 static vision_config_t config;
 static const char *TAG = "wro_vision";
@@ -26,6 +29,9 @@ void app_main(void)
         return;
     }
     vision_camera_apply_settings(&config.camera);
+#if CONFIG_WRO_CAM_LAB
+    cam_lab_run();   /* no vuelve */
+#endif
     err = vision_uart_link_init();
     const bool link_ready = err == ESP_OK;
     if (err != ESP_OK) ESP_LOGE(TAG, "Camera data link unavailable: %s", esp_err_to_name(err));

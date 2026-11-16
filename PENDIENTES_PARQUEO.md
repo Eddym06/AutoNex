@@ -51,13 +51,13 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 - Con el sorteo repuesto (~5,5 de 6 letreros): reactivo solo 21/24 (ccw 3, ccw 5, ccw 10: el coche queda delante de un letrero, escape ↔ avance sin salida, 160-260 pasos de contacto); IT+MIC 24/24
   terminan, 22 con 62 puntos. Falta: que el escape elija el lado que pide el color cuando lleva varios intentos, y que el reactivo acepte pasos de 27 cm (el criterio de `checkLayout` usa 1 cm de margen).
 - IT: el barrido de límites (`it.safety` 0,92; `it.track_err_cm` 9; `it.steer_use` 0,88 + `it.rate_use` 0,7) solo baja la vuelta 2 de 11,0 a 10,5 s: la trayectoria ya está en los límites supuestos de agarre,
-  servo y motor. Para mejorarla de verdad hay que medir el chasis (agarre, retardo del servo, aceleración con 600 rpm). Los defectos no se tocaron.
+  servo y motor. Para mejorarla de verdad hay que medir el chasis (agarre, retardo del servo, aceleración con 800 rpm). Los defectos no se tocaron.
 
 ## 3d. Estado final de la simulación (11 nov noche)
 
 - Pistas factibles, 3 letreros, `largo26d`, 24 rondas: 62 puntos y 0 contactos en todas. Parqueo en 21-32 (`parkentry.js ... ronda`): 24 completas, 0 contactos, 122 repasadas (media 5,1);
   la comprobación de arco en 0,75 cm cambia 1-2 repasadas por seguridad (ver `PARK_ENTRY_CHECK_MARGIN_CM`).
-- Sigue abierto: la asimetría cw/ccw de unos segundos (la salida acaba a 10° en ccw y a 4° en cw; el plan de parqueo cw sale más largo); una pose libre sin plan en el A* de rejilla; el
+- Asimetría cw/ccw: **resuelta (11 nov)**, ver 3c. Sigue abierto: una pose libre sin plan en el A* de rejilla; el
   tiempo de cinco A* por plan en el P4; todo lo que depende de medir el chasis real.
 
 ## 3c. Simetría ccw/cw (11 nov)
@@ -68,6 +68,14 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
   `corner_max_heading_deg` (30) impedía detectar la esquina; el coche entraba ancho y no llegaba a pasar el letrero por el lado pedido. Con 45 ese caso termina y el resto no cambia
   (24 rondas con 3 letreros: 22 de 24, igual que antes; 16 rondas con 6 letreros: 16 de 16 en ambos).
 - Sigue siendo cierto que la mayoría de los fallos en pistas aleatorias distintas por sentido es azar de pistas distintas, no una asimetría del código.
+
+## 3f. Causa de la asimetría cw/ccw (11 nov)
+
+- Con `steerTrimDeg: 0` cw y ccw eran idénticos; con el descentrado de 0,8° del servo, la salida acababa a 9° en ccw y 4,3° en cw **en las 12 semillas** (determinista, no azar) y la entrada cw salía ~3 s más larga
+  (parqueo 19,8 s frente a 16,6 s). El código es simétrico (trabaja en el marco del cajón con espejo); lo que rompía el espejo era el volante descentrado, que desvía hacia el mismo lado físico.
+- Arreglo: el simulador calibra el centrado del servo (`steerCalibDeg`, por defecto todo el descentrado; `0` reproduce un servo sin calibrar). Salida: 2,0° en ambos sentidos. Sin letreros, 12 semillas: cw−ccw de 2,3 s a 0,3 s.
+  Con 3 letreros, 24 semillas por sentido: 47 de 48 rondas con 62 puntos (antes 45 de 48).
+- **En el robot real hay que calibrar el centro del servo** (volante 0 = recto) en el driver; el firmware no lo estima. Un descentrado sin calibrar devuelve la asimetría.
 
 ## 4. Preguntas sin responder
 
@@ -98,8 +106,8 @@ Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en
 - Módulo en `Motor Control/MIC/` (probado en PC con un motor simulado). Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (apagado por defecto);
   el firmware del P4 compila con el flag encendido y apagado (ESP-IDF 5.5.4). **No probado con el motor real.**
 - Falta: calibrar R, masa, fricción, diámetro de rueda y cuentas por vuelta (README de MIC, sección 5); que el controlador pida avances exactos
-  (`mic_request_move`) y rutas en vez de solo velocidad. Desde el 11 nov todo asume el motor de 600 rpm (el de 1000 rpm llegará después).
-- Aviso: el lazo abierto actual (`WRO_MOTOR_MAX_CM_S=40`) iría ~4 veces más rápido con el motor de 600 rpm (~6 con el de 1000). Motores desactivados por defecto.
+  (`mic_request_move`) y rutas en vez de solo velocidad. Desde el 16 nov todo asume el motor de 800 rpm (etiqueta; antes 600) (el de 1000 rpm llegará después).
+- Aviso: el lazo abierto actual (`WRO_MOTOR_MAX_CM_S=40`) iría ~5 veces más rápido con el motor de 800 rpm (~6 con el de 1000). Motores desactivados por defecto.
 
 ## 8. Avances exactos con MIC y trace_map (10 nov)
 

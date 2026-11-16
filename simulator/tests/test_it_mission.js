@@ -11,9 +11,10 @@ const ok = (c, m) => { if (!c) { fails++; console.log('FALLA:', m); } else conso
 
 async function run(core, seed, direction, it) {
   const field = W.field.randomLayout(seed, { direction, signs: 3, parking: true, startInLot: true });
-  const robot = Object.assign({}, W.robot.PROFILES.largo26d, { maxAccel: 350, speedTauS: 0.08, speedGain: 1 });
+  const robot = Object.assign({}, W.robot.PROFILES.largo26d, { speedTauS: 0.08, speedGain: 1 });
   const sim = new W.sim.Simulation(core, { field, seed, robot, ctrlConfig: it ? 'it_enabled 1' : '' });
   let vmax = 0, active = 0, ticks = 0, drops = 0, valid = false, lap2 = 0, lastLap = 0, t0 = 0;
+  const reasons = [];   /* motivo de cada cesion del mando (it_drop_reason): 0 = fin previsto, 6 = pilar de color aun desconocido cerca, 7 = objeto inesperado */
   while (sim.t < 240 && !sim.finished) {
     sim.run(0.1);
     const c = sim.cmd;
@@ -21,10 +22,14 @@ async function run(core, seed, direction, it) {
     const lap = Math.floor(c.corners / 4) + 1;
     if (lap !== lastLap) { if (lastLap === 2) lap2 = sim.t - t0; t0 = sim.t; lastLap = lap; }
     vmax = Math.max(vmax, sim.robot.v);
-    if (it) { const s = core.itState(false); ticks++; if (s.active) active++; drops = s.drops; valid = valid || s.valid; }
+    if (it) {
+      const s = core.itState(false); ticks++; if (s.active) active++; valid = valid || s.valid;
+      if (s.drops !== drops) reasons.push(s.dropReason);
+      drops = s.drops;
+    }
   }
   const r = sim.run(0.1);
-  return { end: r.endReason, points: r.points, t: sim.t, contacts: r.contacts.sign + r.contacts.wall, vmax, active: ticks ? active / ticks : 0, drops, valid, lap2 };
+  return { end: r.endReason, points: r.points, t: sim.t, contacts: r.contacts.sign + r.contacts.wall, vmax, active: ticks ? active / ticks : 0, drops, reasons, valid, lap2 };
 }
 
 (async () => {
@@ -36,7 +41,11 @@ async function run(core, seed, direction, it) {
     ok(it.active > 0.05, `${dir} ${seed}: IT conduce parte de la ronda`);
     ok(it.end === 'finished' && it.points === base.points, `${dir} ${seed}: termina con los mismos puntos que sin IT (${it.points})`);
     ok(it.contacts === 0, `${dir} ${seed}: sin contactos con letreros ni paredes`);
-    ok(it.drops === 1, `${dir} ${seed}: cede el mando una sola vez, donde esta previsto (${it.drops})`);
+    /* El fin previsto cede una sola vez. Con los limites que da el motor (it.v_max / it.a_motor del modelo de 800 rpm) la ronda ccw 5 cede antes
+     * por un pilar de color aun desconocido (motivo 6, es el comportamiento previsto: lo toma el reactivo con la camara y IT sigue); cualquier
+     * otro motivo (seguimiento perdido, arena invalida, arco, atasco) sigue siendo un fallo. */
+    ok(it.reasons.filter(x => x === 0).length === 1 && it.reasons.every(x => x === 0 || x === 6),
+       `${dir} ${seed}: cede el mando donde esta previsto una vez y solo antes por pilar desconocido (motivos ${it.reasons.join(',')})`);
     ok(it.vmax > 100, `${dir} ${seed}: llega a mas de 100 cm/s (${it.vmax.toFixed(0)})`);
     ok(it.t < base.t * 0.85, `${dir} ${seed}: la ronda dura menos de 0,85 veces la de sin IT (${it.t.toFixed(0)} frente a ${base.t.toFixed(0)} s)`);
   }

@@ -58,14 +58,40 @@
         robotCfg.wheelDiameterL = dia * (1 + encRng.range(-1, 1) * enc.diameterErrorPct / 100);
         robotCfg.wheelDiameterR = dia * (1 + encRng.range(-1, 1) * enc.diameterErrorPct / 100);
       }
+      /* Los limites de velocidad y aceleracion salen del modelo del motor (MIC con las rpm de R.MOTOR_RPM), no de topes sueltos:
+       *  - la planta cinematica (sin MIC) acelera y se limita como lo hace el motor (maxAccel, maxSpeed);
+       *  - el planificador IT recibe it.v_max_cm_s e it.a_motor_cm_s2 del mismo modelo.
+       * Solo los chasis marcados `motorModel` (largo26, largo26d). Quien pase maxAccel, maxSpeed o it.* a mano los sustituye. */
+      const motorRpm = (o.motor && o.motor.rpm) || R.MOTOR_RPM;
+      this.motorRpm = motorRpm;
+      this.motorCaps = null;
+      this.motorConfig = '';
+      if (robotCfg.motorModel && core.hasMic()) {
+        core.micSetRpm(motorRpm);
+        core.micInit();
+        const vMax = core.micVMax();
+        this.motorCaps = { vMax, aMax: core.micMaxAccel(0.5 * vMax) };
+        if (robotCfg.maxAccel == null) robotCfg.maxAccel = this.motorCaps.aMax;
+        if (robotCfg.maxSpeed == null) robotCfg.maxSpeed = vMax;
+        this.motorConfig = 'it.v_max_cm_s ' + vMax.toFixed(2) + '\nit.a_motor_cm_s2 ' + this.motorCaps.aMax.toFixed(2) + '\n';
+      }
       this.robot = new R.Robot(robotCfg);
+      /* Centrado del servo: en el robot real se calibra una vez (el volante ordenado como 0 debe ir recto). Sin
+       * calibrar, el descentrado de 0,8 grados hacia que la salida acabara a 9 grados en ccw y a 4 en cw (igual en
+       * las 12 semillas) y que el parqueo cw tardara ~3 s mas. `steerCalibDeg` es lo que resta la calibracion
+       * (por defecto todo el descentrado); 0 reproduce un servo sin calibrar. */
+      {
+        const calib = o.steerCalibDeg == null ? (this.robot.cfg.steerTrimDeg || 0) : o.steerCalibDeg;
+        this.robot.cfg.steerTrimDeg = (this.robot.cfg.steerTrimDeg || 0) - calib;
+      }
       /* MIC: la traccion pasa por el controlador del motor (Motor Control/MIC) con un motor fisico. */
       this.mic = !!o.mic;
       if (this.mic) {
         if (!core.hasMic()) throw new Error('WASM sin MIC: recompilalo (simulator/wasm/build.ps1)');
         if (this.robot.cfg.drive !== 'bicycle') throw new Error('MIC solo con el chasis Ackermann (bicycle)');
+        core.micSetRpm(motorRpm);   /* la misma rpm para el modelo de MIC y para el motor fisico */
         core.micInit();
-        this.robot.enableMotor((counts, vbat, h) => core.micUpdate(counts, vbat, h), o.motor);
+        this.robot.enableMotor((counts, vbat, h) => core.micUpdate(counts, vbat, h), Object.assign({ rpm: motorRpm }, o.motor));
       }
       this.robot.rng = encRng;
       this.encoders = new S.Encoders(o.encoder, encRng);
@@ -126,7 +152,7 @@
          * un sesgo de centimetros y la maniobra de salida se quedaria sin camino. */
         'park_lot_length_cm ' + (this.field.lot ? this.field.lot.length : 0)
       ].join('\n');
-      r = core.ctrlConfig((o.ctrlConfig || '') + '\n' + venue + ackermann + '\n' + geometry);
+      r = core.ctrlConfig(this.motorConfig + (o.ctrlConfig || '') + '\n' + venue + ackermann + '\n' + geometry);
       if (!r.ok) throw new Error('configuracion del controlador: ' + r.error);
       core.ctrlInit();
       core.cameraFocal(this.camCfg.focal);

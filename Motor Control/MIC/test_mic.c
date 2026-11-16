@@ -84,9 +84,9 @@ static run_t run(mic_t *m, plant_t *p, float t_max, float watch[4], int nwatch, 
 
 int main(void)
 {
-    mic_cfg_t cfg; mic_cfg_jgb37_520_600rpm(&cfg);
+    mic_cfg_t cfg; mic_cfg_jgb37_520_800rpm(&cfg);
     mic_t proto; mic_init(&proto, &cfg);
-    printf("modelo JGB37-520 600 rpm: Ke=%.4f V s/rad  ke_lin=%.2f V/(m/s)  kf=%.2f N/A  M_eff=%.2f kg  %.4f cm/cuenta\n",
+    printf("modelo JGB37-520 800 rpm: Ke=%.4f V s/rad  ke_lin=%.2f V/(m/s)  kf=%.2f N/A  M_eff=%.2f kg  %.4f cm/cuenta\n",
            proto.ke_motor, proto.ke_lin, proto.kf_lin, proto.m_eff, proto.cm_per_count);
     printf("capacidades: acel(0)=%.0f  acel(100 cm/s)=%.0f cm/s2 | frenado progresivo(100)=%.0f  agresivo(100)=%.0f cm/s2\n",
            mic_max_accel_cm_s2(&proto, 0), mic_max_accel_cm_s2(&proto, 100),

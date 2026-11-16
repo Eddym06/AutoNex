@@ -22,7 +22,22 @@ menu "WRO - pines y hardware del P4"
 
     config WRO_LIDAR_ANGLE_OFFSET_DEG
         int "Desfase del angulo del LiDAR (grados, 0 = el frente del D6 mira al frente del robot)"
-        default 0
+        default -90
+
+    config WRO_MOTOR_EN_GPIO
+        int "L298N pin de habilitacion (ENA/ENB) que el P4 pone a nivel alto; -1 = puenteado"
+        default -1
+
+    config WRO_BENCH_WEB
+        bool "Banco por USB: telemetria en tiempo real y mando manual del motor desde la pagina banco_p4.html"
+        default n
+        help
+            Envia por el USB-Serial-JTAG una linea JSON '$T {...}' cada 100 ms y acepta 'M <porcentaje>' (-100..100)
+            y 'S'. El motor se para solo si pasan 600 ms sin orden. Mientras este activo, el control normal no mueve el motor.
+
+    config WRO_MOTOR_BENCH_TEST
+        bool "Prueba de banco: al arrancar mueve el motor 1,2 s adelante y 1,2 s atras al 40 % (ruedas en el aire)"
+        default n
 
     config WRO_MOTOR_IN1_GPIO
         int "L298N IN1 (motor trasero, adelante) - PWM 1 kHz; -1 sin configurar"
@@ -77,14 +92,14 @@ menu "WRO - pines y hardware del P4"
             WRO_MIC_* medidos. Desactivado, la traccion sigue en lazo abierto (velocidad ordenada -> PWM).
 
     config WRO_MIC_GEAR_REDUCTION
-        int "Reduccion del motorreductor (JGB37-520 de 600 rpm: 10)"
+        int "Reduccion del motorreductor (JGB37-520: 10)"
         range 1 1000
         default 10
 
     config WRO_MIC_RPM_NOLOAD
-        int "rpm en vacio del eje de salida del motorreductor a 12 V (motor actual: 600; el definitivo sera de 1000)"
+        int "rpm en vacio del eje de salida del motorreductor a 12 V (motor actual: 800 segun la etiqueta, 844 medidas el 16 nov; el definitivo sera de 1000)"
         range 1 20000
-        default 600
+        default 800
 
     config WRO_MIC_ENC_PPR
         int "Pulsos por canal y por vuelta del eje del MOTOR (Hall: 11)"
@@ -196,11 +211,11 @@ menu "WRO - pines y hardware del P4"
 
     config WRO_IMU_SDA_GPIO
         int "MPU-6050: SDA (I2C)"
-        default 53
+        default 20
 
     config WRO_IMU_SCL_GPIO
         int "MPU-6050: SCL (I2C)"
-        default 48
+        default 21
 
     config WRO_IMU_INT_GPIO
         int "MPU-6050: INT (no usado por el firmware, solo referencia)"

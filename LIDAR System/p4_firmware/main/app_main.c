@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "bench_web.h"
 #include "hw_camera.h"
 #include "hw_encoders.h"
 #include "hw_imu.h"
@@ -32,7 +33,8 @@
 
 static const char *TAG = "wro_p4";
 
-static p4_runtime_t rt;                      /* grande: fuera de la pila */
+#include "esp_attr.h"
+static EXT_RAM_BSS_ATTR p4_runtime_t rt;                      /* grande: fuera de la pila */
 static volatile bool s_armed;                /* iniciado: los motores pueden moverse */
 static motor_test_t s_mtest;                 /* prueba de motores desde la pagina (solo con el robot parado) */
 static bool s_link_run;                      /* el inicio vino del S3: aplica la parada por latido */
@@ -330,6 +332,16 @@ void app_main(void)
     hw_motors_init();
     hw_encoders_init();
     hw_steering_init();
+#if CONFIG_WRO_MOTOR_BENCH_TEST
+    {
+        int32_t c0 = 0, c1 = 0;
+        vTaskDelay(pdMS_TO_TICKS(3000));          /* margen para abrir el monitor */
+        (void)hw_encoders_counts(&c0);
+        hw_motors_bench();
+        (void)hw_encoders_counts(&c1);
+        ESP_LOGW("bench", "encoder: cuentas antes=%ld despues=%ld", (long)c0, (long)c1);
+    }
+#endif
     hw_lidar_init();
     hw_camera_init();
     hw_start_init();
@@ -337,6 +349,7 @@ void app_main(void)
     reset_runtime();
     hw_mapstore_init(&rt.controller.trace_map, mission_finished);   /* copia del mapa en flash al terminar */
     xTaskCreate(link_tx_task, "link_tx", 6144, NULL, 2, NULL);
+    bench_web_start();   /* solo hace algo con WRO_BENCH_WEB */
 
     uint64_t last_report = now_us(NULL);
     for (;;) {

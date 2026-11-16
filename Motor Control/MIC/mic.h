@@ -54,11 +54,11 @@ typedef enum {
 typedef struct {
     /* --- geometria y encoder --- */
     float wheel_diam_cm;        /* diametro de la rueda motriz */
-    float gear_ratio;           /* reduccion del motor a la rueda (JGB37-520 de 600 rpm: 10) */
+    float gear_ratio;           /* reduccion del motor a la rueda (JGB37-520: 10) */
     float counts_per_motor_rev; /* cuentas por vuelta del eje del motor (11 pulsos x 4 flancos = 44) */
     /* --- motor --- */
     float v_nl_volts;           /* tension a la que se mide la velocidad en vacio (12 V) */
-    float rpm_nl_out;           /* rpm en vacio de la reductora a esa tension (600 hoy; 1000 el motor definitivo) */
+    float rpm_nl_out;           /* rpm en vacio de la reductora a esa tension (800 hoy, etiqueta; 600 y 1000 son perfiles alternativos) */
     float i_noload_a;           /* corriente en vacio (A) */
     float r_ohm;                /* resistencia del inducido (por medir: ~2,6 ohm supuesto) */
     float eta;                  /* rendimiento de la reductora y la transmision */
@@ -87,8 +87,9 @@ typedef struct {
 
 /* Perfil del chasis del equipo: JGB37-520 12 V, 10:1, encoder 11 PPR, rueda de 6,6 cm. Varios valores
  * (resistencia, masa, friccion) son SUPUESTOS hasta medirlos: ver README.md, seccion de calibracion.
- * `_600rpm` es el motor que hay hoy (perfil por defecto); `_1000rpm` el definitivo, que aun no ha llegado. */
+ * `_800rpm` es el motor que hay hoy (perfil por defecto); `_600rpm` y `_1000rpm` son perfiles alternativos. */
 void mic_cfg_jgb37_520(mic_cfg_t *cfg, float rpm_out);
+void mic_cfg_jgb37_520_800rpm(mic_cfg_t *cfg);
 void mic_cfg_jgb37_520_600rpm(mic_cfg_t *cfg);
 void mic_cfg_jgb37_520_1000rpm(mic_cfg_t *cfg);
 

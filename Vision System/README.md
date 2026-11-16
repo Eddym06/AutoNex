@@ -74,6 +74,10 @@ Mapa GOOUU/S3-EYE del [ejemplo oficial de esp32-camera](https://github.com/espre
 
 Requiere GCC, Node.js y Python 3 para las pruebas. GCC compila con advertencias como errores.
 
+## Rendimiento medido en hardware (16 nov 2026)
+
+Con `WRO_CAM_LINE_TOTAL=1500` (valor por defecto: fila del sensor `X_TOTAL_SIZE` mas corta) la camara da **71,4 FPS estables durante 120 s** (8570 tablas, 0 malas, 0 huecos de secuencia); de fabrica (2300) son 46,6 FPS. El PLL no admite mas de 84 MHz de SYSCLK con este montaje. Detalle y pruebas en `../MEDIDAS_HARDWARE_P4.md`, seccion 6. `main/cam_lab.c` (`WRO_CAM_LAB`) es el laboratorio de medida.
+
 ## Rendimiento medido en hardware (9 oct 2026)
 
 QQVGA estándar: ~46,6 FPS durante más de 70 s, detector ~2,6 ms por cuadro. QVGA (320 × 240) baja a ~8,9 FPS y el PLL rápido falla con él, por eso QQVGA es el estándar. Un bloque de 5 cm mide ~7 px a 80 cm, ~13 px a 45 cm y ~20 px a 30 cm: más allá de 60–80 cm la detección es inestable.

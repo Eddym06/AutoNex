@@ -167,6 +167,9 @@
       /* MIC: control del motor (Motor Control/MIC). El simulador lo ejecuta a 1 kHz dentro de cada paso de fisica. */
       hasMic() { return typeof x.core_mic_init === 'function'; },
       micInit() { x.core_mic_init(); },
+      micSetRpm(rpm) { x.core_set_motor_rpm(rpm); },
+      micVMax() { return x.core_mic_v_max_cm_s(); },
+      micMaxAccel(v) { return x.core_mic_max_accel_cm_s2(v); },
       micCmPerCount() { return x.core_mic_cm_per_count(); },
       micRequestSpeed(v, decel) { x.core_mic_request_speed(v, decel ? 1 : 0); },
       micStop(decel) { x.core_mic_stop(decel ? 1 : 0); },
@@ -201,11 +204,11 @@
         return { steer: o[0], speed: o[1], yawRate: o[2] };
       },
       itState(withLine = true) {
-        const o = f32(x.core_it_ctrl_ptr(), 16 + 3 * 256 + 1 + 72), f = o[0] | 0, n = o[2] | 0, line = [], obs = [], nb = o[16 + 3 * 256] | 0;
+        const o = f32(x.core_it_ctrl_ptr(), 16 + 3 * 256 + 1 + 72 + 4), f = o[0] | 0, n = o[2] | 0, line = [], obs = [], nb = o[16 + 3 * 256] | 0;
         if (withLine) for (let i = 0; i < n; i++) line.push({ x: o[16 + 3 * i], z: o[17 + 3 * i], v: o[18 + 3 * i] });
         for (let i = 0; i < nb; i++) obs.push({ x: o[16 + 3 * 256 + 1 + 3 * i], z: o[16 + 3 * 256 + 2 + 3 * i], color: o[16 + 3 * 256 + 3 + 3 * i] });
         return { obs, enabled: !!(f & 1), valid: !!(f & 2), building: !!(f & 4), active: !!(f & 8), failed: !!(f & 16), grip: o[1], n, idx: o[3] | 0, e: o[4], vPlan: o[5], vCmd: o[6],
-                 drops: o[7] | 0, dropReason: o[8] | 0, planTime: o[9], why: o[10] | 0, lap: o[11] | 0, planLap: o[12] | 0, psiErr: o[13], timeCenter: o[14], maxErr: o[15], line };
+                 unk: { x: o[16 + 3 * 256 + 1 + 72], z: o[16 + 3 * 256 + 2 + 72], n: o[16 + 3 * 256 + 3 + 72], t: o[16 + 3 * 256 + 4 + 72] }, drops: o[7] | 0, dropReason: o[8] | 0, planTime: o[9], why: o[10] | 0, lap: o[11] | 0, planLap: o[12] | 0, psiErr: o[13], timeCenter: o[14], maxErr: o[15], line };
       },
       arcClear(steerDeg, distance) { return x.core_arc_clear(steerDeg, distance) === 1; },
       /* Objetos del mapa persistente: [{id, kind (1 pared, 2 pilar, 3 barra), color (1 rojo, 2 verde, 3 magenta), confidence, x, z, length, width, axis, cells}]. */

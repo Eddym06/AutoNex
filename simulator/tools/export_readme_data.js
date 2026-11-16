@@ -8,7 +8,7 @@ require(path.join(web, 'core.js'));
 
 async function run(core, seed, direction, it) {
   const field = W.field.randomLayout(seed, { direction, signs: 3, parking: true, startInLot: true });
-  const robot = Object.assign({}, W.robot.PROFILES.largo26d, { maxAccel: 350, speedTauS: 0.08, speedGain: 1 });
+  const robot = Object.assign({}, W.robot.PROFILES.largo26d, { speedTauS: 0.08, speedGain: 1 });
   const sim = new W.sim.Simulation(core, { field, seed, robot, ctrlConfig: it ? 'it_enabled 1' : '' });
   const trace = [], snaps = {};
   let line = null, lastLap = 0;

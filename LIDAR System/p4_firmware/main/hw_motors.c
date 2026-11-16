@@ -5,7 +5,10 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "wro_config.h"
+#include "hw_encoders.h"
 #include "hw_steering.h"
 #if CONFIG_WRO_USE_MIC
 #include "esp_timer.h"
@@ -16,7 +19,7 @@
 
 static const char *TAG = "motors";
 
-#define PWM_FREQ_HZ   1000
+#define PWM_FREQ_HZ   5000
 #define PWM_RES_BITS  LEDC_TIMER_10_BIT
 #define PWM_MAX_DUTY  ((1u << 10) - 1u)
 
@@ -30,6 +33,7 @@ static const int s_pins[CH_COUNT] = {
 
 static uint32_t s_last_duty[CH_COUNT];   /* ultimo duty escrito a cada salida (diagnostico) */
 static bool s_ready;
+static volatile bool s_raw;              /* mando manual del banco: el control normal no toca el motor */
 
 static void set_duty(int ch, float frac)
 {
@@ -71,7 +75,7 @@ static bool s_mic_ready;
 
 static void mic_build_cfg(mic_cfg_t *c)
 {
-    mic_cfg_jgb37_520_600rpm(c);
+    mic_cfg_jgb37_520_800rpm(c);
     /* La rueda va detras de la pareja de engranajes: axle = salida x dientes_motor/dientes_diferencial. */
     const float final_ratio = (float)CONFIG_WRO_DIFF_GEAR_TEETH / (float)CONFIG_WRO_MOTOR_GEAR_TEETH;
     c->gear_ratio = (float)CONFIG_WRO_MIC_GEAR_REDUCTION * final_ratio;
@@ -150,7 +154,38 @@ void hw_motors_safe_boot(void)
         gpio_set_pull_mode((gpio_num_t)pins[i], GPIO_PULLDOWN_ONLY);
         gpio_set_level((gpio_num_t)pins[i], 0);
     }
+    if (CONFIG_WRO_MOTOR_EN_GPIO >= 0) {          /* ENB bajo hasta que el PWM este listo */
+        gpio_reset_pin((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO);
+        gpio_set_direction((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, GPIO_MODE_OUTPUT);
+        gpio_set_pull_mode((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, GPIO_PULLDOWN_ONLY);
+        gpio_set_level((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, 0);
+    }
 }
+
+#if CONFIG_WRO_MOTOR_BENCH_TEST
+void hw_motors_bench(void)
+{
+    if (!s_ready) return;
+    ESP_LOGW(TAG, "PRUEBA DE BANCO: adelante 40%% 1,2 s, parada, atras 40%% 1,2 s");
+    if (CONFIG_WRO_MOTOR_EN_GPIO >= 0) gpio_set_level((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, 1);
+    int32_t c0 = 0, c1 = 0, c2 = 0;
+    (void)hw_encoders_counts(&c0);
+    set_duty(CH_LEFT_REV, 0.0f); set_duty(CH_LEFT_FWD, 0.4f);
+    vTaskDelay(pdMS_TO_TICKS(1200));
+    set_duty(CH_LEFT_FWD, 0.0f);
+    vTaskDelay(pdMS_TO_TICKS(600));
+    (void)hw_encoders_counts(&c1);
+    set_duty(CH_LEFT_REV, 0.4f);
+    vTaskDelay(pdMS_TO_TICKS(1200));
+    set_duty(CH_LEFT_REV, 0.0f);
+    vTaskDelay(pdMS_TO_TICKS(300));
+    (void)hw_encoders_counts(&c2);
+    ESP_LOGW(TAG, "BANCO: ADELANTE (GPIO%d) cuentas %ld | ATRAS (GPIO%d) cuentas %ld", s_pins[0],
+             (long)(c1 - c0), s_pins[1], (long)(c2 - c1));
+    if (CONFIG_WRO_MOTOR_EN_GPIO >= 0) gpio_set_level((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, 0);
+    ESP_LOGW(TAG, "PRUEBA DE BANCO terminada: motor parado");
+}
+#endif
 
 void hw_motors_init(void)
 {
@@ -197,8 +232,28 @@ void hw_motors_wheel_speeds(float speed_cm_s, float yaw_rate_dps, float *left_cm
     *right_cm_s = speed_cm_s - w * half_track_cm;
 }
 
+void hw_motors_raw(float signed_frac)
+{
+    if (!s_ready) return;
+    s_raw = true;
+    if (!isfinite(signed_frac)) signed_frac = 0.0f;
+    if (signed_frac > 1.0f) signed_frac = 1.0f;
+    if (signed_frac < -1.0f) signed_frac = -1.0f;
+    const bool on = fabsf(signed_frac) > 0.01f;
+    if (!on) {
+        set_duty(CH_LEFT_FWD, 0.0f);
+        set_duty(CH_LEFT_REV, 0.0f);
+        if (CONFIG_WRO_MOTOR_EN_GPIO >= 0) gpio_set_level((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, 0);
+        return;
+    }
+    if (CONFIG_WRO_MOTOR_EN_GPIO >= 0) gpio_set_level((gpio_num_t)CONFIG_WRO_MOTOR_EN_GPIO, 1);
+    if (signed_frac > 0.0f) { set_duty(CH_LEFT_REV, 0.0f); set_duty(CH_LEFT_FWD, signed_frac); }
+    else                    { set_duty(CH_LEFT_FWD, 0.0f); set_duty(CH_LEFT_REV, -signed_frac); }
+}
+
 void hw_motors_drive(float speed_cm_s, float yaw_rate_dps)
 {
+    if (s_raw) return;
     (void)yaw_rate_dps;
     if (!CONFIG_WRO_MOTORS_ENABLED || !hw_steering_ready() || !isfinite(speed_cm_s)) {
         hw_motors_stop();
@@ -231,6 +286,7 @@ void hw_motors_last_duty(uint32_t duty[4])
 
 void hw_motors_stop(void)
 {
+    if (s_raw) return;
 #if CONFIG_WRO_USE_MIC
     s_mic_cut = true;                 /* el corte se mantiene hasta la siguiente orden valida */
     if (s_mic_ready) {                /* y MIC queda con orden de parar: no retoma la velocidad anterior */

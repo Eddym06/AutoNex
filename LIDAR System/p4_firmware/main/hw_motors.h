@@ -23,4 +23,11 @@ void hw_motors_last_duty(uint32_t duty[4]);
 
 void hw_motors_stop(void);
 
+/* Mando manual del banco: -1..1 (negativo = atras). Sube ENB, y 0 lo baja. Desde la primera llamada,
+ * hw_motors_drive/stop dejan de actuar. */
+void hw_motors_raw(float signed_frac);
+
+/* Prueba de banco (solo con WRO_MOTOR_BENCH_TEST): 1,2 s adelante y 1,2 s atras al 40 %. */
+void hw_motors_bench(void);
+
 #endif

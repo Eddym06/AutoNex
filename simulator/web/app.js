@@ -56,7 +56,7 @@
     const itOn = !!($('itEnable') && $('itEnable').checked);
     const linesIt = itOn ? lines + '\nit_enabled 1' : lines;
     /* IT: chasis con dinamica y un motor que da la aceleracion que el plan supone (el robot real lo da MIC). */
-    const robotCfg = itOn ? Object.assign({}, WRO.robot.PROFILES.largo26d, { maxAccel: 350, speedTauS: 0.08, speedGain: 1, steerTrimDeg: num('rTrim') })
+    const robotCfg = itOn ? Object.assign({}, WRO.robot.PROFILES.largo26d, { speedTauS: 0.08, speedGain: 1, steerTrimDeg: num('rTrim') })
                           : { speedGain: num('rSpeedGain'), steerTrimDeg: num('rTrim') };
     const gyro = $('rGyroBias').value === '' ? null : num('rGyroBias');
     const camFps = num('rCamFps') || WRO.sensors.DEFAULT_CAMERA.fps;

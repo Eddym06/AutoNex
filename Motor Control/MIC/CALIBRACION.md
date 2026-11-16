@@ -1,18 +1,18 @@
 # Calibración de MIC en el coche real
 
-Objetivo: reemplazar los valores supuestos de `mic_cfg_jgb37_520_600rpm()` / `Kconfig` por medidas.
+Objetivo: reemplazar los valores supuestos de `mic_cfg_jgb37_520_800rpm()` / `Kconfig` por medidas.
 Cada paso dice qué medir, cómo, cuánto debe dar aproximadamente y qué parámetro cambia.
 Hacerlo con las ruedas **en el aire** (coche levantado) salvo donde se indica, y con la batería 3S cargada.
 El orden importa: cada paso usa el anterior.
 
 > Seguridad: `WRO_MOTORS_ENABLED=y` solo para esta prueba, rueda en el aire, mano cerca del interruptor.
-> Con 12 V el motor de 600 rpm da ~157 cm/s en vacío (el de 1000 rpm daría ~270): empezar con ciclos bajos (≤ 20 %).
+> Con 12 V el motor de 800 rpm da ~276 cm/s en vacío (medido el 16 nov: 844 rpm, ~292 cm/s con rueda de 66 mm; el de 1000 rpm daría ~345): empezar con ciclos bajos (≤ 20 %).
 
 ## 0. Datos de placa y cableado (5 min)
 
 | Qué | Cómo | Parámetro |
 | --- | --- | --- |
-| rpm del motor (hoy 600; el definitivo será de 1000) | leer la placa; o paso 3 | `WRO_MIC_RPM_NOLOAD` |
+| rpm del motor (hoy 800 según la etiqueta, 844 medidas el 16 nov; el definitivo será de 1000) | leer la placa; o paso 3 | `WRO_MIC_RPM_NOLOAD` |
 | Reducción | girar el eje del motor 10 vueltas a mano y contar las del eje de salida | `WRO_MIC_GEAR_REDUCTION` (10) |
 | Pulsos por canal y vuelta de motor | girar la salida **una vuelta** a mano y leer el PCNT: cuentas = PPR × 4 × reducción | `WRO_MIC_ENC_PPR` (11); `WRO_AXLE_ENCODER_COUNTS_PER_REV` (440) |
 | Signo del encoder | giro hacia delante debe dar cuentas positivas | `WRO_AXLE_ENCODER_INVERT` |
@@ -33,7 +33,7 @@ Pesar el coche montado, con batería. → `WRO_MIC_MASS_G` (1200 supuesto).
 Rueda en el aire, ciclo fijo `d` (0,2 / 0,4 / 0,6 / 0,8) durante 3 s; medir la velocidad en régimen con el encoder (cuentas/s ÷ cuentas por vuelta × 60 = rpm de salida)
 y la tensión de batería `Vb` en ese momento.
 
-`Vm = d · (Vb − Vdrop)`; la recta `rpm = k · Vm` debe pasar por ~0. Con 12 V: ~600 rpm con el motor actual (si da otra cosa, corregir `WRO_MIC_RPM_NOLOAD`; con el de 1000 rpm daría ~1000).
+`Vm = d · (Vb − Vdrop)`; la recta `rpm = k · Vm` debe pasar por ~0. Con 12 V: ~800 rpm con el motor actual (medido 844 rpm a 12,0 V el 16 nov) (si da otra cosa, corregir `WRO_MIC_RPM_NOLOAD`; con el de 1000 rpm daría ~1000).
 Si no pasa por 0 (hay zona muerta), anotar la `Vm` mínima a la que gira: es la **tensión de arranque** (≈ `R · f_coulomb / kf`).
 
 ## 4. Resistencia del inducido R (5 min)
@@ -43,7 +43,7 @@ Rotor **bloqueado** (sujetar la rueda, motor a baja tensión) con `Vm` = 1,0 V (
 
 ## 5. Fricción en el suelo (10 min)
 
-Con el coche en el suelo, ciclo creciente hasta que **arranca**: `Vm_arranque`. Fuerza seca ≈ `kf · Vm_arranque / R` (kf = 4,2 N/A con η = 0,75 y el motor de 600 rpm; 2,5 con el de 1000).
+Con el coche en el suelo, ciclo creciente hasta que **arranca**: `Vm_arranque`. Fuerza seca ≈ `kf · Vm_arranque / R` (kf = 3,15 N/A con η = 0,75 y el motor de 800 rpm; 4,2 con el de 600 y 2,5 con el de 1000).
 Luego velocidad en régimen a ciclo medio para estimar la viscosa. → editar `f_coulomb_n` y `b_viscous_ns_m` en `mic_cfg_jgb37_520()`
 (el observador corrige parte del error en línea, pero parte de un modelo cercano).
 

@@ -1,6 +1,7 @@
 #include "camera_source.h"
 #include "camera_pins.h"
 #include "esp_log.h"
+#include "sdkconfig.h"
 
 static const char *TAG = "wro_camera";
 
@@ -17,8 +18,20 @@ esp_err_t vision_camera_init(void)
         .frame_size = FRAMESIZE_QQVGA, .jpeg_quality = 12, .fb_count = 2,
         .fb_location = CAMERA_FB_IN_PSRAM, .grab_mode = CAMERA_GRAB_LATEST,
     };
-    return esp_camera_init(&c);
-}
+    const esp_err_t init_err = esp_camera_init(&c);
+#if CONFIG_WRO_CAM_LINE_TOTAL > 0
+    /* Fila del sensor mas corta (X_TOTAL_SIZE, registros 0x380C/0x380D): el cuadro dura menos y hay mas fps.
+     * Medido el 16 nov: 2300 (defecto) 46,6 fps; 1500 71,5 fps limpios; 1700 pierde cuadros; 1400 corrompe. */
+    if (init_err == ESP_OK) {
+        sensor_t *sensor = esp_camera_sensor_get();
+        if (sensor && sensor->set_reg) {
+            sensor->set_reg(sensor, 0x380C, 0xFF, CONFIG_WRO_CAM_LINE_TOTAL >> 8);
+            sensor->set_reg(sensor, 0x380D, 0xFF, CONFIG_WRO_CAM_LINE_TOTAL & 0xFF);
+            ESP_LOGW(TAG, "X_TOTAL_SIZE = %d", CONFIG_WRO_CAM_LINE_TOTAL);
+        }
+    }
+#endif
+    return init_err;}
 
 esp_err_t vision_camera_apply_settings(const vision_camera_settings_t *k)
 {

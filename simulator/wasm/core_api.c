@@ -25,10 +25,16 @@
 /* ------------------------------------------------------------------ MIC (control del motor) */
 static mic_t g_mic;
 static float g_mic_out[12];
+/* rpm en vacio a 12 V del eje de salida: 800 segun la etiqueta del motor real. El simulador la fija con core_set_motor_rpm
+ * (una sola fuente: WRO.robot.MOTOR_RPM) para que el modelo de MIC y el motor fisico usen siempre el mismo valor. */
+static float g_motor_rpm = 800.0f;
+EXPORT("core_set_motor_rpm") void core_set_motor_rpm(float rpm) { if (rpm > 1.0f) g_motor_rpm = rpm; }
 EXPORT("core_mic_init") void core_mic_init(void)
 {
-    mic_cfg_t cfg; mic_cfg_jgb37_520_600rpm(&cfg); mic_init(&g_mic, &cfg);
+    mic_cfg_t cfg; mic_cfg_jgb37_520(&cfg, g_motor_rpm); mic_init(&g_mic, &cfg);
 }
+EXPORT("core_mic_v_max_cm_s") float core_mic_v_max_cm_s(void) { return g_mic.cfg.v_max_cm_s; }
+EXPORT("core_mic_max_accel_cm_s2") float core_mic_max_accel_cm_s2(float v_cm_s) { return mic_max_accel_cm_s2(&g_mic, v_cm_s); }
 EXPORT("core_mic_ptr") float *core_mic_ptr(void) { return g_mic_out; }
 EXPORT("core_mic_cm_per_count") float core_mic_cm_per_count(void) { return g_mic.cm_per_count; }
 EXPORT("core_mic_request_speed") void core_mic_request_speed(float v_cm_s, int decel)
@@ -436,7 +442,7 @@ EXPORT("core_ctrl_watchdog") int core_ctrl_watchdog(double now_us)
 }
 
 /* Estado de IT dentro del controlador: banderas, agarre, posicion en el plan y la trayectoria (x, z, v por estacion) para dibujarla. */
-static float g_itc_out[16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS];
+static float g_itc_out[16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS + 4];
 EXPORT("core_it_ctrl_ptr") float *core_it_ctrl_ptr(void)
 {
     const wro_controller_t *c = &g_ctrl;
@@ -444,12 +450,13 @@ EXPORT("core_it_ctrl_ptr") float *core_it_ctrl_ptr(void)
     g_itc_out[0] = (c->cfg.it_enabled ? 1.0f : 0.0f) + (p->valid ? 2.0f : 0.0f) + (c->it_building ? 4.0f : 0.0f) + (c->it_active ? 8.0f : 0.0f) + (c->it_failed ? 16.0f : 0.0f);
     g_itc_out[1] = c->it_grip; g_itc_out[2] = p->valid ? (float)p->n : 0.0f; g_itc_out[3] = (float)c->it_tr.idx; g_itc_out[4] = c->it_tr.e_cm;
     g_itc_out[5] = c->it_tr.v_plan_cm_s; g_itc_out[6] = c->it_v_prev; g_itc_out[7] = (float)c->it_drops; g_itc_out[8] = (float)c->it_drop_reason;
-    g_itc_out[9] = p->time_s; g_itc_out[10] = (float)p->why; g_itc_out[11] = (float)c->it_lap; g_itc_out[12] = (float)c->it_plan_lap;
+    g_itc_out[9] = p->time_s; g_itc_out[10] = (float)p->why + 256.0f * (float)c->it_fail_why; g_itc_out[11] = (float)c->it_lap; g_itc_out[12] = (float)c->it_plan_lap;
     g_itc_out[13] = c->it_tr.psi_err_deg; g_itc_out[14] = p->time_center_s; g_itc_out[15] = c->it_stats.max_err_cm;
     if (p->valid) for (int i = 0; i < p->n; ++i) { g_itc_out[16 + 3 * i] = p->x[i]; g_itc_out[17 + 3 * i] = p->z[i]; g_itc_out[18 + 3 * i] = p->v[i]; }
     const int base = 16 + 3 * IT_MAX_N;
     g_itc_out[base] = (float)p->obstacles;
     for (int i = 0; i < p->obstacles; ++i) { g_itc_out[base + 1 + 3 * i] = p->obs[i].x_cm; g_itc_out[base + 2 + 3 * i] = p->obs[i].z_cm; g_itc_out[base + 3 + 3 * i] = (float)p->obs[i].color; }
+    { const int tail = 16 + 3 * IT_MAX_N + 1 + 3 * IT_MAX_OBS; g_itc_out[tail] = c->it_unk_x; g_itc_out[tail + 1] = c->it_unk_z; g_itc_out[tail + 2] = (float)c->it_unk_n; g_itc_out[tail + 3] = c->it_unk_t; }
     return g_itc_out;
 }
 

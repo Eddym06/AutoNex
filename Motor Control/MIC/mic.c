@@ -11,7 +11,7 @@ static float sgnf(float x) { return x > 0.0f ? 1.0f : (x < 0.0f ? -1.0f : 0.0f);
 static float clampf(float x, float lo, float hi) { return x < lo ? lo : (x > hi ? hi : x); }
 
 /* Perfil base del JGB37-520 de 12 V con la reductora 10:1. `rpm_out` son las rpm en vacio del eje de salida a 12 V:
- * 600 es el motor que hay hoy; 1000 es el definitivo (aun no llega). Lo demas es comun y sigue siendo SUPUESTO. */
+ * 800 es el motor que hay hoy (etiqueta; 844 rpm medidas sin carga a 12,0 V el 16 nov); 600 y 1000 son perfiles alternativos. Lo demas es comun y sigue siendo SUPUESTO. */
 void mic_cfg_jgb37_520(mic_cfg_t *c, float rpm_out)
 {
     memset(c, 0, sizeof *c);
@@ -44,6 +44,7 @@ void mic_cfg_jgb37_520(mic_cfg_t *c, float rpm_out)
     c->v_max_cm_s = 0.9f * rpm_out * (c->wheel_diam_cm * PI_F) / 60.0f * (c->vbat_nominal - c->vdrop_volts) / c->v_nl_volts;
 }
 
+void mic_cfg_jgb37_520_800rpm(mic_cfg_t *c) { mic_cfg_jgb37_520(c, 800.0f); }
 void mic_cfg_jgb37_520_600rpm(mic_cfg_t *c) { mic_cfg_jgb37_520(c, 600.0f); }
 void mic_cfg_jgb37_520_1000rpm(mic_cfg_t *c) { mic_cfg_jgb37_520(c, 1000.0f); }
 

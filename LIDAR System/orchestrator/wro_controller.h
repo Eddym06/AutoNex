@@ -273,13 +273,18 @@ typedef struct {
     it_plan_t it_work;              /* plan en construccion */
     it_tracker_t it_tr;
     bool it_building, it_active, it_failed, it_engaged, it_rebuild;
-    int it_arc_bad, it_stats_ticks;
+    int it_arc_bad, it_unk_bad, it_stats_ticks;
+    const local_lidar_point_t *it_points;   /* puntos del barrido en curso (solo valido dentro de wro_controller_scan) */
+    size_t it_point_count;
+    float it_unk_x, it_unk_z, it_unk_t;   /* ultimo objeto desconocido detectado en la trayectoria (depuracion) */
+    int it_unk_n;
     int it_plan_lap, it_lap;        /* vuelta del plan en uso / vuelta en curso */
     float it_grip, it_v_prev, it_hold_left_s, it_active_s, it_stuck_s;
     it_lap_stats_t it_stats;
     int it_slips0, it_drops;
     struct { float x_cm, z_cm, theta_deg, gyro_deg; uint64_t t_us; bool valid; } it_anchor;   /* ultima pose del LiDAR con la que se propaga el lazo rapido */
     uint64_t it_fast_us;
+    uint8_t it_fail_why;            /* por que no hay plan: 1 pilar sin color, 2 sin paso (corredor), 4 plan no valido (+ 8 por cada bit de why) */
     uint8_t it_drop_reason;         /* 1 fuera de la trayectoria, 2 sin pose, 3 emergencia del reactivo, 4 sorpresa en el LiDAR */
     race_line_t race;               /* linea de carrera de la vuelta (valida tras calcularla) */
     bool race_tried, race_active, race_corner_clear;
