@@ -174,3 +174,14 @@ Mismo banco (`perf_bench.c`), mismo P4 (360 MHz, `-O2` global y `-O3` sin errno 
 Que se hizo (todo conserva el resultado): evaluacion **incremental** del coste del IT (solo se recalculan las ~30 estaciones que mueve cada candidato; comprobada contra la completa: error 0 en 31.952 casos con `IT_VERIFY_INCREMENTAL`), matematica barata (`sqrtf` en vez de `hypotf`, `atanf` de Cephes, barrido de velocidad en v^2, descarte exacto de obstaculos lejanos), A* sin llamadas a `sinf/cosf` por subpaso (composicion de giros), colision con los ejes del chasis conocidos, tabla de celdas en 16 bits, `-O3`/`-fno-math-errno` en los archivos calientes, pila de `app_main` a 12 KB y el plan del IT en una tarea del nucleo 1 (`it_external_worker`, `wro_controller_it_worker_step`).
 
 Lo que queda: el A* sigue tardando **5 a 11 s por plan** (el limite de 24.000 nodos por variante se alcanza en las cinco), asi que el parqueo no es de tiempo real. Las salidas que cambian el algoritmo (tabla de politica precalculada, planificar durante la aproximacion para la pose esperada, o 1 variante) estan sin decidir. El barrido del controlador (142 ms) sigue por encima de 100 ms.
+
+## 10. Parqueo con 1 variante del A* (16 nov, banco en el P4)
+
+| Pose de partida | Nodos | Tiempo (antes, 5 variantes) | Tiempo (1 variante) |
+|---|---|---|---|
+| (25, 30, 5) sin plan, llega al limite | 24.000 | 4,8 a 11,1 s | **2,21 s** |
+| (-30, 45, 0) | 17.775 | | **1,60 s** |
+| (0, 28, 35) | 2.898 | | **0,26 s** |
+| (20, 30, 20) | 427 | | **0,044 s** |
+
+El A* expande ~11.000 nodos/s en el P4 (el simulador emula 15.000 con `park_emu_nodes_per_s`). En el simulador un parqueo medio gasta 5-7k nodos (maximo 16.000), unos 0,5 s de calculo en total; un plan sin solucion cuesta 2,2 s y se repite con paso de 2,5 cm (4,4 s). El plan va en la tarea del nucleo 1 (`park_external_worker`) con el coche parado. Sin cambios: barrido del controlador 142,6 ms (p95 150 ms), plan del IT 4,17 s, pila libre de la tarea del banco 26 KB.
