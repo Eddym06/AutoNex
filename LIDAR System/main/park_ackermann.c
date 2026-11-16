@@ -33,10 +33,13 @@
 #ifndef PARK_CLEAR_EXTRA_CM
 #define PARK_CLEAR_EXTRA_CM 1.5f
 #endif
-/* Entrada: se planean varias variantes (otro precio de la repasada y de la holgura) y se elige la mejor (ver park_ackermann_plan).
- * 1 = un solo A* como antes. Cada variante es un A* completo: en el P4 el tiempo de plan sube casi lineal. */
+/* Entrada: se pueden planear varias variantes (otro precio de la repasada y de la holgura) y elegir la mejor (ver park_ackermann_plan).
+ * 1 = un solo A*. Cada variante es un A* completo: en el P4 el tiempo de plan sube casi lineal.
+ * Medido en 40 rondas (0 y 5 letreros): con 5 variantes, 97-106k nodos por parqueo (hasta 120.000 en un plan = 5 a 11 s en el P4), 20,4-20,8 s en
+ * PARKING y 6,3-6,5 repasadas; con 1, 5-7k nodos (maximo 16.000 = ~1 s en el P4), 18,1-20,2 s y 5,7-6,3 repasadas, todas completas y sin contactos.
+ * Las variantes no mejoraban la maniobra y costaban 20 veces mas calculo: por defecto 1. */
 #ifndef PARK_PLAN_VARIANTS
-#define PARK_PLAN_VARIANTS 5
+#define PARK_PLAN_VARIANTS 1
 #endif
 #ifndef PARK_SCORE_CLEAR_TARGET_CM
 #define PARK_SCORE_CLEAR_TARGET_CM 3.0f   /* holgura extra por encima de la de planeo a partir de la cual ya no se premia */

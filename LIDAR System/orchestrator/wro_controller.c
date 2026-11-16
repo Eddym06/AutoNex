@@ -315,7 +315,7 @@ static const cf_field_t FIELDS[] = {
     CF("race.sign_after_cm", CF_F32, race.sign_after_cm), CF("race.corner_before_cm", CF_F32, race.corner_before_cm),
     CF("race.corner_after_cm", CF_F32, race.corner_after_cm), CF("race.corner_radius_cm", CF_F32, race.corner_radius_cm), CF("race.max_offset_cm", CF_F32, race.max_offset_cm),
     CF("race_blend_before_cm", CF_F32, race_blend_before_cm), CF("race_blend_after_cm", CF_F32, race_blend_after_cm),
-    CF("it_enabled", CF_BOOL, it_enabled), CF("it_stop_before_end", CF_U8, it_stop_before_end), CF("it_step_evals", CF_INT, it_step_evals), CF("it_external_worker", CF_BOOL, it_external_worker), CF("it_refine_evals", CF_INT, it_refine_evals), CF("it_refine_step_evals", CF_INT, it_refine_step_evals),
+    CF("it_enabled", CF_BOOL, it_enabled), CF("it_stop_before_end", CF_U8, it_stop_before_end), CF("it_step_evals", CF_INT, it_step_evals), CF("it_external_worker", CF_BOOL, it_external_worker), CF("park_emu_nodes_per_s", CF_F32, park_emu_nodes_per_s), CF("park_external_worker", CF_BOOL, park_external_worker), CF("it_refine_evals", CF_INT, it_refine_evals), CF("it_refine_step_evals", CF_INT, it_refine_step_evals),
     CF("it_grip_max", CF_F32, it_grip_max), CF("it_engage_dist_cm", CF_F32, it_engage_dist_cm), CF("it_engage_heading_deg", CF_F32, it_engage_heading_deg),
     CF("it_accel_cm_s2", CF_F32, it_accel_cm_s2), CF("it_hold_s", CF_F32, it_hold_s),
     CF("it.grip", CF_F32, it.grip), CF("it.v_max_cm_s", CF_F32, it.v_max_cm_s), CF("it.v_min_cm_s", CF_F32, it.v_min_cm_s), CF("it.mu", CF_F32, it.mu),
@@ -1550,6 +1550,53 @@ static bool park_nearest_free(const park_params_t *p, const park_pose_t *in, par
     return false;
 }
 
+/* Calculo del plan de la maniobra desde `pose` (lo que hace el A* y sus variantes). Es una funcion de sus argumentos y no toca el controlador: asi lo puede
+ * ejecutar otra tarea (park_external_worker) mientras el barrido, con el coche parado, solo espera. */
+static void park_compute_plan(const park_params_t *params, float wheelbase, float steer_max, int direction, const park_pose_t *pose,
+                              bool exiting, bool stage2, park_ackermann_result_t *res, float *step_out)
+{
+    park_ackermann_result_t a = {0};
+    float step_cm = 3.5f;
+    bool s_plan = false;
+    bool planned = false;
+    {
+        /* Entrada desde la pose de la salida: un solo plan, sin la maniobra de tres tramos
+         * (desde ahi gastaria una repasada mas). Las correcciones, si hacen falta, vuelven
+         * al tanteo de siempre. */
+        if (!exiting && stage2) {
+            a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                {wheelbase, steer_max, step_cm, direction},
+                pose, PARK_GOAL_IN);
+            if (!a.found) {
+                step_cm = 2.5f;
+                a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                    {wheelbase, steer_max, step_cm, direction},
+                    pose, PARK_GOAL_IN);
+            }
+            planned = a.found;
+        }
+        /* Solo desde el carril (aun fuera del cajon): la maniobra supone que el coche llega
+         * casi paralelo. Intentarla desde dentro, a 30-40 grados, produce maniobras que no
+         * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
+        if (!planned && !exiting && pose->w_cm > params->lot_width_cm - 1.0f)
+            s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
+                {wheelbase, steer_max, step_cm, direction},
+                pose, &a);
+        if (!planned && !s_plan) {
+            a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                {wheelbase, steer_max, step_cm, direction},
+                pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+            if (!a.found) {
+                step_cm = 2.5f;
+                a = park_ackermann_plan(params, &(park_ackermann_config_t)
+                    {wheelbase, steer_max, step_cm, direction},
+                    pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+            }
+        }
+    }
+    *res = a; *step_out = step_cm;
+}
+
 static void park_step(wro_controller_t *c, const local_lidar_point_t *points, size_t count, float dt,
                       const perception_t *per, wro_command_t *out)
 {
@@ -1721,40 +1768,34 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                  * una correccion a mitad de maniobra cae en el A* de arcos cortos y vuelve el
                  * tanteo (medido: 8 pasadas). Ya dentro del cajon manda el A*. */
                 park_ackermann_result_t a = {0};
-                bool s_plan = false;
-                bool planned = false;
-                /* Entrada desde la pose de la salida: un solo plan, sin la maniobra de tres tramos
-                 * (desde ahi gastaria una repasada mas). Las correcciones, si hacen falta, vuelven
-                 * al tanteo de siempre. */
-                if (!exiting && c->park_stage == 2) {
-                    a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
-                        &c->park_pose, PARK_GOAL_IN);
-                    if (!a.found) {
-                        step_cm = 2.5f;
-                        a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                            {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
-                            &c->park_pose, PARK_GOAL_IN);
-                    }
-                    planned = a.found;
+                if (c->park_emu_left_s > 0.0f) {      /* el A* "sigue calculando": coche parado */
+                    c->park_emu_left_s -= dt; c->park_wait_total_s += dt;
+                    out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
+                    return;
                 }
-                /* Solo desde el carril (aun fuera del cajon): la maniobra supone que el coche llega
-                 * casi paralelo. Intentarla desde dentro, a 30-40 grados, produce maniobras que no
-                 * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
-                if (!planned && !exiting && c->park_pose.w_cm > params->lot_width_cm - 1.0f)
-                    s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
-                        &c->park_pose, &a);
-                if (!planned && !s_plan) {
-                    a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                        {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
-                        &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
-                    if (!a.found) {
-                        step_cm = 2.5f;
-                        a = park_ackermann_plan(params, &(park_ackermann_config_t)
-                            {pl->wheelbase_cm, park_steer_max(pl), step_cm, c->park_arc_direction},
-                            &c->park_pose, exiting ? PARK_GOAL_OUT : PARK_GOAL_IN);
+                if (c->park_emu_have) { a = c->park_emu_a; step_cm = c->park_emu_step; c->park_emu_have = false; }
+                else if (c->cfg.park_external_worker) {
+                    if (!c->park_req_pending) {
+                        c->park_req_params = *params; c->park_req_pose = c->park_pose; c->park_req_dir = c->park_arc_direction;
+                        c->park_req_wb = pl->wheelbase_cm; c->park_req_smax = park_steer_max(pl); c->park_req_exiting = exiting; c->park_req_stage2 = (!exiting && c->park_stage == 2);
+                        c->park_req_pending = true;
+                        __atomic_add_fetch(&c->park_req_seq, 1u, __ATOMIC_RELEASE);
                     }
+                    if (__atomic_load_n(&c->park_done_seq, __ATOMIC_ACQUIRE) != c->park_req_seq) {      /* el trabajador sigue calculando: coche parado */
+                        c->park_wait_total_s += dt;
+                        out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
+                        return;
+                    }
+                    c->park_req_pending = false; a = c->park_req_a; step_cm = c->park_req_step;
+                }
+                else {
+                    park_compute_plan(params, pl->wheelbase_cm, park_steer_max(pl), c->park_arc_direction, &c->park_pose, exiting, !exiting && c->park_stage == 2, &a, &step_cm);
+                }
+                ++c->park_plans; c->park_plans_nodes += (int)a.expanded; if (!exiting && c->park_stage == 2) ++c->park_plans_s2;
+                if (c->cfg.park_emu_nodes_per_s > 0.0f && !c->cfg.park_external_worker && a.expanded > 0) {
+                    c->park_emu_a = a; c->park_emu_step = step_cm; c->park_emu_have = true; c->park_emu_left_s = (float)a.expanded / c->cfg.park_emu_nodes_per_s;
+                    out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
+                    return;
                 }
                 c->park_plan_found = a.found ? 1 : 0; c->park_plan_expanded = (int)a.expanded;
                 c->park_plan_at_goal = a.at_goal ? 1 : 0; c->park_plan_count = (int)a.count;
@@ -2369,6 +2410,12 @@ static int it_unknown_ahead(const wro_controller_t *c, const local_lidar_point_t
 #ifndef IT_SURPRISE_SPEED_CM_S
 #define IT_SURPRISE_SPEED_CM_S 45.0f
 #endif
+#ifndef IT_UNK_STALL_S
+#define IT_UNK_STALL_S 3.0f
+#endif
+#ifndef IT_UNK_STALL_CM
+#define IT_UNK_STALL_CM 20.0f
+#endif
 #ifndef IT_UNKNOWN_YIELD_CM
 #define IT_UNKNOWN_YIELD_CM 60.0f
 #endif
@@ -2388,8 +2435,17 @@ static void it_override(wro_controller_t *c, const local_planner_config_t *pc, f
     float steer = 0.0f, speed = 0.0f, it_surprise_cap = 0.0f;
     if (!it_track(&c->it_tr, &c->it_plan, x, z, yaw, v_now, &steer, &speed)) { it_drop(c, 1); return; }
     /* Junto a un pilar de color desconocido manda el reactivo (ve el letrero con la camara y respeta su lado). */
+    bool near_unknown = false;
     for (int i = 0; i < c->it_plan.obstacles; ++i)
-        if (c->it_plan.obs[i].color == 3 && hypotf(c->it_plan.obs[i].x_cm - x, c->it_plan.obs[i].z_cm - z) < IT_UNKNOWN_YIELD_CM) { it_drop(c, 6); c->it_hold_left_s = 0.3f; return; }
+        if (c->it_plan.obs[i].color == 3 && hypotf(c->it_plan.obs[i].x_cm - x, c->it_plan.obs[i].z_cm - z) < IT_UNKNOWN_YIELD_CM) near_unknown = true;
+    if (!near_unknown) { c->it_unk_stall_s = 0.0f; c->it_unk_force = false; }
+    else if (!c->it_unk_force) {
+        /* Si el reactivo lleva IT_UNK_STALL_S sin salir de un radio de IT_UNK_STALL_CM junto al pilar (no ve su color: morro girado, pegado a el),
+         * IT lo rodea de todos modos con la regla de lado que tenga: un letrero mal pasado cuesta una penalizacion, quedarse parado cuesta la ronda. */
+        if (hypotf(x - c->it_unk_ax, z - c->it_unk_az) > IT_UNK_STALL_CM) { c->it_unk_ax = x; c->it_unk_az = z; c->it_unk_stall_s = 0.0f; }
+        else if ((c->it_unk_stall_s += dt) >= IT_UNK_STALL_S) { c->it_unk_force = true; c->it_hold_left_s = 0.0f; }
+        if (!c->it_unk_force) { it_drop(c, 6); c->it_hold_left_s = 0.3f; return; }
+    }
     {
         /* Objeto desconocido en el camino (en recta o en curva): frena ya y, si sigue en el siguiente barrido, cede el mando. */
         float ud = 0.0f;
@@ -2455,6 +2511,20 @@ static void it_override(wro_controller_t *c, const local_planner_config_t *pc, f
     if (ae > c->it_stats.max_err_cm) c->it_stats.max_err_cm = ae;
     if (c->it_tr.room_cm - ae < c->it_stats.min_room_cm) c->it_stats.min_room_cm = c->it_tr.room_cm - ae;
     ++c->it_stats_ticks;
+}
+
+/* Trabajador del plan de parqueo (otra tarea / otro nucleo): toma la peticion que dejo park_step y la resuelve. Devuelve true si calculo algo. */
+bool wro_controller_park_worker_step(wro_controller_t *c)
+{
+    if (!c) return false;
+    const uint32_t seq = __atomic_load_n(&c->park_req_seq, __ATOMIC_ACQUIRE);
+    if (seq == c->park_taken_seq) return false;
+    c->park_taken_seq = seq;
+    float step = 3.5f;
+    park_compute_plan(&c->park_req_params, c->park_req_wb, c->park_req_smax, c->park_req_dir, &c->park_req_pose, c->park_req_exiting, c->park_req_stage2, &c->park_req_a, &step);
+    c->park_req_step = step;
+    __atomic_store_n(&c->park_done_seq, seq, __ATOMIC_RELEASE);
+    return true;
 }
 
 void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points, size_t count,

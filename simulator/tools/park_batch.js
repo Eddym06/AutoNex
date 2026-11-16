@@ -11,16 +11,18 @@ async function doJob(job) {
   const field = W.field.randomLayout(job.seed, { direction: job.direction, signs: job.signs, parking: true, startInLot: true, feasible: true, allowGates: false });
   const robot = Object.assign({}, W.robot.PROFILES.largo26d, { speedTauS: 0.08, speedGain: 1 });
   const sim = new W.sim.Simulation(core, { field, seed: job.seed, robot, ctrlConfig: ((job.cfg || '') + (job.it ? '\nit_enabled 1' : '')).trim() });
-  let tIn = null, tOut = null, last = 0, rev = 0, phase = '';
+  let tIn = null, tOut = null, last = 0, rev = 0, phase = '', np = 0; const exp = [];
   while (sim.t < 240 && !sim.finished) {
     sim.tick();
     const c = sim.cmd; if (!c) continue;
     if (c.phase === 'PARKING' && tIn === null) tIn = sim.t;
     if (c.phase === 'PARKING' || c.phase === 'PARK_SEARCH') { const s = Math.abs(c.speed) >= 2 ? Math.sign(c.speed) : 0; if (s) { if (last && s !== last) rev++; last = s; } }
     if (c.phase === 'DONE' && tOut === null) tOut = sim.t;
+    if (c.phase === 'PARKING') { const q = core.parkPlan(); if (q.plans !== np) { np = q.plans; exp.push(q.expanded); } }
   }
   const r = sim.run(0.1);
-  return { seed: job.seed, direction: job.direction, end: r.endReason, points: r.points, parking: r.parking, tPark: tIn !== null ? +((tOut ?? sim.t) - tIn).toFixed(1) : null, rev,
+  const pp = core.parkPlan();
+  return { exp, plans: pp.plans, planNodes: pp.planNodes, plansS2: pp.plansS2, seed: job.seed, direction: job.direction, end: r.endReason, points: r.points, parking: r.parking, tPark: tIn !== null ? +((tOut ?? sim.t) - tIn).toFixed(1) : null, rev,
            contacts: r.contacts.wall + r.contacts.limiter + r.contacts.sign };
 }
 (async () => {
@@ -31,7 +33,8 @@ async function doJob(job) {
   const res = (await runJobs(__filename, jobs, { log: () => {} })).filter(r => r.result).map(r => r.result);
   const m = (f) => res.reduce((s, r) => s + f(r), 0) / res.length;
   const ok = res.filter(r => r.parking === 'full' && r.contacts === 0);
-  console.log(`rondas ${res.length} completas-sin-contacto ${ok.length} | tPark medio ${m(r => r.tPark || 0).toFixed(1)} s (max ${Math.max(...res.map(r => r.tPark || 0))}) | repasadas medias ${m(r => r.rev).toFixed(1)} (max ${Math.max(...res.map(r => r.rev))}) | contactos ${res.reduce((s, r) => s + r.contacts, 0)} | puntos ${m(r => r.points).toFixed(1)}`);
+  console.log(`rondas ${res.length} completas-sin-contacto ${ok.length} | tPark medio ${m(r => r.tPark || 0).toFixed(1)} s (max ${Math.max(...res.map(r => r.tPark || 0))}) | repasadas medias ${m(r => r.rev).toFixed(1)} (max ${Math.max(...res.map(r => r.rev))}) | planes ${m(r => r.plans).toFixed(1)} (max ${Math.max(...res.map(r => r.plans))}, desde la entrada ${m(r => r.plansS2).toFixed(1)}) nodos ${(m(r => r.planNodes)/1000).toFixed(0)}k | contactos ${res.reduce((s, r) => s + r.contacts, 0)} | puntos ${m(r => r.points).toFixed(1)}`);
   if (fl('--out')) fs.writeFileSync(fl('--out'), JSON.stringify(res, null, 1));
+  { const all = res.flatMap(r => r.exp).sort((a, b) => a - b); const q = f => all[Math.min(all.length - 1, Math.floor(f * all.length))]; console.log(`nodos por plan: n ${all.length} p50 ${q(0.5)} p90 ${q(0.9)} p99 ${q(0.99)} max ${all[all.length - 1]} | >24k: ${all.filter(x => x > 24000).length} | suma ${all.reduce((a, b) => a + b, 0)}`); }
   res.filter(r => !(r.parking === 'full' && r.contacts === 0)).forEach(r => console.log('  fallo:', JSON.stringify(r)));
 })();

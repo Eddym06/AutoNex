@@ -147,6 +147,7 @@ static void reset_runtime(void)
     cfg.sidestep_enabled = false;
     cfg.peek_enabled = false;
     cfg.parking_enabled = false;     /* el parqueo actual incluye giros sobre el eje */
+    cfg.park_external_worker = true;   /* idem el A* del parqueo (it_worker_task) */
     cfg.it_external_worker = true;   /* el plan de IT lo calcula it_worker_task en el nucleo 1, no en el barrido */
     cfg.start_in_lot = false;
     cfg.odometry_enabled = CONFIG_WRO_AXLE_ENCODER_CALIBRATED && hw_encoders_ready();
@@ -326,7 +327,8 @@ static void it_worker_task(void *arg)
 {
     (void)arg;
     for (;;) {
-        if (wro_controller_it_worker_step(&rt.controller, 200)) vTaskDelay(1);
+        const bool parked = wro_controller_park_worker_step(&rt.controller);   /* el A* del parqueo tambien va aqui: el barrido del nucleo 0 no lo espera */
+        if (wro_controller_it_worker_step(&rt.controller, 200) || parked) vTaskDelay(1);
         else vTaskDelay(pdMS_TO_TICKS(20));
     }
 }

@@ -199,7 +199,7 @@ static uint8_t g_map_cells[LOCAL_MAP_SIZE * LOCAL_MAP_SIZE];
 static float g_debug_out[9 + 3 * LOCAL_DEBUG_ROUTE_POINTS * 2 + LOCAL_MAP_MAX_CAMERA_OBJECTS * 4];
 /* Diagnostico del ultimo plan de la maniobra: encontrado, nodos expandidos, en la meta,
  * numero de arcos, paso del arco (decimas de cm). */
-static float g_park_dbg[11];
+static float g_park_dbg[14];
 /* Secuencia de arcos del plan vigente: [count, index, dir0, steer0, dir1, steer1, ...]. */
 static float g_park_plan[2 + 2 * PARK_ACK_MAX_STEPS];
 
@@ -348,6 +348,7 @@ static void export_debug(void)
     g_park_dbg[4] = (float)g_ctrl.park_plan_step;
     g_park_dbg[5] = (float)g_ctrl.park_abort_dev; g_park_dbg[6] = (float)g_ctrl.park_abort_arc;
     g_park_dbg[7] = g_ctrl.park_arc_remaining_cm; g_park_dbg[8] = (float)g_ctrl.park_settle; g_park_dbg[9] = (float)g_ctrl.park_goal_hits; g_park_dbg[10] = (float)g_ctrl.park_noplan_moves;
+    g_park_dbg[11] = (float)g_ctrl.park_plans; g_park_dbg[12] = (float)g_ctrl.park_plans_nodes; g_park_dbg[13] = (float)g_ctrl.park_plans_s2;
     g_park_plan[0] = (float)g_ctrl.park_arc_count;
     g_park_plan[1] = (float)g_ctrl.park_arc_index;
     for (size_t i = 0; i < PARK_ACK_MAX_STEPS; ++i) {
@@ -434,6 +435,7 @@ EXPORT("core_ctrl_scan") void core_ctrl_scan(int count, double t_us)
         for (int k = 0; k < 2; ++k)
             if (!wro_controller_it_worker_step(&g_ctrl, g_worker_budget)) break;
     }
+    if (g_ctrl.cfg.park_external_worker) wro_controller_park_worker_step(&g_ctrl);   /* el 'otro nucleo' resuelve la peticion entre dos barridos */
     export_command();
     export_debug();
 }

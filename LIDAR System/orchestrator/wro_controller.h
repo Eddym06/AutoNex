@@ -122,6 +122,8 @@ typedef struct {
     uint8_t it_stop_before_end;     /* IT cede el mando cuando faltan tantas esquinas para terminar */
     int it_refine_evals, it_refine_step_evals;            /* evaluaciones de refinado en segundo plano tras el primer plan valido (0 = sin refinar) */
     int it_step_evals;              /* evaluaciones de la busqueda por escaneo (reparte el calculo del plan) */
+    bool park_external_worker;      /* el A* del parqueo lo calcula otra tarea (wro_controller_park_worker_step) mientras el coche espera parado */
+    float park_emu_nodes_per_s;     /* >0: el simulador espera expanded/park_emu_nodes_per_s segundos (coche parado) tras cada plan, como tarda el A* en el P4 (~15000 nodos/s) */
     bool it_external_worker;        /* el plan de IT lo calcula otra tarea (wro_controller_it_worker_step, en el P4 el nucleo 1) en vez de en rebanadas dentro del escaneo */
     float it_grip_max;              /* tope del agarre aprendido */
     float it_engage_dist_cm, it_engage_heading_deg;   /* IT toma el mando a menos de esto de la trayectoria y con el morro a menos de esto de su rumbo */
@@ -285,6 +287,8 @@ typedef struct {
     int it_arc_bad, it_unk_bad, it_stats_ticks;
     const local_lidar_point_t *it_points;   /* puntos del barrido en curso (solo valido dentro de wro_controller_scan) */
     size_t it_point_count;
+    float it_unk_stall_s, it_unk_ax, it_unk_az;   /* tiempo sin avanzar mientras IT cede por un pilar sin color (y donde empezo) */
+    bool it_unk_force;                    /* el reactivo no avanza junto al pilar: IT lo rodea aunque no sepa su color */
     float it_unk_x, it_unk_z, it_unk_t;   /* ultimo objeto desconocido detectado en la trayectoria (depuracion) */
     int it_unk_n;
     float dbg_acq[4];                      /* ultima adquisicion del cajon: puntos de pared, tope trasero, tope delantero y puntuacion (depuracion) */
@@ -345,6 +349,15 @@ typedef struct {
     int park_rot_hold;
     /* Diagnostico del ultimo plan de la maniobra Ackermann (ver core_park_dbg_ptr). */
     int park_plan_found, park_plan_expanded, park_plan_at_goal, park_plan_count, park_plan_step;
+    float park_emu_left_s, park_emu_step; bool park_emu_have; park_ackermann_result_t park_emu_a;   /* emulacion del tiempo de calculo del A* del P4 (park_emu_nodes_per_s) */
+    /* Peticion de plan al trabajador externo (park_external_worker): park_step escribe y sube park_req_seq; el trabajador deja el resultado y sube park_done_seq. */
+    volatile uint32_t park_req_seq, park_done_seq;
+    uint32_t park_taken_seq;
+    bool park_req_pending, park_req_exiting, park_req_stage2;
+    park_params_t park_req_params; park_pose_t park_req_pose; int park_req_dir; float park_req_wb, park_req_smax, park_req_step;
+    park_ackermann_result_t park_req_a;
+    float park_wait_total_s;   /* tiempo total parado esperando al planificador */
+    int park_plans, park_plans_nodes, park_plans_s2;   /* planes A* hechos en la ronda, nodos expandidos en total, y los hechos desde la pose de entrada (etapa 2) */
     int park_noplan, park_noplan_moves;   /* barridos seguidos sin plan / movimientos de recuperacion hechos */
     int park_abort_dev, park_abort_arc;   /* diagnostico: planes de entrada abortados por desvio / por arco no libre */
     int park_rot_sign;              /* sentido del ultimo giro (+1 contra reloj, -1 a favor) */
@@ -386,6 +399,8 @@ bool wro_controller_it_fast(wro_controller_t *c, uint64_t now_us, wro_command_t 
 /* Trabajador del plan de IT (con it_external_worker): llamalo en un bucle desde otra tarea; hace como mucho `budget` evaluaciones y devuelve true si
  * queda trabajo (volver a llamar enseguida) o false si esta ocioso (esperar unos ms). No toca nada del control salvo el plan en construccion. */
 bool wro_controller_it_worker_step(wro_controller_t *c, int budget);
+/* Trabajador del A* del parqueo (con park_external_worker): llamalo en un bucle desde otra tarea; devuelve true si resolvio una peticion. */
+bool wro_controller_park_worker_step(wro_controller_t *c);
 /* Perro guardian: si no llegan escaneos, la orden pasa a parar (devuelve true). */
 bool wro_controller_watchdog(wro_controller_t *c, uint64_t now_us, wro_command_t *out);
 
