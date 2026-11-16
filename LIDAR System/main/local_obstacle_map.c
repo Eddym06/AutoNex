@@ -238,9 +238,11 @@ static float lattice_curvature;   /* curvatura continua de la ultima decision de
  * si la huella cabe en un punto es una consulta O(1) en vez de lanzar rayos, y
  * la tabla la comparten todas las rutas candidatas. */
 static uint8_t local_dt[LOCAL_MAP_SIZE][LOCAL_MAP_SIZE];
+static bool local_dt_pure;   /* true mientras la tabla es una transformada de distancia sin retocar (las cortinas ponen ceros a mano y la rompen) */
 
 static void build_distance_field(const local_obstacle_map_t *map)
 {
+    local_dt_pure = true;
     for (int y = 0; y < LOCAL_MAP_SIZE; ++y)
         for (int x = 0; x < LOCAL_MAP_SIZE; ++x)
             local_dt[y][x] = (map->cells[y][x] & LOCAL_CELL_OCCUPIED)
@@ -279,9 +281,61 @@ static void build_distance_field(const local_obstacle_map_t *map)
 /* Holgura de la huella en un punto del recorrido, con el chasis girado `theta`.
  * La huella hay que rotarla: una ruta que gira lleva el chasis girado, y medir
  * un rectangulo orientado como el chasis inicial mide un vehiculo que no existe. */
-static float footprint_clearance(float x_cm, float forward_cm, float theta)
+static bool to_cell(float x_cm, float forward_cm, int *x, int *y);
+/* Holgura con el seno y coseno del giro dados. `need`: solo importa el valor exacto si es menor que `need`; si la holgura es >= need puede devolverse
+ * cualquier valor >= need. Con eso el descarte barato es exacto para quien solo compara (bloqueo <= 0 y penalizacion por debajo de la preferida):
+ * el campo de distancias (chamfer 2-3) cumple la desigualdad triangular, asi que la distancia de cualquier muestra de la huella al obstaculo mas
+ * cercano es >= la del centro menos lo que mide la huella en ese mismo metrico (esquinas, +6 por el redondeo a celdas del centro, de la esquina y de la muestra). Si eso ya supera `need`, no se
+ * recorren las 84 muestras. */
+#ifdef LOCAL_VERIFY_FP
+int local_fp_checks, local_fp_outside, local_fp_bad; float local_fp_maxgap;
+#endif
+#ifndef LOCAL_FP_SHORTCUT
+#define LOCAL_FP_SHORTCUT 1
+#endif
+#ifndef LOCAL_ROT_TRIG
+#define LOCAL_ROT_TRIG 1
+#endif
+static float footprint_clearance_cs(float x_cm, float forward_cm, float c, float s, float need)
 {
-    const float c = cosf(theta), s = sinf(theta);
+#if LOCAL_FP_SHORTCUT
+    {
+        const float hw = 0.5f * (g->chassis_width_cm - g->footprint_shrink_cm), rear = g->chassis_rear_cm, front = g->chassis_length_cm - g->chassis_rear_cm;
+        int cx0, cy0, cx, cy;
+        if (local_dt_pure && to_cell(x_cm, forward_cm, &cx0, &cy0)) {
+            int worst = 0;
+            bool ok = true;
+            for (int k = 0; k < 4 && ok; ++k) {
+                const float ox = (k & 1) ? hw : -hw, of = (k & 2) ? front : -rear;
+                if (!to_cell(x_cm + ox * c + of * s, forward_cm + of * c - ox * s, &cx, &cy)) { ok = false; break; }
+                int dx = cx - cx0, dy = cy - cy0;
+                if (dx < 0) dx = -dx;
+                if (dy < 0) dy = -dy;
+                const int m = dx > dy ? 2 * dx + dy : 2 * dy + dx;
+                if (m > worst) worst = m;
+            }
+            if (ok) {
+                const float lb = (float)((int)local_dt[cy0][cx0] - worst - 6) * LOCAL_DT_UNIT_CM;
+#ifdef LOCAL_VERIFY_FP
+                if (lb >= need) {   /* comprobacion: la holgura exacta tiene que ser >= need (si no, el descarte barato no es exacto) */
+                    float w2 = 1.0e9f; bool inside = true;
+                    for (int li = 0; li < foot_nx && inside; ++li) for (int fi = 0; fi < foot_nf; ++fi) {
+                        const float ox = ((float)li / (float)(foot_nx - 1) - 0.5f) * (g->chassis_width_cm - g->footprint_shrink_cm);
+                        const float of = (float)fi / (float)(foot_nf - 1) * g->chassis_length_cm - g->chassis_rear_cm;
+                        int ax, ay;
+                        if (!to_cell(x_cm + ox * c + of * s, forward_cm + of * c - ox * s, &ax, &ay)) { inside = false; break; }
+                        const float dd = (float)local_dt[ay][ax] * LOCAL_DT_UNIT_CM; if (dd < w2) w2 = dd;
+                    }
+                    local_fp_checks++; if (!inside) local_fp_outside++; else if (w2 < need) { local_fp_bad++; if (need - w2 > local_fp_maxgap) local_fp_maxgap = need - w2; }
+                }
+#endif
+                if (lb >= need) return lb;
+            }
+        }
+    }
+#else
+    (void)need;
+#endif
     float worst = 1.0e9f;
     for (int li = 0; li < foot_nx; ++li) {
         /* Las celdas marcadas son de 2,5 cm y se redondean hacia fuera: una pared a 6,3 cm del
@@ -297,6 +351,11 @@ static float footprint_clearance(float x_cm, float forward_cm, float theta)
         }
     }
     return worst;
+}
+
+static float footprint_clearance(float x_cm, float forward_cm, float theta)
+{
+    return footprint_clearance_cs(x_cm, forward_cm, cosf(theta), sinf(theta), 1.0e9f);
 }
 
 static float action_curvature(uint8_t action)
@@ -937,7 +996,7 @@ static size_t apply_curtains(const local_obstacle_map_t *map, float reference_ra
                 /* La cortina no se pinta encima del propio robot: si el letrero esta pegado (o el robot mas girado
                  * del carril de lo debido) la cortina ocupa la huella y no queda ninguna ruta, ni para alejarse. */
                 if (hypotf(x, f) < circum) continue;
-                if (local_dt[cy][cx] != 0) { local_dt[cy][cx] = 0; ++marked; }
+                if (local_dt[cy][cx] != 0) { local_dt[cy][cx] = 0; ++marked; local_dt_pure = false; }
             }
             if (wall && t > g->chassis_width_cm) break;
         }
@@ -1143,7 +1202,9 @@ static local_route_t route_cost(const uint8_t *actions, uint8_t camera_action,
     const float cos_ref = cosf(reference_rad), sin_ref = sinf(reference_rad);
     const float k_steer_hard = k_hard;
     const bool use_path = path_n >= 3;
-    float theta = 0.0f, x_cm = 0.0f, forward_cm = 0.0f;
+    float theta = 0.0f, x_cm = 0.0f, forward_cm = 0.0f, th_c = 1.0f, th_s = 0.0f;   /* th_c, th_s = cos y sen de theta, por composicion de giros */
+    float rot_c[LOCAL_LATTICE_DEPTH], rot_s[LOCAL_LATTICE_DEPTH];
+    for (int i = 0; i < LOCAL_LATTICE_DEPTH; ++i) { const float dth = action_curvature(actions[i]) * step; rot_c[i] = cosf(dth); rot_s[i] = sinf(dth); }
     float weight = 1.0f, weight_sum = 0.0f;
     float penalty = 0.0f, lateral = 0.0f, heading = 0.0f;
     float curvature_sum = 0.0f, curvature_change = 0.0f, last_k = 0.0f;
@@ -1160,9 +1221,16 @@ static local_route_t route_cost(const uint8_t *actions, uint8_t camera_action,
         curvature_change += fabsf(k - last_k);
         last_k = k;
         theta += k * step;
+#if LOCAL_ROT_TRIG
+        { const float nc = th_c * rot_c[arc_index] - th_s * rot_s[arc_index], ns = th_s * rot_c[arc_index] + th_c * rot_s[arc_index]; th_c = nc; th_s = ns; }
+        x_cm += th_s * step;
+        forward_cm += th_c * step;
+#else
         x_cm += sinf(theta) * step;
         forward_cm += cosf(theta) * step;
-        const float clearance = footprint_clearance(x_cm, forward_cm, theta);
+        th_c = cosf(theta); th_s = sinf(theta);
+#endif
+        const float clearance = footprint_clearance_cs(x_cm, forward_cm, th_c, th_s, g->clearance_pref_cm);
         if (clearance <= 0.0f) { blocked = true; break; }
         ++pass_steps;
         if (s >= horizon_steps) continue;
@@ -1542,6 +1610,15 @@ static uint8_t escape_step(const local_obstacle_map_t *map, local_planner_state_
     return LOCAL_ESCAPE_DONE;
 }
 
+#ifdef WRO_PROFILE
+extern uint32_t wro_prof_now_us(void);
+extern uint32_t wro_prof_acc[16];
+#define PROF_BEGIN uint32_t prof_t = wro_prof_now_us()
+#define PROF(i) do { const uint32_t prof_n = wro_prof_now_us(); wro_prof_acc[i] += prof_n - prof_t; prof_t = prof_n; } while (0)
+#else
+#define PROF_BEGIN ((void)0)
+#define PROF(i) ((void)0)
+#endif
 uint8_t local_obstacle_map_recommend_cfg(const local_obstacle_map_t *map,
                                          const local_planner_config_t *cfg,
                                          local_planner_state_t *state,
@@ -1591,7 +1668,9 @@ uint8_t local_obstacle_map_recommend_cfg(const local_obstacle_map_t *map,
         return (uint8_t)LOCAL_ACTION_STOP;
     }
 
+    PROF_BEGIN;
     build_distance_field(map);
+    PROF(12);
 
     /* Referencia de rumbo: si el controlador conoce el rumbo del recorrido y el
      * IMU esta fresco, la referencia es esa (el error de rumbo se ve desde el
@@ -1609,11 +1688,14 @@ uint8_t local_obstacle_map_recommend_cfg(const local_obstacle_map_t *map,
         const float lim = 85.0f * LOCAL_DEG_TO_RAD, lo = 90.0f * LOCAL_DEG_TO_RAD, hi = 135.0f * LOCAL_DEG_TO_RAD;
         if (fabsf(reference_rad) > lo && fabsf(reference_rad) < hi) reference_rad = reference_rad > 0.0f ? lim : -lim;
     }
+    PROF(13);
     const size_t curtains = apply_curtains(map, reference_rad, lane_cm, lane_measured);
+    PROF(14);
     plan_ref_v = state->ref_rows > 0 ? state->ref_v_cm : NULL;
     plan_ref_rows = state->ref_rows < LOCAL_REF_ROWS ? state->ref_rows : LOCAL_REF_ROWS;
     if (isfinite(course_heading_deg) && map->imu_fresh) plan_corridor(reference_rad, lane_cm);
     else { memset(&corridor, 0, sizeof(corridor)); path_n = 0; }
+    PROF(15);
     if (debug) {
         debug->lane_cm = lane_cm;
         debug->reference_deg = reference_rad / LOCAL_DEG_TO_RAD;

@@ -480,3 +480,8 @@ EXPORT("core_it_fast") int core_it_fast(double t_us)
     g_itf_out[0] = c.steer_deg; g_itf_out[1] = c.speed_cm_s; g_itf_out[2] = c.yaw_rate_dps;
     return 1;
 }
+
+#ifdef LOCAL_VERIFY_FP
+extern int local_fp_checks, local_fp_outside, local_fp_bad; extern float local_fp_maxgap;
+EXPORT("core_fp_stats") int core_fp_stats(int i) { return i == 0 ? local_fp_checks : i == 1 ? local_fp_outside : i == 2 ? local_fp_bad : (int)(local_fp_maxgap * 100.0f); }
+#endif

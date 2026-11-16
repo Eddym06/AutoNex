@@ -1773,7 +1773,8 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                     out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
                     return;
                 }
-                if (c->park_emu_have) { a = c->park_emu_a; step_cm = c->park_emu_step; c->park_emu_have = false; }
+                bool fresh_plan = true;
+                if (c->park_emu_have) { a = c->park_emu_a; step_cm = c->park_emu_step; c->park_emu_have = false; fresh_plan = false; }
                 else if (c->cfg.park_external_worker) {
                     if (!c->park_req_pending) {
                         c->park_req_params = *params; c->park_req_pose = c->park_pose; c->park_req_dir = c->park_arc_direction;
@@ -1791,8 +1792,8 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                 else {
                     park_compute_plan(params, pl->wheelbase_cm, park_steer_max(pl), c->park_arc_direction, &c->park_pose, exiting, !exiting && c->park_stage == 2, &a, &step_cm);
                 }
-                ++c->park_plans; c->park_plans_nodes += (int)a.expanded; if (!exiting && c->park_stage == 2) ++c->park_plans_s2;
-                if (c->cfg.park_emu_nodes_per_s > 0.0f && !c->cfg.park_external_worker && a.expanded > 0) {
+                if (fresh_plan) { ++c->park_plans; c->park_plans_nodes += (int)a.expanded; if (!exiting && c->park_stage == 2) ++c->park_plans_s2; }
+                if (fresh_plan && c->cfg.park_emu_nodes_per_s > 0.0f && a.expanded > 0) {
                     c->park_emu_a = a; c->park_emu_step = step_cm; c->park_emu_have = true; c->park_emu_left_s = (float)a.expanded / c->cfg.park_emu_nodes_per_s;
                     out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
                     return;
@@ -2527,10 +2528,21 @@ bool wro_controller_park_worker_step(wro_controller_t *c)
     return true;
 }
 
+#ifdef WRO_PROFILE
+/* Perfil por secciones del barrido (solo en el banco del P4): microsegundos acumulados por seccion; wro_prof_now_us lo define el banco. */
+extern uint32_t wro_prof_now_us(void);
+uint32_t wro_prof_acc[16];
+#define PROF_BEGIN uint32_t prof_t = wro_prof_now_us()
+#define PROF(i) do { const uint32_t prof_n = wro_prof_now_us(); wro_prof_acc[i] += prof_n - prof_t; prof_t = prof_n; } while (0)
+#else
+#define PROF_BEGIN ((void)0)
+#define PROF(i) ((void)0)
+#endif
 void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points, size_t count,
                          uint64_t t_us, wro_command_t *out)
 {
     if (!c || !out) return;
+    PROF_BEGIN;
     memset(out, 0, sizeof(*out));
     /* Ultimo recurso: si lleva mucho rato sin avanzar (un paso que el chasis no puede
      * trazar en el sentido de la ultima vuelta), se suspende un trecho la regla del
@@ -2549,6 +2561,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
     c->odom_accum_cm = 0.0f;
 
     arena_step(c, points, count);
+    PROF(0);
 
     local_camera_object_t objects[LOCAL_MAP_MAX_CAMERA_OBJECTS];
     size_t object_count = 0;
@@ -2569,12 +2582,14 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         points = moved;
         effective.deskew = false;     /* ya incluido arriba */
     }
+    PROF(1);
     const local_imu_sample_t imu = {.valid = c->yaw.has_last, .yaw_deg = imu_wrap_deg(c->yaw.yaw_deg + lead_deg),
         .timestamp_us = c->last_imu_us, .has_rate = true, .yaw_rate_dps = c->yaw.rate_dps};
     local_obstacle_map_update_cfg(&c->map, pc, points, count, t_us,
         c->camera_seen ? objects : NULL, object_count,
         c->camera.received_timestamp_us, &imu);
     c->live_colored = c->map.colored_count;
+    PROF(2);
     /* Solo se proyecta en campo cuando existe pose; el mapa se reinicia al inicializar la mision. Se congela al
      * terminar (DONE/FAULT) para que el firmware pueda guardarlo sin que cambie mientras se copia. */
     if (c->arena.valid && c->arena.rms_cm <= 3.5f && c->phase != WRO_PHASE_IDLE &&
@@ -2632,6 +2647,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         }
     }
 
+    PROF(3);
     perception_t per;
     /* Rumbo del carril respecto al morro, segun el controlador. Durante una esquina
      * o la media vuelta el carril todavia no es el que se mide. */
@@ -2639,6 +2655,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         ? imu_wrap_deg(c->course_deg - (c->yaw.yaw_deg + lead_deg)) : 0.0f;
     analyze(points, count, c->cfg.lane_width_cm, fabsf(lane_delta) < 45.0f ? lane_delta : 0.0f, &per);
 
+    PROF(4);
     if (c->phase == WRO_PHASE_IDLE || c->phase == WRO_PHASE_DONE || c->phase == WRO_PHASE_FAULT) {
         stop_command(c, out);
         fill_status(c, &per, out);
@@ -2682,6 +2699,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
             c->course_deg = imu_wrap_deg(c->course_deg + c->cfg.wall_align_gain * err);
     }
     track_signs(c, dt);
+    PROF(5);
     {
         float xf[24];
         uint8_t colors[12];
@@ -2694,6 +2712,7 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         local_obstacle_map_add_memory(&c->map, pc, xf, colors, n);
     }
     if (c->cfg.arena_signs_enabled) world_signs_step(c, pc); else lap_memory_step(c, pc);
+    PROF(6);
 
     /* ------------------------------------------------------------ esquinas */
     if (c->phase == WRO_PHASE_RUN) {
@@ -2813,9 +2832,12 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         }
     }
 
+    PROF(7);
     c->planner_state.lane_offset_cm = 0.0f;
     race_step(c, pc, dt);
+    PROF(8);
     it_manage(c);
+    PROF(9);
     hug_step(c, pc, per.front_cm, dt);
     if (c->phase == WRO_PHASE_PARK_SEARCH) {
         if (park_search_step(c, points, count, dt)) {
@@ -2865,8 +2887,10 @@ void wro_controller_scan(wro_controller_t *c, const local_lidar_point_t *points,
         const float f = out->speed_cm_s / pc->speed_cm_s;
         out->speed_cm_s = c->race_v_cmd * (f < 1.0f ? f : 1.0f);
     }
+    PROF(10);
     c->it_points = points; c->it_point_count = count;
     it_override(c, pc, dt, out);
+    PROF(11);
     c->it_points = NULL; c->it_point_count = 0;
     c->last_speed_cm_s = out->speed_cm_s;
     fill_status(c, &per, out);

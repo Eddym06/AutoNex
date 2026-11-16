@@ -185,3 +185,17 @@ Lo que queda: el A* sigue tardando **5 a 11 s por plan** (el limite de 24.000 no
 | (20, 30, 20) | 427 | | **0,044 s** |
 
 El A* expande ~11.000 nodos/s en el P4 (el simulador emula 15.000 con `park_emu_nodes_per_s`). En el simulador un parqueo medio gasta 5-7k nodos (maximo 16.000), unos 0,5 s de calculo en total; un plan sin solucion cuesta 2,2 s y se repite con paso de 2,5 cm (4,4 s). El plan va en la tarea del nucleo 1 (`park_external_worker`) con el coche parado. Sin cambios: barrido del controlador 142,6 ms (p95 150 ms), plan del IT 4,17 s, pila libre de la tarea del banco 26 KB.
+
+## 11. Barrido del controlador: de 142 a 84 ms (16 nov, banco con perfil por secciones)
+
+`CONFIG_WRO_PERF_BENCH` compila ahora `wro_controller.c` y `local_obstacle_map.c` con `WRO_PROFILE` (macros `PROF()`; acumula microsegundos por seccion del barrido).
+
+| Seccion del barrido | Antes (ms por barrido) | Despues |
+|---|---|---|
+| Planificador reactivo (`local_obstacle_map_recommend_cfg`) | **131,2** | **73,1** |
+| &nbsp;&nbsp;campo de distancias / corredor | 3,8 / 2,2 | 3,9 / 2,2 |
+| trace_map | 4,2 | 4,2 |
+| mapa local, analyze, compensacion | 1,7 / 1,8 / 1,0 | igual |
+| **Barrido completo p50 / p95** | **142,6 / 150,6 ms** | **84,5 / 92,5 ms** |
+
+El 90 % del barrido era la rejilla de 343 rutas (7^3) del planificador reactivo: cada paso de cada ruta recorria 84 muestras de la huella y llamaba 4 veces a `sinf/cosf`. Cambios, sin alterar el resultado: seno y coseno por composicion de giros (los obtenia de la libm en cada paso) y descarte exacto de la huella con el campo de distancias (si el centro esta a mas de lo que mide la huella en el metrico chamfer mas la preferida, no se recorren las muestras; se desactiva cuando las cortinas han retocado la tabla). Comprobado con `LOCAL_VERIFY_FP` sobre 1,6 millones de consultas (0 fallos) y con 48 rondas completas identicas a antes (89,1 s, 61,69 puntos). El primer barrido sigue tardando ~0,84 s (adquisicion del localizador). Queda margen en esa rejilla (compartir prefijos del arbol de rutas: ~-25 % de pasos).

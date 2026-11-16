@@ -167,6 +167,9 @@ static void bench_park(void)
     printf("PERF park_entry_maneuver ok=%d tiempo_ms=%.1f\n", ok, (US() - t0) / 1000.0);
 }
 
+uint32_t wro_prof_now_us(void) { return (uint32_t)esp_timer_get_time(); }
+extern uint32_t wro_prof_acc[16];
+
 static void bench_scan(void)
 {
     wro_controller_config_t cfg;
@@ -181,6 +184,7 @@ static void bench_scan(void)
     static uint32_t dts[N];
     int k = 0;
     /* El tiempo de un paso con barrido nuevo (una vuelta del LiDAR cada 100 ms virtuales). */
+    for (int i = 0; i < 16; ++i) wro_prof_acc[i] = 0;
     for (int i = 0; i < 400 && k < N; ++i) {
         s_fake.t_us += 5000;                                   /* 200 Hz de giroscopio */
         const uint32_t before = (uint32_t)s_rt.scans;
@@ -188,6 +192,10 @@ static void bench_scan(void)
         p4_runtime_step(&s_rt);
         const uint32_t dt = US() - t0;
         if ((uint32_t)s_rt.scans != before) { if (k < 6) printf("PERF controlador_escaneo_%d ms=%.1f fase=%d\n", k, dt / 1000.0, (int)s_rt.controller.phase); dts[k++] = dt; }
+    }
+    {
+        static const char *const names[16] = {"arena_step", "compensar_movimiento", "mapa_local_update", "trace_map", "analyze", "track_signs", "memoria_letreros", "esquinas", "race_step", "it_manage", "recomendar_planificador", "it_override", "plan_campo_distancias", "plan_antes_cortinas", "plan_cortinas", "plan_corredor"};
+        for (int i = 0; i < 16; ++i) printf("PERF seccion %-24s ms_por_barrido=%.2f\n", names[i], (double)wro_prof_acc[i] / 1000.0 / (k ? k : 1));
     }
     if (k > 0) {
         sort_u32(dts, k);

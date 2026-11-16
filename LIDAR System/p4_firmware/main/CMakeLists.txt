@@ -46,3 +46,8 @@ idf_component_register(
 foreach(hot it_plan park_ackermann park_planner park_localize local_obstacle_map arena_localizer odometry)
     set_source_files_properties("${WRO_CORE_DIR}/${hot}.c" PROPERTIES COMPILE_OPTIONS "-O3;-fno-math-errno;-fno-trapping-math")
 endforeach()
+
+# Perfil por secciones del barrido (solo con el banco de rendimiento): ver PROF() en wro_controller.c.
+if(CONFIG_WRO_PERF_BENCH)
+    set_source_files_properties("${WRO_ORCHESTRATOR_DIR}/wro_controller.c" "${WRO_CORE_DIR}/local_obstacle_map.c" PROPERTIES COMPILE_DEFINITIONS "WRO_PROFILE=1")
+endif()
