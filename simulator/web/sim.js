@@ -21,13 +21,26 @@
     'use_ground_distance on', 'camera_height_cm 5', 'horizon_row 30', 'focal_px 118.6'
   ].join('\n');
 
+  /* Costes medidos en el ESP32-P4 real (MEDIDAS_HARDWARE_P4.md, banco perf_bench): el simulador los aplica por defecto (opcion `p4: false` = ideal, sin costes).
+   *  - barrido del controlador: 84,5 ms (p50) / 92,5 ms (p95) con el planificador reactivo; en PARK_EXIT y PARKING (sin el, con el seguimiento del cajon
+   *    de 26,8 ms + 9 ms de mapa y analisis) 37 ms -> la orden sale ese tiempo despues de recibir el barrido;
+   *  - plan del IT en la tarea del nucleo 1: 0,3485 ms por evaluacion -> 287 evaluaciones por barrido de 100 ms;
+   *  - A* del parqueo en la tarea del nucleo 1: 11.000 nodos/s (el coche espera parado) y 0,55 s la maniobra de entrada. */
+  const P4 = { scanMs: 84.5, scanSigmaMs: 4.8, scanParkMs: 37, scanParkSigmaMs: 1.5, itEvalMs: 0.3485, nodesPerS: 11000, maneuverS: 0.55 };
+  if (typeof process !== 'undefined' && process.env && process.env.WRO_P4_SCANMS !== undefined) P4.scanMs = Number(process.env.WRO_P4_SCANMS);   // depuracion: aislar el efecto del retardo del barrido
+  P4.itBudget = Math.round(100 / P4.itEvalMs);
+  const envP4 = (typeof process !== 'undefined' && process.env) ? process.env : {};   // WRO_P4_IT=0 / WRO_P4_PARK=0: depuracion, quitan ese coste
+  P4.config = [envP4.WRO_P4_IT === '0' ? '' : 'it_external_worker 1',
+               envP4.WRO_P4_PARK === '0' ? '' : 'park_external_worker 1\npark_emu_nodes_per_s ' + P4.nodesPerS].filter(Boolean).join('\n') + '\n';
+
   class Simulation {
     constructor(core, options) {
       const o = this.options = Object.assign({
         seed: 1, dt: 0.01, startDelay: 1.5, procDelayMs: 8, cmdDelayMs: 12,
         visionConfig: DEFAULT_VISION_TEXT, ctrlConfig: '', lidar: {}, camera: {}, imu: {}, robot: {}, judge: {},
-        lightDrift: 0.06, record: true
+        lightDrift: 0.06, record: true, p4: !(typeof process !== 'undefined' && process.env && process.env.WRO_SIM_IDEAL)   /* WRO_SIM_IDEAL=1: sin costes del P4 */
       }, options || {});
+      this.p4 = o.p4 ? P4 : null;
       this.core = core;
       this.field = o.field || F.create({});
       this.rng = WRO.rng(o.seed);
@@ -152,9 +165,10 @@
          * un sesgo de centimetros y la maniobra de salida se quedaria sin camino. */
         'park_lot_length_cm ' + (this.field.lot ? this.field.lot.length : 0)
       ].join('\n');
-      r = core.ctrlConfig(this.motorConfig + (o.ctrlConfig || '') + '\n' + venue + ackermann + '\n' + geometry);
+      r = core.ctrlConfig(this.motorConfig + (this.p4 ? P4.config : '') + (o.ctrlConfig || '') + '\n' + venue + ackermann + '\n' + geometry);
       if (!r.ok) throw new Error('configuracion del controlador: ' + r.error);
       core.ctrlInit();
+      core.itWorkerBudget(this.p4 ? P4.itBudget : 250);
       core.cameraFocal(this.camCfg.focal);
       core.cameraPitch(S.camState(this.camCfg).pitch * 180 / Math.PI);
       this.snapshot = { scan: [], camera: null, vision: null, debug: null, map: null };
@@ -201,7 +215,9 @@
           this.note('fase ' + this.lastPhase + ' -> ' + cmd.phase);
           this.lastPhase = cmd.phase;
         }
-        this.schedule(this.t + this.options.cmdDelayMs / 1000, 'cmd', { steer: cmd.steer, speed: cmd.speed, yawRate: cmd.yawRate, moveCm: cmd.moveCm, moveId: cmd.moveId });
+        const parkScan = cmd.phase === 'PARK_EXIT' || cmd.phase === 'PARKING';
+        const compute = this.p4 && P4.scanMs > 0 ? (parkScan ? P4.scanParkMs + this.rng.gauss() * P4.scanParkSigmaMs : Math.max(40, P4.scanMs + this.rng.gauss() * P4.scanSigmaMs)) : 0;   // lo que tarda el P4 en calcular este barrido
+        this.schedule(this.t + (this.options.cmdDelayMs + compute) / 1000, 'cmd', { steer: cmd.steer, speed: cmd.speed, yawRate: cmd.yawRate, moveCm: cmd.moveCm, moveId: cmd.moveId });
       } else if (e.type === 'cmd') {
         this.robot.cmd = { steer: e.payload.steer, speed: e.payload.speed, yawRate: e.payload.yawRate };
         if (this.mic) {
@@ -331,6 +347,6 @@
     }
   }
 
-  WRO.sim = { Simulation, DEFAULT_VISION_TEXT };
+  WRO.sim = { Simulation, DEFAULT_VISION_TEXT, P4 };
   if (typeof module !== 'undefined') module.exports = WRO;
 })(typeof window !== 'undefined' ? window : globalThis);

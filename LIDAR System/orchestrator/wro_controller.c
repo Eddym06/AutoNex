@@ -1550,11 +1550,15 @@ static bool park_nearest_free(const park_params_t *p, const park_pose_t *in, par
     return false;
 }
 
+#ifndef PARK_EMU_MANEUVER_S
+#define PARK_EMU_MANEUVER_S 0.55f   /* media de la maniobra de entrada en el P4 (0,31 a 1,10 s en 6 poses) */
+#endif
 /* Calculo del plan de la maniobra desde `pose` (lo que hace el A* y sus variantes). Es una funcion de sus argumentos y no toca el controlador: asi lo puede
  * ejecutar otra tarea (park_external_worker) mientras el barrido, con el coche parado, solo espera. */
 static void park_compute_plan(const park_params_t *params, float wheelbase, float steer_max, int direction, const park_pose_t *pose,
-                              bool exiting, bool stage2, park_ackermann_result_t *res, float *step_out)
+                              bool exiting, bool stage2, park_ackermann_result_t *res, float *step_out, float *maneuver_tried)
 {
+    *maneuver_tried = 0.0f;
     park_ackermann_result_t a = {0};
     float step_cm = 3.5f;
     bool s_plan = false;
@@ -1578,10 +1582,12 @@ static void park_compute_plan(const park_params_t *params, float wheelbase, floa
         /* Solo desde el carril (aun fuera del cajon): la maniobra supone que el coche llega
          * casi paralelo. Intentarla desde dentro, a 30-40 grados, produce maniobras que no
          * convergen (medido: la ronda acababa a los 180 s con parqueo parcial). */
-        if (!planned && !exiting && pose->w_cm > params->lot_width_cm - 1.0f)
+        if (!planned && !exiting && pose->w_cm > params->lot_width_cm - 1.0f) {
+            *maneuver_tried = 1.0f;
             s_plan = park_ackermann_entry_maneuver(params, &(park_ackermann_config_t)
                 {wheelbase, steer_max, step_cm, direction},
                 pose, &a);
+        }
         if (!planned && !s_plan) {
             a = park_ackermann_plan(params, &(park_ackermann_config_t)
                 {wheelbase, steer_max, step_cm, direction},
@@ -1774,6 +1780,7 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                     return;
                 }
                 bool fresh_plan = true;
+                float maneuver = 0.0f;   /* 1 si el plan paso por la maniobra de entrada (en el P4 tarda 0,3 a 1,1 s aunque no encuentre nada) */
                 if (c->park_emu_have) { a = c->park_emu_a; step_cm = c->park_emu_step; c->park_emu_have = false; fresh_plan = false; }
                 else if (c->cfg.park_external_worker) {
                     if (!c->park_req_pending) {
@@ -1787,14 +1794,14 @@ static void park_step(wro_controller_t *c, const local_lidar_point_t *points, si
                         out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
                         return;
                     }
-                    c->park_req_pending = false; a = c->park_req_a; step_cm = c->park_req_step;
+                    c->park_req_pending = false; a = c->park_req_a; step_cm = c->park_req_step; maneuver = c->park_req_man;
                 }
                 else {
-                    park_compute_plan(params, pl->wheelbase_cm, park_steer_max(pl), c->park_arc_direction, &c->park_pose, exiting, !exiting && c->park_stage == 2, &a, &step_cm);
+                    park_compute_plan(params, pl->wheelbase_cm, park_steer_max(pl), c->park_arc_direction, &c->park_pose, exiting, !exiting && c->park_stage == 2, &a, &step_cm, &maneuver);
                 }
                 if (fresh_plan) { ++c->park_plans; c->park_plans_nodes += (int)a.expanded; if (!exiting && c->park_stage == 2) ++c->park_plans_s2; }
-                if (fresh_plan && c->cfg.park_emu_nodes_per_s > 0.0f && a.expanded > 0) {
-                    c->park_emu_a = a; c->park_emu_step = step_cm; c->park_emu_have = true; c->park_emu_left_s = (float)a.expanded / c->cfg.park_emu_nodes_per_s;
+                if (fresh_plan && c->cfg.park_emu_nodes_per_s > 0.0f && (a.expanded > 0 || maneuver > 0.0f)) {
+                    c->park_emu_a = a; c->park_emu_step = step_cm; c->park_emu_have = true; c->park_emu_left_s = (float)a.expanded / c->cfg.park_emu_nodes_per_s + maneuver * PARK_EMU_MANEUVER_S;
                     out->speed_cm_s = 0.0f; out->steer_deg = c->park_arc_steer_deg; out->yaw_rate_dps = 0.0f; out->explicit_yaw_rate = true; out->action = LOCAL_ACTION_STOP;
                     return;
                 }
@@ -2522,7 +2529,7 @@ bool wro_controller_park_worker_step(wro_controller_t *c)
     if (seq == c->park_taken_seq) return false;
     c->park_taken_seq = seq;
     float step = 3.5f;
-    park_compute_plan(&c->park_req_params, c->park_req_wb, c->park_req_smax, c->park_req_dir, &c->park_req_pose, c->park_req_exiting, c->park_req_stage2, &c->park_req_a, &step);
+    park_compute_plan(&c->park_req_params, c->park_req_wb, c->park_req_smax, c->park_req_dir, &c->park_req_pose, c->park_req_exiting, c->park_req_stage2, &c->park_req_a, &step, &c->park_req_man);
     c->park_req_step = step;
     __atomic_store_n(&c->park_done_seq, seq, __ATOMIC_RELEASE);
     return true;

@@ -16,6 +16,8 @@
 #include "it_plan.h"
 #include "p4_runtime.h"
 #include "park_ackermann.h"
+#include "park_localize.h"
+#include "perf_park_scan.h"
 #include "perf_bench.h"
 
 #define US() ((uint32_t)esp_timer_get_time())
@@ -160,11 +162,42 @@ static void bench_park(void)
         }
         printf("PERF park_arco us=%.2f (libres %d de %d)\n", (double)(US() - ta) / reps, freecount, reps);
     }
-    park_ackermann_result_t r;
-    memset(&r, 0, sizeof r);
-    const uint32_t t0 = US();
-    const bool ok = park_ackermann_entry_maneuver(&p, &cfg, &poses[1], &r);
-    printf("PERF park_entry_maneuver ok=%d tiempo_ms=%.1f\n", ok, (US() - t0) / 1000.0);
+    static const park_pose_t entry_poses[6] = {{25, 30, 5}, {-30, 45, 0}, {0, 28, 35}, {20, 30, 20}, {20, 32, 18}, {22, 34, 20}};
+    for (int i = 0; i < 6; ++i) {
+        park_ackermann_result_t r;
+        memset(&r, 0, sizeof r);
+        const uint32_t t0 = US();
+        const bool ok = park_ackermann_entry_maneuver(&p, &cfg, &entry_poses[i], &r);
+        printf("PERF park_entry_maneuver pose=%d ok=%d pasos=%u tiempo_ms=%.1f\n", i, ok, (unsigned)r.count, (US() - t0) / 1000.0);
+    }
+}
+
+/* Seguimiento del cajon con un barrido real del simulador en PARKING (perf_park_scan.h): lo que cuesta el barrido de parqueo sin el planificador reactivo. */
+static void bench_park_loc(void)
+{
+    static local_lidar_point_t pts[PERF_PARK_N];
+    for (int i = 0; i < PERF_PARK_N; ++i) pts[i] = (local_lidar_point_t){.angle_deg = perf_park_scan[i].a, .distance_cm = perf_park_scan[i].d, .valid = perf_park_scan[i].v != 0, .blind = perf_park_scan[i].b != 0};
+    wro_controller_config_t cfg;
+    wro_controller_config_default(&cfg);
+    park_params_t p;
+    park_params_default(&p, cfg.planner.chassis_width_cm, cfg.planner.chassis_length_cm, cfg.planner.chassis_rear_cm);
+    p.lot_length_cm = PERF_PARK_LOT_LEN;
+    p.margin_cm = 1.0f;
+    const park_pose_t prior = {PERF_PARK_U, PERF_PARK_W, PERF_PARK_TH};
+    for (int m = -1; m <= 1; m += 2) {
+        const park_loc_t loc = {.params = &p, .lidar_forward_cm = cfg.planner.lidar_forward_cm, .mirror = m};
+        park_fix_t fix;
+        enum { R = 30 };
+        static uint32_t dts[R];
+        bool ok = false;
+        for (int i = 0; i < R; ++i) {
+            const uint32_t t0 = US();
+            ok = park_localize_track(&loc, pts, PERF_PARK_N, &prior, &fix);
+            dts[i] = US() - t0;
+        }
+        sort_u32(dts, R);
+        printf("PERF park_localize_track mirror=%d ok=%d u=%.1f w=%.1f th=%.1f p50_ms=%.2f max_ms=%.2f\n", m, ok, ok ? fix.pose.u_cm : 0.0f, ok ? fix.pose.w_cm : 0.0f, ok ? fix.pose.theta_deg : 0.0f, dts[R / 2] / 1000.0, dts[R - 1] / 1000.0);
+    }
 }
 
 uint32_t wro_prof_now_us(void) { return (uint32_t)esp_timer_get_time(); }
@@ -219,6 +252,7 @@ static void perf_bench_task(void *arg)
         bench_scan();
         bench_it();
         bench_park();
+        bench_park_loc();
         printf("PERF pila libre de esta tarea=%u bytes\n", (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)));
         printf("PERF FIN ronda %d\n", round);
         vTaskDelay(pdMS_TO_TICKS(3000));

@@ -237,6 +237,7 @@
           wallCells:p[8]|0,cameraPose:{x:p[9],z:p[10],theta:p[11]},bearing:[p[12],p[13]],
           memory:p[14]?[{x:p[15],z:p[16]},{x:p[17],z:p[18]}]:null };
       },
+      itWorkerBudget(n) { if (x.core_it_worker_budget) x.core_it_worker_budget(n); },
       fpStats(i) { return x.core_fp_stats ? x.core_fp_stats(i) : -1; },
       mapSize() { return x.core_map_size(); },
       mapCellCm() { return x.core_map_cell_cm(); },

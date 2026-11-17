@@ -199,3 +199,18 @@ El A* expande ~11.000 nodos/s en el P4 (el simulador emula 15.000 con `park_emu_
 | **Barrido completo p50 / p95** | **142,6 / 150,6 ms** | **84,5 / 92,5 ms** |
 
 El 90 % del barrido era la rejilla de 343 rutas (7^3) del planificador reactivo: cada paso de cada ruta recorria 84 muestras de la huella y llamaba 4 veces a `sinf/cosf`. Cambios, sin alterar el resultado: seno y coseno por composicion de giros (los obtenia de la libm en cada paso) y descarte exacto de la huella con el campo de distancias (si el centro esta a mas de lo que mide la huella en el metrico chamfer mas la preferida, no se recorren las muestras; se desactiva cuando las cortinas han retocado la tabla). Comprobado con `LOCAL_VERIFY_FP` sobre 1,6 millones de consultas (0 fallos) y con 48 rondas completas identicas a antes (89,1 s, 61,69 puntos). El primer barrido sigue tardando ~0,84 s (adquisicion del localizador). Queda margen en esa rejilla (compartir prefijos del arbol de rutas: ~-25 % de pasos).
+
+## 12. Costes que el simulador aplica por defecto (16 nov)
+
+`simulator/web/sim.js` (constante `P4`) usa lo medido en la placa; `WRO_SIM_IDEAL=1` (o la opcion `p4: false`) lo desactiva.
+
+| Coste | Valor | Fuente |
+|---|---|---|
+| Barrido con el planificador reactivo (RUN, PARK_SEARCH, ...) | 84,5 ms (sigma 4,8: p95 92,5) | seccion 11 |
+| Barrido en PARK_EXIT / PARKING (sin planificador reactivo) | 37 ms = 9 de mapa y analisis + **26,8** del seguimiento del cajon (`park_localize_track`, barrido real de 400 puntos, p50) | banco, `perf_park_scan.h` |
+| Plan del IT (tarea del nucleo 1) | 0,3485 ms por evaluacion = 287 por barrido de 100 ms | seccion 8 |
+| A* del parqueo (tarea del nucleo 1, coche parado) | 11.000 nodos/s | seccion 10 |
+| Maniobra de entrada (`park_ackermann_entry_maneuver`) | 0,55 s (0,31 a 1,10 s en 6 poses; en el banco no encuentra plan en ninguna) | banco |
+
+La orden llega `cmdDelayMs` (12) + el coste del barrido despues de recibir el barrido. El primer barrido (0,84 s) no se aplica: el P4 procesa barridos antes de pulsar el boton de salida.
+Con esos costes, 48 rondas (5 letreros): 89,3 s (vuelta 1 22,1 s, vuelta 2 10,4 s), 61,38 puntos; ideal: 89,1 s, 61,69. Con 85 ms de retardo tambien en el parqueo (error, pues alli el barrido cuesta 37 ms) salian 9 rondas con `limiter`: el parqueo es sensible al retardo de la orden.

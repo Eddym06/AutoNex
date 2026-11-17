@@ -356,7 +356,7 @@ typedef struct {
     bool park_req_pending, park_req_exiting, park_req_stage2;
     park_params_t park_req_params; park_pose_t park_req_pose; int park_req_dir; float park_req_wb, park_req_smax, park_req_step;
     park_ackermann_result_t park_req_a;
-    float park_wait_total_s;   /* tiempo total parado esperando al planificador */
+    float park_wait_total_s, park_req_man;   /* tiempo total parado esperando al planificador */
     int park_plans, park_plans_nodes, park_plans_s2;   /* planes A* hechos en la ronda, nodos expandidos en total, y los hechos desde la pose de entrada (etapa 2) */
     int park_noplan, park_noplan_moves;   /* barridos seguidos sin plan / movimientos de recuperacion hechos */
     int park_abort_dev, park_abort_arc;   /* diagnostico: planes de entrada abortados por desvio / por arco no libre */

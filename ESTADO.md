@@ -210,3 +210,8 @@ las medidas del chasis real (dimensiones, servo, encoder, velocidad frente a PWM
   - ccw 5 y ccw 7 (`wrong-side`, 25 s): en la vuelta 1 el reactivo pasa por fuera un verde en (10,100) justo antes de otro verde en (-30,80); el generador lo da por factible. Es el reactivo, no el IT (IT aun no existe en la vuelta 1).
   - cw 1 (`stalled`, 36 puntos): IT entrega el coche al parqueo con w=23-24 cm y rumbo -18 grados (el morro hacia el cajon). La pose medida solapa el cajon, `park_nearest_free` no encuentra pose libre en 2 cm y 6 grados y `park_step` vuelve sin dar orden: parado hasta el final. Sin IT la misma ronda aparca bien (111 s). Falta una salida de emergencia para ese caso.
   - ccw 8 (124 contactos) y cw 10 (20 contactos): terminan con 62 puntos tras 142 y 154 s rozando un letrero; sin analizar.
+
+## 16 nov (noche) - El simulador usa por defecto los costes del P4
+- `sim.js` constante `P4`: retardo de la orden segun la fase (84,5 ms con el planificador reactivo, 37 ms en PARK_EXIT/PARKING), IT en tarea aparte con 287 evaluaciones por barrido, A* del parqueo en tarea aparte a 11.000 nodos/s con 0,55 s la maniobra de entrada. `WRO_SIM_IDEAL=1` o `p4: false` lo quita. Interruptores de depuracion: `WRO_P4_SCANMS`, `WRO_P4_IT=0`, `WRO_P4_PARK=0`.
+- 48 rondas con 5 letreros: ideal 89,1 s y 61,69 puntos; P4 89,3 s (vueltas 22,1 y 10,4 s) y 61,38 puntos (2 `limiter`: ccw 8, cw 1). Aislado: el retardo de 85 ms en todo el parqueo daba 9 `limiter` (el parqueo es sensible a la latencia de la orden); A* y worker solos no pierden puntos (+2,3 s).
+- Nueva herramienta `simulator/tools/capture_park_scan.js` (barrido de PARKING a cabecera C) y `perf_park_scan.h` para medir `park_localize_track` en el P4.
