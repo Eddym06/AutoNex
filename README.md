@@ -80,6 +80,18 @@ We decided to simulate before soldering. The track changed every round and the c
 
 That has a limit worth stating: until the car drives, everything is simulation. Grip, weight distribution, servo delay and motor speed are values we set by hand, not measurements.
 
+### 2.1 The surprise rule
+
+For 2026 the WRO added an optional extra task to the Obstacle Challenge. Before each official attempt the team says whether it wants to try it, and the answer cannot be changed once the attempt starts.
+
+If the team takes part, the judges pick one sign, never the first one, and replace it with the same sign in the opposite colour: red becomes green and green becomes red. They also move it to a random height of 50 mm or 150 mm instead of the standard 100 mm. The 50 × 50 mm base and the position on the field stay where they were. The judges write down the original colour and the modified height, and the same sign and height are used for every team in that round.
+
+The car then has to ignore the colour it sees. It must pass on the side the original colour asked for: if the sign used to be red, it goes to the right even though the sign now looks green.
+
+Each successful pass is worth 5 points, up to three passes, so 15 points. The Obstacle Challenge maximum rises from 62 to 77 points and the total for the competition to 137. Teams that do not take part keep the standard field, rules and scoring.
+
+This is why we added a VL53L0X time-of-flight sensor. The LiDAR was set up for the standard 100 mm obstacles and scans in one plane, so a sign at 50 mm passes underneath and never shows up. The ToF watches that low band and tells the car the sign is there. The height of 150 mm is not a problem for the LiDAR, but the 50 mm one is, and both are part of the same rule.
+
 ---
 
 ## 3. The team
@@ -122,8 +134,8 @@ This is our first WRO.
 | Centre of gravity | Pending; the software assumes 40 mm height and 62 % of the weight at the rear | Assumed |
 | Chassis | 260 × 120 × 45.65 mm, PETG printed in 3D, 4 mm base | CAD |
 | Brains | ESP32-P4 for planning and control, ESP32-S3-CAM for vision | Datasheet |
-| Sensors | 360° LiDAR D500/D6, MPU-6050 IMU, axle encoder, OV3660 or OV2640 camera | Datasheet |
-| Actuators | SCS0009 bus servo, JGB37-520 motor with encoder, DRV8871 H-bridge | Datasheet |
+| Sensors | 360° LiDAR D500/D6, MPU-6050 IMU, axle encoder, OV3660 or OV2640 camera, VL53L0X ToF | Datasheet |
+| Actuators | SCS0009 bus servo, JGB37-520 motor at 800 rpm with encoder, DRV8871 H-bridge | Datasheet |
 | Power | 3S LiPo 11.1 V 2200 mAh 50C, XL4015 buck converter to 5.1 V | Datasheet |
 
 Three figures are missing that can only be taken with the car assembled: mass, centre of gravity and track width. We will fill them in when the chassis is printed. Until they exist, any track number would be a guess.
@@ -158,26 +170,53 @@ These images are renders of the complete CAD assembly, not photographs of the as
 
 | Bought | Made in-house |
 |---|---|
-| LiDAR, ESP32-P4, ESP32-S3-CAM, IMU, camera and FPC cable | Complete chassis and its covers |
+| LiDAR, ESP32-P4, ESP32-S3-CAM, IMU, camera, FPC adapter and ribbon, and VL53L0X ToF | Complete chassis and its covers |
 | Motor with encoder, servo, servo adapter, H-bridge | Gears, ring gear and differential housing |
 | Battery, buck converter, fuse holders and fuse | Mounts for servo, motor, LiDAR, IMU and battery |
 | Ø65 × 25 mm wheels | Steering arms, tie rod and wheel holders |
 | Threaded inserts, M3 fasteners, PETG filament | LiDAR plate and wheel retainers |
 
-### 4.4 Budget
+### 4.4 Bill of materials
 
-BOM summary by category, in US dollars and without shipping or taxes:
+Every part we bought, with the price we paid. All figures in US dollars, purchase price, without shipping or taxes. Each row is one purchase, not one piece: the packs are noted in the specification.
+
+| # | Component | Image | Qty | What it does | Model and specification | Price |
+|---|---|---|---:|---|---|---:|
+| 1 | 360° LiDAR | <img src="docs/assets/bom/lidar.png" width="90"> | 1 | Maps walls, pillars and the parking bay | D500/D6, time of flight, 12 m, 10 Hz, UART at 230400 baud | $75.00 |
+| 2 | Vision board | <img src="docs/assets/bom/camera.png" width="90"> | 1 | Detects the pillars and their colour | ESP32-S3-CAM by FORIOT, OV3660 or OV2640, PSRAM | $18.00 |
+| 3 | Camera extension adapter | <img src="docs/assets/bom/fpc-adapter.png" width="90"> | 1 | Joins the camera flex to the long ribbon | uxcell 24-pin to 24-pin FPC adapter board, one ZIF socket on each side | $7.79 |
+| 4 | Camera ribbon |  | 1 | Carries the camera signal to the nose | FFC 24-pin, 0.5 mm, 200 mm, pack of 20 | $6.69 |
+| 5 | IMU | <img src="docs/assets/bom/imu.png" width="90"> | 1 | Heading and turn rate | MPU-6050 on a GY-521 board, I²C at 0x68, pack of 3 | $10.00 |
+| 6 | Time-of-flight sensor | <img src="docs/assets/bom/tof.png" width="90"> | 1 | Sees the 50 mm signs the LiDAR misses | VL53L0X, I²C, up to 2 m, pack of 2 | $6.99 |
+| 7 | Main board | <img src="docs/assets/bom/p4.png" width="90"> | 1 | Mission, localisation, planning and control | ESP32-P4 DevKit by Waveshare, 32 MB PSRAM, two cores | $27.00 |
+| 8 | Servo adapter | <img src="docs/assets/bom/servo-adapter.png" width="90"> | 1 | Talks half-duplex to the servo | Waveshare Bus Servo Adapter (A), SKU 25514 | $13.00 |
+| 9 | Traction motor | <img src="docs/assets/bom/motor.png" width="90"> | 1 | Rear drive | JGB37-520, 12 V, 800 rpm, Hall encoder, 440 counts per revolution | $13.00 |
+| 10 | Steering servo | <img src="docs/assets/bom/servo.png" width="90"> | 1 | Turns the front wheels | SCS0009 bus servo, metal gears, real position feedback | $7.00 |
+| 11 | H-bridge | <img src="docs/assets/bom/drv8871.png" width="90"> | 1 | Forward and reverse | DRV8871, 3.6 A, PWM and direction on two pins | $9.00 |
+| 12 | Buck converter | <img src="docs/assets/bom/xl4015.png" width="90"> | 1 | 11.1 V down to 5.1 V | XL4015, 5 A, non-isolated | $11.00 |
+| 13 | Battery | <img src="docs/assets/bom/battery.png" width="90"> | 1 | Single power source | HOOVO 3S LiPo, 11.1 V, 2200 mAh, 50C, EC3, pack of 2 | $37.00 |
+| 14 | Fuse holder |  | 1 | Main protection | In-line 12 V, 18 AWG cable, 5 A fuse, pack of 2 | $5.00 |
+| 15 | Filament |  | 1 | Chassis, gears and mounts | PETG Rapid, 1.75 mm | $26.00 |
+| 16 | Wheels |  | 4 | Traction and steering | Ø65 × 25 mm | Pending |
+| 17 | Threaded inserts |  | 1 | Join the printed covers and mounts | M3 heat-set brass, 100 pieces | $10.00 |
+| 18 | Fasteners |  | 1 | Assembly | M3 countersunk head and hex nut, 4 to 20 mm, 380 pieces | $7.00 |
+
+By category:
 
 | Category | Total |
 |---|---:|
-| Perception (LiDAR, camera, IMU, cable) | $111 |
-| Control (P4, servo adapter) | $40 |
-| Actuation (motor, servo, H-bridge) | $29 |
-| Power (battery, buck converter, fuses) | $53 |
-| Structure and manufacturing (filament, wheels, inserts, fasteners) | $43 |
-| **Total** | **$276** |
+| Perception (LiDAR, camera, extension, IMU, ToF) | $124.47 |
+| Control (P4, servo adapter) | $40.00 |
+| Actuation (motor, servo, H-bridge) | $29.00 |
+| Power (battery, converter, fuse) | $53.00 |
+| Structure and manufacturing (filament, wheels, inserts, fasteners) | $43.00 |
+| **Total** | **$289.47** |
 
 The wheels are bought, but we do not have their exact price yet, so they are not in the total. The full project budget, with shipping, registration and spares, is still open.
+
+The working file with the links and the per-category formulas is `BOOM.xlsx` in `Documentos_Referencia/03_Presupuesto/`.
+
+The 13 November logbook mentions the L298N because that was the planned bridge at the time. The design later moved to the DRV8871, which is what the car and the budget use.
 
 ---
 
@@ -189,7 +228,7 @@ The first version did not fail on paper. It failed on the track: it slipped and 
 
 | Aspect | v1 (16 Oct) | v2 (12 Nov) |
 |---|---|---|
-| Motor | Yellow dual-shaft DC motor, no encoder | JGB37-520 12 V, 1000 rpm, with encoder |
+| Motor | Yellow dual-shaft DC motor, no encoder | JGB37-520 12 V, 800 rpm, with encoder |
 | Drivetrain | No differential; slipped | Differential and rear bearings |
 | Servo angle | 70° programmed | 62° programmed |
 | Chassis (CAD) | 300 × 38 × 150 mm | 260 × 120 × 45.65 mm |
@@ -256,7 +295,7 @@ To measure it we will use a scale for the total mass and two crossed weighings t
 |---|---|
 | LiDAR | On a 60 × 62 × 2 mm plate, 60 mm high, flat |
 | IMU | Flat at 60 mm, next to the LiDAR |
-| Camera | At the nose, separated from the S3 board by a 24-pin FPC extension; height and tilt pending |
+| Camera | At the nose, separated from the S3 board by a 24-pin FPC adapter and a 200 mm ribbon; height and tilt pending |
 | Battery | Modelled in CAD as 103 × 34 × 24 mm |
 | Electronics | At the rear, next to the motor |
 | Servo | Two M2 screws in the ears; the arm sits on the spline with a centre screw |
@@ -300,6 +339,7 @@ flowchart LR
     BUCK --> S3["ESP32-S3-CAM"]
     BUCK --> LID["360° LiDAR"]
     BUCK --> IMU["MPU-6050"]
+    BUCK --> TOF["VL53L0X ToF"]
     BUCK --> ADP["Servo adapter<br/>Waveshare (A)"]
     ADP --> SRV["SCS0009 servo"]
     H --> MOT["JGB37-520 motor"]
@@ -307,27 +347,11 @@ flowchart LR
     ENC --> P4
     LID --> P4
     IMU --> P4
+    TOF --> P4
     S3 <-->|"serial link 921600"| P4
 ```
 
-### 6.2 Components and why
-
-| Component | Choice | Reason |
-|---|---|---|
-| Battery | 3S LiPo 11.1 V 2200 mAh 50C (HOOVO, 174 g) | Single source; EC3 on the battery and XT60H on the car, with an adapter lead |
-| Converter | XL4015, 5 A, non-isolated | Steps down to 5.1 V; input and output share GND |
-| H-bridge | DRV8871, 3.6 A | Forward and reverse with PWM and direction on two pins |
-| Motor | JGB37-520 12 V, 600 rpm today and 1000 rpm final | Built-in quadrature Hall encoder, 440 counts per revolution |
-| Servo | SCS0009 bus servo | Metal gears and real position feedback |
-| Servo adapter | Waveshare Bus Servo Adapter (A), SKU 25514 | Half-duplex, 3.3 V levels and a protected power terminal |
-| IMU | MPU-6050 on GY-521 | Z-axis gyro; onboard regulator and pull-ups |
-| LiDAR | D500/D6, 360° time-of-flight | 12 m, 10 Hz, 230400 baud; works under strong ambient light |
-| Main board | ESP32-P4 | 32 MB PSRAM, two cores, USB console |
-| Vision | ESP32-S3-CAM with OV3660 or OV2640 | Soldered camera, PSRAM and FPC extension to move the module to the nose |
-
-The 13 November logbook mentions the L298N because that was the planned bridge at the time. The design later moved to the DRV8871, which is what the car and the budget use.
-
-### 6.3 Power
+### 6.2 Power
 
 The battery enters through the XT60H (EC3 with an adapter lead), goes through a 5 A fuse and the main switch. From there two branches leave: one straight to the DRV8871 at 12.6 V and one to the XL4015 at 5.1 V.
 
@@ -340,13 +364,14 @@ The 5.1 V bus feeds both boards, the LiDAR, the IMU, the bridge logic and the se
 | LiDAR | 290 mA | 320 mA |
 | Servo | 150 mA | 1000 mA |
 | Adapter, bridge logic and IMU | 49 mA | 64 mA |
+| VL53L0X ToF | 20 mA | 40 mA |
 | **Total** | **≈ 1.0 A** | **≈ 2.2 A** |
 
 The XL4015 is rated at 5 A, but without a heatsink it should not go above 2.5 A. Including the motor, the battery delivers at most about 3.5 A peak, well below what a 2200 mAh 50C pack can supply.
 
 All grounds go to a single point. A floating GND between motor and signal turns into garbage data.
 
-### 6.4 Motor and encoder
+### 6.3 Motor and encoder
 
 The motor uses a single DRV8871 channel. Commands go through IN1 and IN2 with PWM on the inputs, and the bridge delivers up to 3.6 A.
 
@@ -361,13 +386,13 @@ The six-pin encoder connector is silkscreened M1, GND, C1, C2, VCC, M2. The vend
 
 At 440 counts per revolution, each count is 0.047 cm of travel. That is the resolution the odometry uses to estimate the pose between LiDAR scans.
 
-### 6.5 Steering servo
+### 6.4 Steering servo
 
 The SCS0009 speaks over a single half-duplex wire. The Waveshare adapter separates TX and RX, keeps the response at 3.3 V and distributes power. Both jumpers go in row A (UART). TX goes to GPIO26 and RX to GPIO21, without crossing them: RX to RX and TX to TX.
 
 The adapter does not regulate the servo voltage. If the PWR LED does not light, the fix is to power only the adapter from a 6 V branch, not to raise the whole bus.
 
-### 6.6 P4 pin map
+### 6.5 P4 pin map
 
 | Function | GPIO | Note |
 |---|---|---|
@@ -377,20 +402,21 @@ The adapter does not regulate the servo voltage. If the PWR LED does not light, 
 | LiDAR RX | 22 | 230400 baud |
 | S3 link RX / TX | 38 / 37 | From GPIO1 and to S3 GPIO14 |
 | IMU SDA / SCL | 7 / 8 | I²C, address 0x68 |
+| ToF SDA / SCL | Pending | I²C, address 0x29, same bus as the IMU |
 | START button | 5 | To GND, internal pull-up |
 | Battery (future) | 20 | ADC, divider pending |
 
 Pins 2, 3, 4, 6, 46, 47 and 48 are free. Do not use 24 and 25 (USB OTG/JTAG), 0, 34, 35 and 36 (boot), or the audio, microSD, Ethernet and LED pins of the board.
 
-### 6.7 Camera and FPC extension
+### 6.6 Camera and FPC extension
 
-The S3-CAM does not sit where the camera sits. The v2 CAD reserves the nose for the module and leaves the board at the rear, with the rest of the electronics. To separate them we use a 24-pin, 0.5 mm, male-to-female FPC extension about 20 cm long. The module stays alone at the front and the S3-CAM at the rear, without moving the board connector.
+The S3-CAM does not sit where the camera sits. The v2 CAD reserves the nose for the module and leaves the board at the rear, with the rest of the electronics. We separate them with two pieces: a 24-pin to 24-pin FPC adapter board, with a ZIF socket on each side, and a 24-pin, 0.5 mm, 200 mm FFC ribbon. The camera's own flex goes into one socket and the ribbon goes from the other socket to the S3-CAM, so the module stays at the front without moving the connector on the board.
 
-The extension is the same type as the original flex: 24 contacts, 0.5 mm pitch and contacts on the same side. A Raspberry Pi Zero Camera flex does not work, because it has 22 pins and uses MIPI CSI-2, a different signal and connector.
+The adapter joins the contacts one to one and does not change their order or their side. The ribbon is the same type as the original flex: 24 contacts at 0.5 mm pitch. A Raspberry Pi Zero Camera flex does not work, because it has 22 pins and uses MIPI CSI-2, a different signal and connector.
 
-The length is short on purpose. The camera runs over DVP, eight parallel bits, and at 20 MHz a long flex behaves like an antenna: shifted pixels and broken frames appear. 20 cm should be enough. If errors appear, the first adjustment is to lower the camera clock, not to lengthen the cable.
+The length is short on purpose. The camera runs over DVP, eight parallel bits, and at 20 MHz a long flex behaves like an antenna: shifted pixels and broken frames appear. 200 mm should be enough. If errors appear, the first adjustment is to lower the camera clock, not to lengthen the cable.
 
-### 6.8 Bring-up
+### 6.7 Bring-up
 
 1. Without the battery, check that 12 V and 5 V have no continuity to GND. Power the XL4015 from a 12 V lab supply and set it to 5.1 V with no load. Repeat with a 10 Ω resistor and measure again at the board pin.
 2. Power the board alone and confirm it boots. Connect the LiDAR and check that it spins and delivers data. Connect the IMU and check address 0x68.
@@ -400,7 +426,7 @@ The length is short on purpose. The camera runs over DVP, eight parallel bits, a
 
 If something fails, we disconnect the last thing added and step back. That way the error shows up where it is, not somewhere among the twenty cables of the car.
 
-### 6.9 Electronics pending
+### 6.8 Electronics pending
 
 - Measure the real motor current with the complete car. The 2.5 A stall figure is from the datasheet.
 - Test the servo at 1 Mbit/s with the adapter and the real cable, with the servo mounted.
@@ -408,7 +434,7 @@ If something fails, we disconnect the last thing added and step back. That way t
 - Measure servo torque at 5.1 V with the steering assembled. If it is not enough, use a 6 V branch.
 - Confirm that the adapter's internal regulator starts at 5.1 V (PWR LED).
 - Install the voltage divider on GPIO20 to monitor the battery.
-- Test the 24-pin FPC extension with the car assembled and set the camera height and tilt.
+- Test the camera extension, adapter board and 200 mm ribbon, with the car assembled and set the camera height and tilt.
 - Confirm whether the S3 camera is OV3660 or OV2640 and run a continuous three-minute test.
 
 ---
@@ -563,7 +589,6 @@ Documenting what did not work is also part of the method. These ideas were teste
 | Clearance braking (`tight_clear`) | Cost about 18 s and broke parking |
 | Three-segment manoeuvre | The steering pattern was inverted and, once fixed, found no solution |
 | Two-arc S from the lane | The rear corner caught the stop at 6.5 cm |
-| 1000 rpm motor for today | The mounted motor is 600 rpm; the 1000 rpm profile is ready |
 
 ---
 
@@ -580,7 +605,7 @@ The world advances with dt of 0.01 s, 8 ms of process delay and 12 ms of command
 | It models | It does not model, or does it differently |
 |---|---|
 | LiDAR with noise and latency | The real LiDAR does not emit blind mode or points closer than 5 cm |
-| Synthetic vision with colours | The real camera can fail because of light or the flex |
+| Synthetic vision with colours | The real camera can fail because of light or the ribbon |
 | IMU and encoder with noise | The real car has a single encoder; the simulator averages two wheels |
 | First-order MG90S servo | The real servo is an SCS0009 |
 | JGB37-520 motor with a physical model | Real actuators receive commands in 100 ms steps |
@@ -628,16 +653,25 @@ We recorded a full round on 10 November: [youtu.be/XHigaxjfDUE](https://youtu.be
 | Intelligent Trajectory with MIC | 7 full rounds, 62 points, 0 contacts, 151 cm/s top speed |
 | 100-track bench, earlier stage | 99 of 100 in tuning and 95 of 100 in validation, 0 contacts |
 | Localiser and map | 2.3 cm mean and 3.5 cm maximum, 0.78 cm RMS |
+| Controller scan on the P4 | 84.5 ms, p95 92.5, down from 142.6 ms |
+| Intelligent Trajectory plan on the P4 | 18 s down to 4.2 s with the incremental evaluation |
+| Parking A* on the P4 | 11 to 27 s down to 5 to 11 s |
+| Camera on the S3 | 71.4 fps stable for 120 s, 0 bad tables and no sequence gaps |
+| 48 rounds with 5 signs, simulator using the measured P4 costs | 62 points and 0 contacts, 90.3 s per round, laps of 21.6 s and 10.8 s |
 
 <div align="center">
 <img src="docs/assets/trajectory.png" alt="The line discovered by the Intelligent Trajectory coloured by speed and the speed over a full round" width="900">
 </div>
 
-On feasible random tracks, the ones the interface draws, 24 of 24 rounds end with 62 points and no contacts. The cw direction takes a few seconds longer than ccw, because the exit ends with another heading and the cw parking plan comes out longer. The old "1 in 3 ends in wrong-side" came from the measurement tool drawing tracks no chassis can pass, such as a sign 45 cm from the bay exit. Map accuracy at the 34 cm/s mapping speed is still not measured. The planner takes about 0.4 s on a PC and we have not measured its time on the P4, which is why it is split into 10 ms steps.
+On feasible random tracks, the ones the interface draws, 24 of 24 rounds end with 62 points and no contacts. The cw direction takes a few seconds longer than ccw, because the exit ends with another heading and the cw parking plan comes out longer. The old "1 in 3 ends in wrong-side" came from the measurement tool drawing tracks no chassis can pass, such as a sign 45 cm from the bay exit. Map accuracy at the 34 cm/s mapping speed is still not measured. The planner takes about 0.4 s on a PC; on the P4 it took 18 s and is now 4.2 s, which is why the work is split into chunks and moved to the second core.
+
+The 16 November measurements changed two things. First, the C on the P4 runs about 40 times slower than on a PC, so the 142 ms controller scan did not fit the 100 ms budget; it is now 84.5 ms. Second, the simulator now applies those real costs by default, so its round times stopped being optimistic: 90.3 s instead of 89.1 s, and the difference between an ideal run and a real one is small. Details in `MEDIDAS_HARDWARE_P4.md`.
 
 ### 9.2 Hardware
 
-The only thing tested on real hardware is the S3 camera. The motors, encoders, LiDAR, IMU, servo and the flash map save are integrated in the firmware but have not been tested on the car. The power electronics is documented and being assembled, with final measurements pending.
+Three things have been measured on real hardware. The camera on the S3 runs at 71.4 fps for 120 s with no bad tables. The motor turns at 844 rpm with no load at 12.0 V, which is why the documentation uses 800 rpm. The P4 was timed with the real firmware: the controller scan, the Intelligent Trajectory plan and the parking A* all have real numbers now, and the memory and pin map were checked against the board.
+
+The motors, encoders, LiDAR, IMU, servo and the flash map save are integrated in the firmware but have not been tested on the car. The power electronics is documented and being assembled, with final measurements pending. The VL53L0X is bought and its use is defined, but it is not wired or in the firmware yet.
 
 The v1 chassis was tested and failed because of rear slip. The v2 is still untested, unweighed and without a measured centre of gravity or real angle.
 
@@ -651,6 +685,7 @@ The v1 chassis was tested and failed because of rear slip. The v2 is still untes
 | LiDAR | It does not emit blind mode or points closer than 5 cm; an obstacle against the nose does not appear |
 | Actuators | The car receives discrete commands every 100 ms and the real servo has stops |
 | Plan and flash | The plan time on the P4 and the map save are not measured |
+| ToF | It is bought but not wired or in the firmware; the mounting height and the detection of the 50 mm sign are untested |
 
 ---
 
@@ -707,7 +742,7 @@ AutoNex/
 ├── t-photos/            # team photos
 ├── v-photos/            # vehicle photos, six views
 ├── video/               # competition video links
-└── ARQUITECTURA.md · ESTADO.md · ACKERMANN.md · PENDIENTES_PARQUEO.md
+└── ARQUITECTURA.md · ESTADO.md · ACKERMANN.md · PENDIENTES_PARQUEO.md · MEDIDAS_HARDWARE_P4.md
 ```
 
 ### 11.2 Documentation
@@ -723,7 +758,8 @@ Each subsystem is documented by the engineer who built it.
 | [`ACKERMANN.md`](ACKERMANN.md) | What the Ackermann chassis changes in the firmware |
 | [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md) | Parking: open limits, experiments and measurements |
 | [`simulator/README.md`](simulator/README.md) | Simulator: how it works and how to measure with it |
-| [`docs/LOGBOOK.pdf`](docs/LOGBOOK.pdf) | Engineering logbook, 6 to 13 November 2026 |
+| [`MEDIDAS_HARDWARE_P4.md`](MEDIDAS_HARDWARE_P4.md) | Measurements on the real P4: scan time, plans, memory, camera and motor |
+| [`docs/LOGBOOK.pdf`](docs/LOGBOOK.pdf) | Engineering logbook, 6 to 16 November 2026 |
 
 ### 11.3 Where to start
 
@@ -779,6 +815,7 @@ $env:WASI_SDK_PATH = "C:\path\to\wasi-sdk"   # or use -Download to fetch it into
 | Three laps and parking | Phase machine | `wro_controller.c` |
 | No radio during the round | Wi-Fi and Bluetooth off; physical start | `hw_start.c` and [`docs/ELECTRONICS.md`](docs/ELECTRONICS.md) |
 | Own work and open repository | Commit history, code, documents and own CAD | GitHub |
+| Surprise rule, optional | A ToF covers the 50 mm signs; the team decides before each attempt | Section 2.1 of this README |
 
 | Required material | Where |
 |---|---|
@@ -796,10 +833,11 @@ The rules ask for video of both challenges. This documentation describes the aut
 
 1. Close mechanics: weights, real wheelbase, maximum angle and sensor mounting.
 2. Measure servo and motor: speed, delay and torque of the SCS0009; speed against PWM and current of the JGB37-520.
-3. Bench-test by blocks: LiDAR, IMU, encoder, P4-S3 link, camera extension and flash map.
+3. Bench-test by blocks: LiDAR, IMU, ToF, encoder, P4-S3 link, camera extension and flash map.
 4. Calibrate odometry and localiser on the real car.
 5. Enable MIC and then the Intelligent Trajectory, only with the previous measurements loaded.
-6. Run a continuous three-minute test and adjust the final times.
+6. Wire the VL53L0X, set its mounting height and test detection of the 50 mm sign.
+7. Run a continuous three-minute test and adjust the final times.
 
 ### 14.2 Measurements still pending
 
@@ -816,6 +854,7 @@ The rules ask for video of both challenges. This documentation describes the aut
 | Plan time on the P4 | Today we only know the PC time, about 0.4 s |
 | Wheel price and supplier | The only budget line still without a cost |
 | Track times | They do not exist yet. Any number would be invented |
+| Height and detection range of the VL53L0X | The 50 mm sign only appears if the ToF is aimed at the right band |
 
 ---
 

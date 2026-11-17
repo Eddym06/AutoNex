@@ -35,10 +35,11 @@ installed and the other kept as a spare. It measures approximately 20 × 15 mm a
 terminal blocks for `VM`/`GND` and for the motor, a header with `IN1`/`IN2`, a filter
 electrolytic and the `ILIM` resistor that sets the current limit.
 
-**JGB37-520 motor.** 12 V geared motor with a built-in quadrature Hall encoder. The installed
-unit is 800 rpm by its label (844 rpm measured with no load at 12.0 V on 16 Nov); the final one will be 1000 rpm. The gear ratio is 10:1 and the encoder
-delivers 11 pulses per channel per motor revolution, giving 440 counts per revolution at the
-output shaft. It sits on the rear axle, with both wheels mechanically joined.
+**JGB37-520 motor.** 12 V geared motor with a built-in quadrature Hall encoder. The unit is
+800 rpm by its label, and 844 rpm were measured with no load at 12.0 V on 16 Nov. The gear
+ratio is 10:1 and the encoder delivers 11 pulses per channel per motor revolution, giving 440
+counts per revolution at the output shaft. It sits on the rear axle, with both wheels
+mechanically joined.
 
 **SCS0009 servo.** Steering actuator. It is a bus servo: the position is sent over a serial
 protocol and the servo replies with its status. It operates from 4 to 7.4 V, with 2.3 kg·cm
@@ -55,6 +56,13 @@ or USB. It is powered from the 5.1 V bus and the servo plugs directly into one o
 of interest is the angular rate on the Z axis. It includes a 3.3 V regulator and pull-up
 resistors, so it can be powered from 5 V without compromising the bus. With `AD0` tied to
 ground it responds at address 0x68. The auxiliary `XDA` and `XCL` pins are not used.
+
+**VL53L0X.** Time-of-flight distance sensor for the surprise rule. It measures up to 2 m with
+an invisible 940 nm laser and answers over I²C at address 0x29, so it shares the bus with the
+MPU-6050 without colliding. It works from 2.6 to 5.5 V and draws about 20 mA while ranging,
+40 mA at start-up. The module carries its own 2.8 V regulator and level shifters. It is aimed
+at the low band of the field, because the LiDAR sweeps a single plane set for the standard
+100 mm signs and a sign at 50 mm passes underneath without ever showing up in the scan.
 
 **D500 LiDAR.** 360° time-of-flight laser scanner. 12 m range, 10 revolutions per second and
 roughly 5000 points per second over UART at 230400 baud. It draws about 290 mA at 5 V and uses
@@ -73,13 +81,16 @@ Electrically: it hangs off the 5.1 V bus, draws about 180 mA with the camera act
 during the runs, as the rulebook requires, which also removes the radio current spike.
 
 The camera is not mounted on the board. The v2 CAD reserves the nose for the module and leaves
-the rear for the electronics, so the two are separated with a **24-pin, 0.5 mm FPC
-extension**, male-to-female, about 20 cm long. It must be the same type as the original flex:
-24 contacts, 0.5 mm pitch and contacts on the same side. The flex from a Raspberry Pi Zero
-Camera is not compatible: it has 22 pins and uses MIPI CSI-2, whereas the S3-CAM works with
-eight-bit parallel DVP. The length is kept short because at 20 MHz a long flex acts as an
-antenna and shifted pixels appear; if that happens, the camera clock is reduced rather than
-extending the cable.
+the rear for the electronics, so the two are separated with two pieces: a **24-pin to 24-pin
+FPC adapter board**, with a ZIF socket on each side, and a **24-pin, 0.5 mm, 200 mm FFC
+ribbon**. The camera's own flex goes into one socket and the ribbon runs from the other socket
+to the S3-CAM, so the module stays at the front without moving the connector on the board. The
+adapter joins the contacts one to one and does not change their order or their side. The
+ribbon is the same type as the original flex, 24 contacts at 0.5 mm pitch. The flex from a
+Raspberry Pi Zero Camera is not compatible: it has 22 pins and uses MIPI CSI-2, whereas the
+S3-CAM works with eight-bit parallel DVP. The length is kept short because at 20 MHz a long
+flex acts as an antenna and shifted pixels appear; if that happens, the camera clock is reduced
+rather than extending the cable.
 
 **Protection.** Main switch, start button and fuse. All three are build requirements: the
 switch turns the vehicle on, the button gives the start and the fuse limits current in the
@@ -110,12 +121,13 @@ flowchart TB
     end
 
     subgraph PER["PERIPHERALS"]
-        MOT["JGB37-520 motor<br/>12 V · 800 rpm (later 1000)"]
+        MOT["JGB37-520 motor<br/>12 V · 800 rpm"]
         ENC["A/B encoder"]
         ADP["Servo bus adapter (A)<br/>jumpers on A"]
         SRV["SCS0009 servo"]
         LID["D500 LiDAR"]
         IMU["MPU-6050"]
+        TOF["VL53L0X ToF"]
         BTN["START button"]
         S3CAM["ESP32-S3-CAM<br/>OV3660 camera"]
     end
@@ -127,6 +139,7 @@ flowchart TB
     BUCK ==>|"5.1 V"| ADP
     BUCK ==>|"5.1 V"| LID
     BUCK ==>|"5.1 V"| IMU
+    BUCK ==>|"5.1 V"| TOF
     BUCK ==>|"5.1 V"| S3CAM
     DRV ==>|"OUT1 · OUT2"| MOT
     MOT --> ENC
@@ -136,6 +149,7 @@ flowchart TB
     ADP ==>|"D · V · G"| SRV
     LID -->|"UART<br/>GPIO22"| P4
     IMU -->|"I²C<br/>GPIO7 · GPIO8"| P4
+    TOF -->|"I²C<br/>GPIO7 · GPIO8"| P4
     BTN -->|"GPIO5"| P4
     P4 <-->|"UART 921600<br/>GPIO37 · GPIO38"| S3CAM
 
@@ -149,7 +163,7 @@ flowchart TB
     class DRV,BUCK dist
     class P4 ctrl
     class MOT,SRV,ADP act
-    class ENC,LID,IMU,BTN,S3CAM sen
+    class ENC,LID,IMU,TOF,BTN,S3CAM sen
 ```
 
 ---
@@ -176,6 +190,7 @@ flowchart LR
     ADP -->|"D/V/G"| SRV["SCS0009 servo"]
     BUS -->|"22 AWG"| LID["D500 LiDAR"]
     BUS -->|"22 AWG"| IMU["MPU-6050"]
+    BUS -->|"22 AWG"| TOF["VL53L0X"]
 
     BAT -.->|"16 AWG"| GND(["Common GND"])
     DRV -.-> GND
@@ -185,6 +200,7 @@ flowchart LR
     ADP -.-> GND
     LID -.-> GND
     IMU -.-> GND
+    TOF -.-> GND
 
     classDef pot fill:#b45309,stroke:#78350f,color:#ffffff
     classDef ctrl fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
@@ -192,14 +208,15 @@ flowchart LR
     classDef tierra fill:#111827,stroke:#000000,color:#ffffff
     class DRV,BUCK,BUS pot
     class P4,S3CAM ctrl
-    class SRV,LID,IMU,ADP carga
+    class SRV,LID,IMU,TOF,ADP carga
     class GND tierra
 ```
 
-The fuse is 5 A. The calculation starts from two figures: the final motor draws 2.5 A in the
-worst case according to the catalogue and the electronics sit around 1 A, so the combined peak
-lands near 3.5 A. A 5 A fuse leaves margin for start-up and still acts quickly on a short
-circuit. The 800 rpm unit is still to be measured, but it does not change the choice.
+The fuse is 5 A. The calculation starts from two figures: the motor draws 2.5 A in the worst
+case according to the catalogue and the electronics sit around 1 A, so the combined peak lands
+near 3.5 A. A 5 A fuse leaves margin for start-up and still acts quickly on a short circuit.
+The real current with the car assembled is still to be measured, but it does not change the
+choice.
 
 The expected consumption on the 5 V rail is summarised in the table below:
 
@@ -211,6 +228,7 @@ The expected consumption on the 5 V rail is summarised in the table below:
 | Servo | 150 mA | 1000 mA |
 | Servo adapter (logic) | 20 mA | 30 mA |
 | IMU | 4 mA | 4 mA |
+| VL53L0X ToF | 20 mA | 40 mA |
 | **Total** | **≈ 1.0 A** | **≈ 2.2 A** |
 
 The XL4015 is rated 5 A, although without a heatsink it is limited to 2.5 A; the calculated
@@ -237,11 +255,10 @@ On cloned modules the header order may not match the manufacturer's. Before conn
 the silkscreen and verify with the multimeter that the power terminal block corresponds to
 `VM` and `GND`.
 
-The installed unit is 800 rpm (label; 844 rpm measured with no load at 12.0 V) and is used for testing; the final one will be 1000 rpm. The
-wiring does not change, because the gearbox and encoder are the same, but the top speed and
-odometry do: the 440 counts per revolution are kept and the relationship between duty cycle
-and speed changes, and it must be measured again when the motor is replaced. The difference
-between the two units is a factor of 1.67.
+The unit turns at 800 rpm by its label, and 844 rpm were measured with no load at 12.0 V. The
+wiring does not change, but the top speed and the odometry do depend on the motor: the 440
+counts per revolution are fixed by the encoder and the relationship between duty cycle and
+speed still has to be characterised with the car on the ground.
 
 | IN1 | IN2 | Function |
 |---|---|---|
@@ -462,6 +479,7 @@ flowchart LR
     SRV["SCS0009 servo"]
     LID["D500 LiDAR"]
     IMU["MPU-6050"]
+    TOF["VL53L0X ToF"]
     S3["ESP32-S3-CAM"]
     BTN["START button"]
 
@@ -489,6 +507,10 @@ flowchart LR
     BUS ==> IMU
     GND -.-> IMU
 
+    TOF <-->|"SDA 7 · SCL 8"| P4
+    BUS ==> TOF
+    GND -.-> TOF
+
     P4 <-->|"UART 921600<br/>37 and 38"| S3
     BUS ==> S3
     GND -.-> S3
@@ -503,7 +525,7 @@ flowchart LR
     class BUS,V33,GND rails
     class P4,S3 ctrl
     class DRV,SRV,ADP act
-    class MOT,LID,IMU,BTN sen
+    class MOT,LID,IMU,TOF,BTN sen
 ```
 
 ### Power and ground
@@ -539,6 +561,8 @@ tables. The complete list, including those at 3.3 V, is as follows:
 | IMU | `VCC` | 5.1 V bus | 22 AWG |
 | IMU | `GND` | Common GND | 22 AWG |
 | IMU | `AD0` | GND, to fix the address at 0x68 | 22 AWG |
+| ToF | `VIN` | 5.1 V bus | 22 AWG |
+| ToF | `GND` | Common GND | 22 AWG |
 | Button | Terminal 2 | Common GND | 22 AWG |
 
 ### Signals
@@ -560,9 +584,11 @@ tables. The complete list, including those at 3.3 V, is as follows:
 | LiDAR | `PWM` | GND, not to the P4 | 22 AWG |
 | IMU | `SDA` | P4 `GPIO7` | 22 AWG |
 | IMU | `SCL` | P4 `GPIO8` | 22 AWG |
+| ToF | `SDA` | P4 `GPIO7`, shared with the IMU | 22 AWG |
+| ToF | `SCL` | P4 `GPIO8`, shared with the IMU | 22 AWG |
 | S3-CAM | `GPIO1`, TX | P4 `GPIO38` | 22 AWG |
 | S3-CAM | `GPIO14`, RX | P4 `GPIO37`, only if the return link is used | 22 AWG |
-| Camera | 24-pin FPC | Camera module in the nose | 24-pin × 0.5 mm FPC extension |
+| Camera | 24-pin FPC | Camera module in the nose | Adapter board plus 24-pin × 0.5 mm, 200 mm FFC ribbon |
 | Button | Terminal 1 | P4 `GPIO5` | 22 AWG |
 
 ### Unused pins
@@ -572,6 +598,7 @@ tables. The complete list, including those at 3.3 V, is as follows:
 | DRV8871 | None | It is single-channel and has no unused pins left |
 | IMU | `INT` | No function on the car uses it |
 | IMU | `XDA`, `XCL` | They are the module's auxiliary I²C gateway and are not needed |
+| ToF | `XSHUT` | Not connected for now; the address stays at 0x29 and nothing else on the bus uses it |
 | S3-CAM | microSD and RGB LED | Not used on the car; the card occupies `GPIO38` to `GPIO40` and the LED `GPIO48` |
 | Servo adapter | USB-C and DC5521 jack | USB is for configuring it from a PC and the jack duplicates the terminal block; power enters through the terminal block |
 | Servo adapter | Second `D/V/G` port | Left free for a second servo with another ID |
@@ -588,6 +615,15 @@ conductors.
 **IMU.** It carries four conductors, not two: `VCC` and `GND` for power, `SDA` and `SCL` for
 data. `AD0` is tied to GND so it responds at 0x68; if left floating, the address is
 indeterminate. The `INT` interrupt is not connected, which is why the P4 `GPIO6` is left free.
+
+**VL53L0X.** It hangs on the same I²C bus as the IMU, with four conductors: `VIN`, `GND`,
+`SDA` and `SCL`. The address of 0x29 does not collide with the IMU at 0x68, the audio codec at
+0x18 or the touch controller at 0x5D, so the bus can be shared without a multiplexer. The
+`XSHUT` pin is left unconnected, which keeps the sensor enabled and the address fixed; if a
+second ToF is ever added, `XSHUT` is the pin that allows changing one of the two addresses.
+The module has its own 2.8 V regulator and level shifters, so 5.1 V at `VIN` is safe for the
+3.3 V I²C lines. Its reading depends on where it is aimed, so the mount and the angle are part
+of the pending mechanical work, not of the wiring.
 
 **P4–S3 link.** On the S3-CAM the link pins are on the other side of the header. The camera
 occupies `GPIO4` to `GPIO13` and `GPIO15` to `GPIO18`, and the microSD takes `GPIO38` to
@@ -609,6 +645,7 @@ assigned function. `GPIO24` and `GPIO25` are USB OTG and JTAG over USB: using th
 flashing and reading the registers. `GPIO7` and `GPIO8` are the board's own I²C bus, where the
 audio codec and the touch controller hang; they are used for the IMU because the MPU-6050
 responds at 0x68 and does not collide with the codec's 0x18 or the touch controller's 0x5D.
+The ToF shares that bus at 0x29, which is also free.
 
 The board also has audio on `GPIO9` to `GPIO13`, microSD on `GPIO39` to `GPIO44`, Ethernet on
 `GPIO28` to `GPIO31` and `GPIO49` to `GPIO52`, the audio amplifier on `GPIO53`, the Wi-Fi chip
@@ -634,7 +671,7 @@ use them without interference.
 | Battery − | Common GND point | 16 AWG |
 | DRV8871 `OUT1` and `OUT2` | Motor `M1` and `M2` | 16 AWG |
 | XL4015 `OUT+` | 5.1 V bus | 18 AWG |
-| 5.1 V bus | Both boards and the LiDAR | 22 AWG |
+| 5.1 V bus | Both boards, the LiDAR, the IMU and the ToF | 22 AWG |
 | 5.1 V bus | Servo adapter, with its own pair from the distribution point | 22 AWG |
 | Signals and encoder | Board | 22 AWG |
 | 3.3 V source | Encoder `VCC` and pull-ups | 22 AWG |
@@ -665,16 +702,18 @@ is modified.
 4. Power the board alone and confirm that it boots.
 5. Connect the LiDAR and verify that it spins and delivers data.
 6. Connect the IMU and check that it responds over I²C at address 0x68.
-7. Power the S3-CAM and check the 921600 link: that the table arrives complete and that there
+7. Connect the ToF on the same bus and check that it answers at 0x29 with a reading that
+   changes when a hand is moved in front of it.
+8. Power the S3-CAM and check the 921600 link: that the table arrives complete and that there
    are no truncated frames or framing errors.
-8. Turn the motor shaft by hand and verify that the encoder counts in both directions.
-9. Before connecting the servo, check that both adapter jumpers are in row `A`, measure 5.1 V
-   between `DC+` and `DC−` and 5.1 V between `V` and `G` on the servo port. The adapter `PWR`
-   LED must light, which indicates that the internal regulator is delivering the 3.3 V. Only
-   then is the servo connected and moved with the wheels off the ground, first a few degrees,
-   checking that it responds and returns a consistent position. If the LED does not light with
-   5.1 V at the input, do not continue: move the adapter to a 6 V branch.
-10. Before connecting the motor, measure 12.6 V between `VM` and `GND` with the switch closed
+9. Turn the motor shaft by hand and verify that the encoder counts in both directions.
+10. Before connecting the servo, check that both adapter jumpers are in row `A`, measure 5.1 V
+    between `DC+` and `DC−` and 5.1 V between `V` and `G` on the servo port. The adapter `PWR`
+    LED must light, which indicates that the internal regulator is delivering the 3.3 V. Only
+    then is the servo connected and moved with the wheels off the ground, first a few degrees,
+    checking that it responds and returns a consistent position. If the LED does not light with
+    5.1 V at the input, do not continue: move the adapter to a 6 V branch.
+11. Before connecting the motor, measure 12.6 V between `VM` and `GND` with the switch closed
     and check that the capacitor is installed with the correct polarity. Then connect the
     motor, also off the ground, and move it at 10 % PWM.
 
@@ -685,7 +724,7 @@ This way the fault appears where it is and not in any of the car's twenty conduc
 
 ## Design decisions
 
-**Driver.** The two IRF520 modules were ruled out from the start: the IRF520 is a single
+**Driver.** The IRF520 was ruled out from the start: it is a single
 direction MOSFET, it connects the load to ground and cannot reverse polarity, so two of them do
 not form an H-bridge. The L298N did provide forward and reverse, and it was the driver fitted
 first. The switch to the DRV8871 is justified by three datasheet figures: the drop falls from
@@ -729,6 +768,13 @@ of flight rather than triangulation, which lets it operate under bright ambient 
 detect dark objects. The trade-off is that its protocol must be followed to the letter, but
 the sensor is clearly better suited to a track with coloured walls and pillars.
 
+**ToF.** The LiDAR sweeps one plane and that plane is set for the standard 100 mm signs. A sign
+at 50 mm goes under it and the scan shows empty field. The VL53L0X covers that band: it is
+small, it costs less than any camera change, it works in the dark and it talks over the I²C bus
+that is already routed to the IMU. Its limit is the field of view, a narrow cone rather than a
+ring, so it only sees what it is pointed at and the mount has to be right. A second unit came
+in the same pack and stays as a spare.
+
 **Connectors.** The battery comes with EC3 and the car uses XT60H. A short EC3↔XT60H lead
 solves the joint without modifying the LiPo cables. Dupont connectors are kept for signals
 only, never for power.
@@ -738,8 +784,8 @@ only, never for power.
 ## Open items
 
 **Electrical measurements.** The actual motor current with the complete car is still to be
-measured. The 2.5 A stall figure comes from the 1000 rpm motor catalogue and not from our own
-measurement; the 800 rpm unit may give another value. That measurement determines whether the
+measured. The 2.5 A stall figure comes from the motor catalogue and not from our own
+measurement, so the real value may be different. That measurement determines whether the
 DRV8871 `ILIM` limit stays at 2 A or drops to about 1.3 A, and confirms that the bridge does
 not overheat.
 
@@ -758,14 +804,19 @@ with 5.1 V at the input, which the `PWR` LED indicates.
 battery during the run. Fix the final position of the switch and the button so the judge can
 operate them without taking the vehicle apart.
 
-**Motor change.** Replace the 800 rpm unit with the 1000 rpm one and measure speed, current and
-odometry again. The encoder and the wiring do not change, but the relationship between duty
-cycle and speed does, and it must be characterised again.
+**Motor characterisation.** Measure speed, current and odometry with the car on the ground and
+the full weight on the wheels. The no-load figure of 844 rpm says what the gearbox can do, not
+what the car will see, and the duty cycle to speed curve has to be built from those runs.
 
 **Camera.** Confirm the model when the board arrives: the supplier states OV3660 and the photo
 shows an OV2640 silkscreened on it. The actual revision is checked on the module and recorded
 in this document. Power and link do not change, but the model determines the sensor
 configuration.
+
+**ToF.** The sensor is bought but not wired. Three things are open: the mounting height and
+angle on the nose, the reading it gives against a real 50 mm sign at competition distance and
+under the field lights, and the threshold that tells the planner a low obstacle is there. The
+first two are mechanical and bench work; the third is firmware and goes with Eddy.
 
 **Final test.** With the car closed, a three-minute continuous test will be run with everything
 powered, which is the length of a run, recording the final current and temperature values.

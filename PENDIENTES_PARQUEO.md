@@ -106,8 +106,8 @@ Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en
 - Módulo en `Motor Control/MIC/` (probado en PC con un motor simulado). Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (apagado por defecto);
   el firmware del P4 compila con el flag encendido y apagado (ESP-IDF 5.5.4). **No probado con el motor real.**
 - Falta: calibrar R, masa, fricción, diámetro de rueda y cuentas por vuelta (README de MIC, sección 5); que el controlador pida avances exactos
-  (`mic_request_move`) y rutas en vez de solo velocidad. Desde el 16 nov todo asume el motor de 800 rpm (etiqueta; antes 600) (el de 1000 rpm llegará después).
-- Aviso: el lazo abierto actual (`WRO_MOTOR_MAX_CM_S=40`) iría ~5 veces más rápido con el motor de 800 rpm (~6 con el de 1000). Motores desactivados por defecto.
+  (`mic_request_move`) y rutas en vez de solo velocidad. Desde el 16 nov todo asume el motor de 800 rpm (etiqueta; 844 rpm medidas sin carga).
+- Aviso: el lazo abierto actual (`WRO_MOTOR_MAX_CM_S=40`) iría ~5 veces más rápido con el motor de 800 rpm. Motores desactivados por defecto.
 
 ## 8. Avances exactos con MIC y trace_map (10 nov)
 

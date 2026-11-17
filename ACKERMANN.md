@@ -9,12 +9,12 @@ de 22 × 14 cm y batalla 14 cm. Son suposiciones editables, no medidas del robot
 
 ## Hardware indicado por el equipo
 
-- Un motor trasero JGB37-520 de 12 V y 800 rpm (etiqueta; 844 rpm medidas sin carga el 16 nov; el definitivo será de 1000 rpm), con encoder integrado A/B en
+- Un motor trasero JGB37-520 de 12 V y 800 rpm (etiqueta; 844 rpm medidas sin carga el 16 nov), con encoder integrado A/B en
   cuadratura y conectado a un eje común para las ruedas traseras.
-- Puente H L298N; servo MG90S para las ruedas directrices delanteras.
-- Batería Gens Ace 3S, 11,1 V nominales, 2200 mAh, 25C; 12,6 V cargada.
+- Puente H DRV8871; servo de bus SCS0009 para las ruedas directrices delanteras.
+- Batería HOOVO 3S, 11,1 V nominales, 2200 mAh, 50C; 12,6 V cargada.
 - Placas y sensores a través de un convertidor a 5 V. IMU MPU-6050; cámara
-  S3 existente. LiDAR WitMotion D6 o D500: confirmar modelo y protocolo.
+  S3 existente; ToF VL53L0X para los letreros bajos de la regla sorpresa. LiDAR WitMotion D6 o D500: confirmar modelo y protocolo.
 
 ## Cambios y límites
 

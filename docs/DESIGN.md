@@ -13,7 +13,7 @@
 
 - AutoNex is a rear-wheel-drive car with **Ackermann front steering**. The v2 chassis is **260 × 120 × 45.65 mm** in CAD and **260 × 130 × ~80 mm** assembled, with a **163 mm wheelbase** and **34 mm** of ground clearance.
 - The first chassis (v1) was tested and failed because the **rear axle had no bearings and the car slipped**. v2 adds **10 × 15 × 4 bearings** and a **mechanical bevel-gear differential**.
-- The chassis is **PLA printed in 3D**: 4 mm base, 3 mm walls in the motor cradle. It is light and quick to iterate, but the mass has **not been weighed** and the centre of gravity has **not been measured**.
+- The chassis is **PETG printed in 3D**: 4 mm base, 3 mm walls in the motor cradle. It is light and quick to iterate, but the mass has **not been weighed** and the centre of gravity has **not been measured**.
 - The car is **designed, not validated**. There is no numerical comparison between v1 and v2 because v2 has not run and neither version was measured.
 - The next milestone is a **measurement pass**: mass, CG, wheelbase, track width, wheel diameter, road-wheel angles, turning radius, gear ratio, servo and LiDAR models. Those values then go into the firmware configuration.
 
@@ -52,7 +52,7 @@
 2. **Steering range and repeatability.** The car has to map a random track, drive it for three laps and park in a bay. The steering must reach the angles the planner asks for and return to centre without play.
 3. **Stiffness and mass.** The chassis carries the motor, the battery, the electronics and the sensors. It must stay straight under load and stay under the 1.5 kg limit with margin.
 4. **Sensor field of view.** The LiDAR needs a clear 360° sweep; the camera needs the pillars and the parking bay; the IMU needs a rigid, flat mount.
-5. **Manufacturability.** The chassis is FDM-printed PLA. The design has to print without supports where possible, accept fasteners, and be serviceable.
+5. **Manufacturability.** The chassis is FDM-printed PETG. The design has to print without supports where possible, accept fasteners, and be serviceable.
 6. **Serviceability.** Bearings, gears, wheels, servo and battery have to be reachable without cutting the chassis.
 
 ## 2. Key numbers
@@ -76,20 +76,20 @@
 | Mass | **not weighed**; target ≤ 1.2 kg; limit 1.5 kg | `[pending]` | The CAD mass is not usable (see 3.3) |
 | Rear weight share | **not measured**; 62 % assumed | `[pending]` / `[assumed]` | Firmware `it.rear_weight` |
 | Centre-of-gravity height | **not measured**; 40 mm assumed | `[pending]` / `[assumed]` | Firmware `it.cg_height_cm` |
-| Material | PLA, FDM printed | `[measured]` | No laser cutting, bending or drilling was used |
+| Material | PETG, FDM printed | `[measured]` | No laser cutting, bending or drilling was used |
 
 ### 2.2 Drivetrain and steering
 
 | Parameter | Value | Source | Note |
 |---|---|---|---|
-| Motor | JGB37-520, 12 V, 1000 rpm design; 600 rpm unit fitted for tests; integrated encoder | `[CAD]` / `[measured]` | Confirm which unit is final |
+| Motor | JGB37-520, 12 V, 800 rpm, integrated encoder | `[measured]` | 844 rpm measured with no load at 12.0 V |
 | Motor reduction | 10:1 | `[design]` | Integrated gearbox; from the motor specification |
 | Encoder | 11 pulses per channel per motor revolution; 440 counts per output revolution in quadrature | `[calculated]` | 11 × 4 × 10 |
 | Final drive | `gear3` Ø26.8 → `gear 4` Ø45.4; ratio ≈ 1.7:1 | `[CAD]` / `[calculated]` | Outside diameters; tooth counts are not stored in the CAD |
 | Rear axle | Ø9.8 mm | `[CAD]` | `Axis of wheel` |
 | Rear bearings | 10 × 15 × 4 mm | `[CAD]` | The author places them in the rear axle |
 | Differential | Bevel gears: housing `Base` 36 × 20 × 55 mm, carrier `Base of gear` 23 × 12.5 × 21 mm, satellites `gear1`/`gear2` Ø11.4 mm, pin `Axis of gear 2` Ø2.5 mm | `[CAD]` | Exact tooth counts not stored |
-| Steering servo | MG90S in the CAD; SCS0009 in the electronics document | `[CAD]` / `[design]` | **Must be reconciled before the final mount** |
+| Steering servo | SCS0009 bus servo; the CAD still models the MG90S | `[design]` / `[CAD]` | The mount has to follow the SCS0009 |
 | Servo command | 62° in v2 (70° in v1) | `[design]` | This is the servo shaft rotation, **not** the road-wheel angle |
 | Maximum road-wheel angle | **not measured**; firmware uses 40° | `[pending]` / `[assumed]` | Measure left and right at full travel |
 | Turning radius | **not measured** | `[pending]` | Measure on the floor; see 5.4 |
@@ -119,22 +119,22 @@ The v2 chassis is a **260 × 120 × 45.65 mm** printed structure. The base is **
 
 - **Rear:** JGB37-520 motor, `gear3` pinion, `gear 4` crown, differential, Ø9.8 mm axle, 10 × 15 × 4 bearings, rear wheels.
 - **Front:** MG90S servo, `Servo Arm`, `direction` bar, `wheel dirctor - lock` tie rod, `wheel holder 1` and `wheel holder 2`, front wheels, `Sure1`/`Sure2` retainers.
-- **Centre:** battery, ESP32-P4, L298N, XL4015, servo adapter, camera board.
+- **Centre:** battery, ESP32-P4, DRV8871, XL4015, servo adapter, camera board.
 - **Upper deck:** LiDAR on its 60 × 62 × 2 mm plate, IMU flat at 60 mm.
 
 The layout is rear-heavy on purpose: the driven axle needs load for traction, and the motor, gearbox, differential and battery are all at the back. The trade-off is front grip and steering authority; see section 6.
 
 ### 3.2 Material and manufacturing
 
-The chassis is **PLA printed in 3D**. No laser cutting, sheet bending or drilling was used; the only processes are printing and assembly.
+The chassis is **PETG printed in 3D**. No laser cutting, sheet bending or drilling was used; the only processes are printing and assembly.
 
-**Why PLA?** The reason was not recorded. The practical reasons are that PLA is available, prints easily and allows fast iteration. The design consequences are:
+**Why PETG?** The motor cradle works a few centimetres from a heat source and the part is disassembled often, so the material needs heat resistance and good layer adhesion. PETG is available locally, prints without an enclosure and keeps the iteration speed. The design consequences are:
 
-- **Low heat resistance.** PLA softens around **55–60 °C** (typical). The motor is a heat source inside a PLA cradle. Check the motor and cradle temperature after a three-minute run; add ventilation or a heat shield if the cradle creeps.
-- **Creep under sustained load.** Screw bosses and the motor cradle can deform over time. Use metal inserts or through-bolts for parts that are disassembled; do not rely on a thread cut directly into PLA.
-- **Brittle impact behaviour.** A crash or a drop can crack a printed part. Keep spare wheel holders and retainers.
+- **Heat resistance.** PETG softens around **80 °C** (typical), well above the cradle temperature, but the motor is still a heat source inside a printed pocket. Check the motor and cradle temperature after a three-minute run.
+- **Creep under sustained load.** Screw bosses and the motor cradle can deform over time, especially with the car parked in a warm place. Use metal inserts or through-bolts for parts that are disassembled; do not rely on a thread cut directly into the plastic.
+- **Impact behaviour.** PETG bends before it cracks, which suits a part that takes hits, but a hard one still leaves a white stress mark. Keep spare wheel holders and retainers.
+- **Stringing and dimensional accuracy.** PETG strings and the holes come out slightly tighter. Test-fit the bearings, the axle and the servo before printing the final set.
 - **Anisotropy.** FDM parts are weaker between layers. Orient structural parts so the layers are not in tension across the main load path.
-- **Tolerance.** Printed holes and fits vary with the printer. Test-fit the bearings, the axle and the servo before printing the final set.
 
 The print parameters (nozzle, layer height, perimeters, infill, orientation) were not documented. Record them with the final parts so the design can be reproduced.
 
@@ -159,9 +159,9 @@ The measured clearance is **34 mm**. On a flat WRO mat this is generous. A lower
 
 ### 4.1 Motor
 
-The design uses a **JGB37-520** 12 V gearmotor with an integrated **10:1** reducer and a Hall encoder. The v2 document specifies the **1000 rpm** version; the unit fitted for tests is **600 rpm**. The encoder gives **11 pulses per channel per motor revolution**, which is **440 counts per output revolution** in quadrature.
+The design uses a **JGB37-520** 12 V gearmotor with an integrated **10:1** reducer and a Hall encoder. The unit is **800 rpm** by its label, and **844 rpm** were measured with no load at 12.0 V on 16 Nov. The encoder gives **11 pulses per channel per motor revolution**, which is **440 counts per output revolution** in quadrature.
 
-The motor is driven by an **L298N** H-bridge and is mounted on a flat base, inside a **Ø37 mm** cylindrical cradle with **3 mm** walls. The CAD does not describe the motor alignment or the gear mesh; check both by hand before powering the motor.
+The motor is driven by a **DRV8871** H-bridge and is mounted on a flat base, inside a **Ø37 mm** cylindrical cradle with **3 mm** walls. The CAD does not describe the motor alignment or the gear mesh; check both by hand before powering the motor.
 
 ### 4.2 Gear train
 
@@ -169,7 +169,7 @@ The chain is:
 
 ```mermaid
 flowchart LR
-    M["JGB37-520<br/>12 V · 1000 rpm design<br/>600 rpm fitted"] --> S["6 mm D shaft"]
+    M["JGB37-520<br/>12 V · 800 rpm"] --> S["6 mm D shaft"]
     S --> P["gear3<br/>pinion Ø26.8"]
     P --> G["gear 4<br/>crown Ø45.4<br/>ratio ≈ 1.7:1"]
     G --> C["Base of gear<br/>differential carrier"]
@@ -187,10 +187,10 @@ The ratio by outside diameters is **45.4 / 26.8 ≈ 1.69**, rounded to **1.7:1**
 
 | Motor speed | Axle speed | Wheel circumference | Theoretical speed |
 |---|---|---|---|
-| 600 rpm (fitted) | 353 rpm | 204.2 mm | **1.20 m/s = 120 cm/s** |
-| 1000 rpm (design) | 588 rpm | 204.2 mm | **2.00 m/s = 200 cm/s** |
+| 800 rpm (label) | 471 rpm | 204.2 mm | **1.60 m/s = 160 cm/s** |
+| 844 rpm (measured, no load) | 496 rpm | 204.2 mm | **1.69 m/s = 169 cm/s** |
 
-The simulator plans up to **150 cm/s**. The 600 rpm motor is below that, while the 1000 rpm motor is above it. That is one reason to confirm which motor is final: with the 600 rpm unit the car cannot reach the speed the planner may ask for. A 69 mm wheel would add another 6 % to these numbers.
+The simulator plans up to **150 cm/s**, so the drivetrain has a little margin on paper and none on the ground, because these numbers ignore the losses in the gear train, the differential and the tyres. The speed on the track has not been measured yet; a straight run timed over a known distance closes that gap. A 69 mm wheel would add another 6 % to these numbers.
 
 The gear train multiplies torque by roughly the same 1.7 factor, minus the losses in the gears, bearings and differential. The wheel torque has not been measured. A pull test or a current measurement under load is the next step.
 
@@ -334,21 +334,30 @@ The firmware assumes **62 % of the weight on the rear axle** and a **40 mm CG he
 - The camera must see the coloured pillars and the parking bay. A locking tilt bracket is recommended; a camera that moves after a bump changes the colour calibration.
 - The module is documented as **OV3660**, but the photo may show **OV2640**. Confirm the real sensor before finalising the mount.
 
-### 7.4 Electronics and battery
+### 7.4 VL53L0X
+
+- **VL53L0X ToF**, at the front, aimed at the low band of the field. The height and the angle are **not defined yet** `[pending]`.
+- Its job is the surprise rule: the LiDAR sweeps one plane set for the standard 100 mm signs, so a sign at 50 mm passes underneath and never appears in the scan. The ToF looks at that band and reports the sign.
+- It has a narrow cone, not a ring, so the aim is the whole design. Two positions are on the table: a fixed mount at the nose, tilted slightly down, or a small bracket that can be shimmed during the bench test. The second one is safer until the reading against a real 50 mm sign is known.
+- It must not block the camera or the LiDAR sweep. Keep it below the camera lens and outside the 60 mm LiDAR plate.
+- The mount is not in the CAD yet, so the printed part is still pending.
+
+### 7.5 Electronics and battery
 
 - The `Esp32p4` assembly is a **placeholder and it is wrong**: it contains a **Raspberry Pi 4B**, not the ESP32-P4 used by the car. Replace the model before checking clearances; the board size and mounting holes are different.
-- The ESP32-P4, L298N, XL4015 and servo adapter need a layout with **airflow** and **cable strain relief**. The motor and the battery are the heat sources.
+- The ESP32-P4, DRV8871, XL4015 and servo adapter need a layout with **airflow** and **cable strain relief**. The motor and the battery are the heat sources.
 - The battery is modelled at **103 × 34 × 24 mm**. Use a strap and a physical stop; the connector must not carry the battery load. Keep the battery away from the motor and from sharp edges.
 
-### 7.5 Mounting summary
+### 7.6 Mounting summary
 
 | Component | Location | Height | Orientation | Status |
 |---|---|---|---|---|
 | LiDAR | Upper deck, on the 60 × 62 × 2 mm plate | 60 mm | 0° | `[design]`; model unresolved |
 | IMU | Upper deck | 60 mm | 0° | `[design]`; verify axes |
 | Camera | Front | Not measured | Not measured | `[pending]` |
+| VL53L0X ToF | Front, low band | Not defined | Slightly down | `[pending]`; mount not in the CAD |
 | ESP32-P4 | Centre | — | — | CAD placeholder wrong |
-| L298N / XL4015 / servo adapter | Centre / rear | — | — | Check clearance and airflow |
+| DRV8871 / XL4015 / servo adapter | Centre / rear | — | — | Check clearance and airflow |
 | Battery | Rear / centre | — | — | CAD 103 × 34 × 24; retention pending |
 
 ## 8. CAD files and BOM
@@ -410,7 +419,7 @@ Quantities, purchased-part numbers and fastener lengths are not stored in the CA
 
 | Decision | Alternative | Why | Status / evidence |
 |---|---|---|---|
-| PLA FDM chassis | Laser-cut sheet, CNC, bought chassis | Available, prints easily, fast iteration | Reason not recorded; the material is `[measured]` |
+| PETG FDM chassis | Laser-cut sheet, CNC, bought chassis | Heat resistance near the motor, layer adhesion and local availability | Material is `[measured]`; print parameters still pending |
 | Rear-wheel drive | Front-wheel drive | Load on the driven axle for traction; the front is busy with steering | Design choice |
 | Mechanical bevel-gear differential | Solid rear axle | v1 slipped and derailed; the differential lets the rear wheels turn at different speeds in a corner | v2 design, **not tested** |
 | Bearings 10 × 15 × 4 in the rear axle | Plain axle, as in v1 | The v1 axle had no bearings and derailed under load | v2 design, **not tested** |
@@ -418,7 +427,7 @@ Quantities, purchased-part numbers and fastener lengths are not stored in the CA
 | Five-hole servo arm | Fixed arm | Tune travel versus force without a new part | `[CAD]`; the chosen hole is not documented |
 | 62° servo command | 70° in v1 | v2 steering redesign | Servo command, not road-wheel angle; not measured |
 | 34 mm ground clearance | Lower chassis | Clearance for electronics and track transitions | `[measured]`; CG not measured |
-| MG90S servo | SCS0009 bus servo | The CAD was built around the MG90S | **Unresolved**; electronics uses SCS0009 |
+| MG90S servo in the CAD | SCS0009 bus servo | The CAD was built around the MG90S; the car carries the SCS0009 | **CAD pending update**; electronics and firmware use the SCS0009 |
 | LD19 LiDAR | D500 / D6 | The CAD was built around the LD19 | **Unresolved**; electronics and firmware use D500/D6 |
 | 65 mm wheel | 69 mm CAD envelope | Nominal wheel size | **Unresolved**; measure the real wheel |
 | Mechanical differential | Two independent motors | The car uses one motor, not differential drive; the mechanical differential is the traction solution from v1 | **Confirm the rule wording** with the organiser |
@@ -459,6 +468,7 @@ The firmware already has a vehicle model. These are the mechanical values it use
 | LiDAR | D500 / D6 | LD19 in CAD | Reconcile the model and the protocol | Mount and scan data |
 | Camera height / tilt | Assumed | **Not measured** | Measure `planner.camera_forward_cm` and the tilt | Pillar detection and parking |
 | LiDAR position | Configured | 60 mm high, flat; forward offset not measured | Measure `planner.lidar_forward_cm` | Map alignment |
+| ToF | Not in the firmware yet | **Not mounted** | Fix height and angle, then wire it | The 50 mm sign of the surprise rule |
 | Tyre grip | Simulator value | **Not measured** | Pull test; set `it.mu` | Braking and cornering speed |
 
 **The three corrections that matter most:**
@@ -482,14 +492,15 @@ The firmware already has a vehicle model. These are the mechanical values it use
 | **P1** | Bearing location: rear (author) vs front holders (CAD) | Wrong parts printed or axle unsupported | CAD corrected and test-fitted |
 | **P1** | Axle Ø9.8 mm in Ø10 mm bearing | Radial play, vibration and odometry error | Fit measured; shaft or bearing corrected |
 | **P1** | Gear ratio from outside diameters only | Speed and torque may be wrong | Tooth counts recorded |
-| **P1** | Motor 600 rpm fitted vs 1000 rpm design | Top speed below the planned 150 cm/s | Final motor chosen and measured |
+| **P1** | Speed on the ground not measured | The planner may ask for more than the car can give | Timed straight run recorded and set in the firmware |
 | **P1** | Camera height and tilt not measured | Perception and parking calibration | Mount measured and locked |
 | **P1** | Battery retention not designed | Safety under impact | Strap and physical stop fitted |
 | **P1** | `Esp32p4` CAD contains a Raspberry Pi 4B | Wrong clearances and mounting holes | Model replaced with the ESP32-P4 |
-| **P1** | PLA heat and creep near the motor | Cradle deformation after a long run | Temperature measured after 3 minutes |
+| **P1** | PETG heat and creep near the motor | Cradle deformation after a long run | Temperature measured after 3 minutes |
 | **P1** | Print parameters not documented | Parts cannot be reproduced | Nozzle, layer, walls, infill and orientation recorded |
 | **P1** | Fasteners not locked | Vibration loosens screws | Threadlocker or mechanical stop on critical joints |
 | **P2** | LiDAR shadows from the servo, camera or cables | Missing map data | Full 360° scan checked |
+| **P2** | ToF mount not designed | The 50 mm sign of the surprise rule stays invisible | Bracket printed and reading checked against a real sign |
 | **P2** | Cable routing near the motor | Noise and unreliable signals | Signal and power routes separated and labelled |
 | **P2** | File-name typos (`Bsae`, `Batery`, `assambly`, `dirctor`) | Confusion in the repository | Rename with all references updated |
 
@@ -517,7 +528,7 @@ The firmware already has a vehicle model. These are the mechanical values it use
 
 ## 14. Summary
 
-The v2 chassis is a direct answer to the v1 traction failure: a bearing-supported rear axle and a mechanical differential inside a compact PLA structure. It is a sensible design direction, and it is documented well enough to build.
+The v2 chassis is a direct answer to the v1 traction failure: a bearing-supported rear axle and a mechanical differential inside a compact PETG structure. It is a sensible design direction, and it is documented well enough to build.
 
 It is **not validated**. The car has not been weighed, the centre of gravity is unknown, the road-wheel angles have not been measured, and the wheelbase in the firmware is 21.5 mm longer than the real one. The servo and LiDAR models are still unresolved between the CAD, the electronics document and the firmware. Those are not details: they decide whether the car steers, stops and parks where the planner expects.
 
