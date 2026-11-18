@@ -180,26 +180,26 @@ Estas imágenes son renders del ensamblaje CAD completo, no fotografías del coc
 
 Todo lo que compramos, con el precio que pagamos. En dólares, precio de compra, sin envío ni impuestos. Cada fila es una compra, no una pieza: los packs se indican en la especificación.
 
-| N.º | Componente | Imagen | Cant. | Para qué | Modelo y especificación | Precio |
-|---|---|---|---:|---|---|---:|
-| 1 | LiDAR 360° | <img src="docs/assets/bom/lidar.png" width="90"> | 1 | Mapea paredes, pilares y la plaza | D500/D6, tiempo de vuelo, 12 m, 10 Hz, UART a 230400 baudios | $75.00 |
-| 2 | Placa de visión | <img src="docs/assets/bom/camera.png" width="90"> | 1 | Detecta los pilares y su color | ESP32-S3-CAM de FORIOT, OV3660 u OV2640, PSRAM | $18.00 |
-| 3 | Adaptador de extensión de cámara | <img src="docs/assets/bom/fpc-adapter.png" width="90"> | 1 | Une el flex de la cámara con la cinta larga | Placa adaptadora FPC de 24 a 24 pines, un zócalo ZIF por cara | $7.79 |
-| 4 | Cinta de cámara |  | 1 | Lleva la señal de la cámara al morro | FFC de 24 pines, 0,5 mm, 200 mm, pack de 20 | $6.69 |
-| 5 | IMU | <img src="docs/assets/bom/imu.png" width="90"> | 1 | Rumbo y velocidad de giro | MPU-6050 en módulo GY-521, I²C en 0x68, pack de 3 | $10.00 |
-| 6 | Sensor de tiempo de vuelo | <img src="docs/assets/bom/tof.png" width="90"> | 1 | Ve los letreros de 50 mm que el LiDAR no alcanza | VL53L0X, I²C, hasta 2 m, pack de 2 | $6.99 |
-| 7 | Placa principal | <img src="docs/assets/bom/p4.png" width="90"> | 1 | Misión, localización, planificación y control | ESP32-P4 DevKit de Waveshare, 32 MB de PSRAM, dos núcleos | $27.00 |
-| 8 | Adaptador de servo | <img src="docs/assets/bom/servo-adapter.png" width="90"> | 1 | Habla half-duplex con el servo | Waveshare Bus Servo Adapter (A), SKU 25514 | $13.00 |
-| 9 | Motor de tracción | <img src="docs/assets/bom/motor.png" width="90"> | 1 | Tracción trasera | JGB37-520, 12 V, 800 rpm, encoder Hall, 440 cuentas por revolución | $13.00 |
-| 10 | Servo de dirección | <img src="docs/assets/bom/servo.png" width="90"> | 1 | Gira las ruedas delanteras | Servo de bus SCS0009, engranajes metálicos, retorno de posición real | $7.00 |
-| 11 | Puente H | <img src="docs/assets/bom/drv8871.png" width="90"> | 1 | Avance y retroceso | DRV8871, 3,6 A, PWM y sentido en dos pines | $9.00 |
-| 12 | Convertidor reductor | <img src="docs/assets/bom/xl4015.png" width="90"> | 1 | Baja de 11,1 V a 5,1 V | XL4015, 5 A, no aislado | $11.00 |
-| 13 | Batería | <img src="docs/assets/bom/battery.png" width="90"> | 1 | Fuente única | HOOVO 3S LiPo, 11,1 V, 2200 mAh, 50C, EC3, pack de 2 | $37.00 |
-| 14 | Portafusibles |  | 1 | Protección principal | En línea 12 V, cable de 18 AWG, fusible de 5 A, pack de 2 | $5.00 |
-| 15 | Filamento |  | 1 | Chasis, engranajes y soportes | PETG Rapid, 1,75 mm | $26.00 |
-| 16 | Ruedas |  | 4 | Tracción y dirección | Ø65 × 25 mm | Pendiente |
-| 17 | Insertos roscados |  | 1 | Unen tapas y soportes impresos | M3 de inserción térmica, latón, 100 piezas | $10.00 |
-| 18 | Tornillería |  | 1 | Ensamblaje | M3 cabeza avellanada y tuerca hexagonal, de 4 a 20 mm, 380 piezas | $7.00 |
+| N.º | Componente | Cant. | Para qué | Modelo y especificación | Precio |
+|---|---|---:|---|---|---:|
+| 1 | <img src="docs/assets/bom/lidar.png" width="90"><br>LiDAR 360° | 1 | Mapea paredes, pilares y la plaza | D500/D6, tiempo de vuelo, 12 m, 10 Hz, UART a 230400 baudios | $75.00 |
+| 2 | <img src="docs/assets/bom/camera.png" width="90"><br>Placa de visión | 1 | Detecta los pilares y su color | ESP32-S3-CAM de FORIOT, OV3660 u OV2640, PSRAM | $18.00 |
+| 3 | <img src="docs/assets/bom/fpc-adapter.png" width="90"><br>Adaptador de extensión de cámara | 1 | Une el flex de la cámara con la cinta larga | Placa adaptadora FPC de 24 a 24 pines, un zócalo ZIF por cara | $7.79 |
+| 4 | Cinta de cámara | 1 | Lleva la señal de la cámara al morro | FFC de 24 pines, 0,5 mm, 200 mm, pack de 20 | $6.69 |
+| 5 | <img src="docs/assets/bom/imu.png" width="90"><br>IMU | 1 | Rumbo y velocidad de giro | MPU-6050 en módulo GY-521, I²C en 0x68, pack de 3 | $10.00 |
+| 6 | <img src="docs/assets/bom/tof.png" width="90"><br>Sensor de tiempo de vuelo | 1 | Ve los letreros de 50 mm que el LiDAR no alcanza | VL53L0X, I²C, hasta 2 m, pack de 2 | $6.99 |
+| 7 | <img src="docs/assets/bom/p4.png" width="90"><br>Placa principal | 1 | Misión, localización, planificación y control | ESP32-P4 DevKit de Waveshare, 32 MB de PSRAM, dos núcleos | $27.00 |
+| 8 | <img src="docs/assets/bom/servo-adapter.png" width="90"><br>Adaptador de servo | 1 | Habla half-duplex con el servo | Waveshare Bus Servo Adapter (A), SKU 25514 | $13.00 |
+| 9 | <img src="docs/assets/bom/motor.png" width="90"><br>Motor de tracción | 1 | Tracción trasera | JGB37-520, 12 V, 800 rpm, encoder Hall, 440 cuentas por revolución | $13.00 |
+| 10 | <img src="docs/assets/bom/servo.png" width="90"><br>Servo de dirección | 1 | Gira las ruedas delanteras | Servo de bus SCS0009, engranajes metálicos, retorno de posición real | $7.00 |
+| 11 | <img src="docs/assets/bom/drv8871.png" width="90"><br>Puente H | 1 | Avance y retroceso | DRV8871, 3,6 A, PWM y sentido en dos pines | $9.00 |
+| 12 | <img src="docs/assets/bom/xl4015.png" width="90"><br>Convertidor reductor | 1 | Baja de 11,1 V a 5,1 V | XL4015, 5 A, no aislado | $11.00 |
+| 13 | <img src="docs/assets/bom/battery.png" width="90"><br>Batería | 1 | Fuente única | HOOVO 3S LiPo, 11,1 V, 2200 mAh, 50C, EC3, pack de 2 | $37.00 |
+| 14 | Portafusibles | 1 | Protección principal | En línea 12 V, cable de 18 AWG, fusible de 5 A, pack de 2 | $5.00 |
+| 15 | Filamento | 1 | Chasis, engranajes y soportes | PETG Rapid, 1,75 mm | $26.00 |
+| 16 | Ruedas | 4 | Tracción y dirección | Ø65 × 25 mm | Pendiente |
+| 17 | Insertos roscados | 1 | Unen tapas y soportes impresos | M3 de inserción térmica, latón, 100 piezas | $10.00 |
+| 18 | Tornillería | 1 | Ensamblaje | M3 cabeza avellanada y tuerca hexagonal, de 4 a 20 mm, 380 piezas | $7.00 |
 
 Por categoría:
 
