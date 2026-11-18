@@ -178,7 +178,7 @@ These images are renders of the complete CAD assembly, not photographs of the as
 
 ### 4.4 Bill of materials
 
-Every part we bought, with the price we paid. All figures in US dollars, purchase price, without shipping or taxes. Each row is one purchase, not one piece: the packs are noted in the specification.
+The main components we bought, with the price we paid. All figures in US dollars, purchase price, without shipping or taxes. Each row is one purchase, not one piece: the packs are noted in the specification.
 
 | # | Component | Qty | What it does | Model and specification | Price |
 |---|---|---:|---|---|---:|
@@ -195,13 +195,8 @@ Every part we bought, with the price we paid. All figures in US dollars, purchas
 | 11 | <img src="docs/assets/bom/drv8871.png" width="90"><br>H-bridge | 1 | Forward and reverse | DRV8871, 3.6 A, PWM and direction on two pins | $9.00 |
 | 12 | <img src="docs/assets/bom/xl4015.png" width="90"><br>Buck converter | 1 | 11.1 V down to 5.1 V | XL4015, 5 A, non-isolated | $11.00 |
 | 13 | <img src="docs/assets/bom/battery.png" width="90"><br>Battery | 1 | Single power source | HOOVO 3S LiPo, 11.1 V, 2200 mAh, 50C, EC3, pack of 2 | $37.00 |
-| 14 | Fuse holder | 1 | Main protection | In-line 12 V, 18 AWG cable, 5 A fuse, pack of 2 | $5.00 |
-| 15 | Filament | 1 | Chassis, gears and mounts | PETG Rapid, 1.75 mm | $26.00 |
-| 16 | Wheels | 4 | Traction and steering | Ø65 × 25 mm | Pending |
-| 17 | Threaded inserts | 1 | Join the printed covers and mounts | M3 heat-set brass, 100 pieces | $10.00 |
-| 18 | Fasteners | 1 | Assembly | M3 countersunk head and hex nut, 4 to 20 mm, 380 pieces | $7.00 |
 
-By category:
+The full budget by category:
 
 | Category | Total |
 |---|---:|

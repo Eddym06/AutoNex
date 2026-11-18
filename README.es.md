@@ -178,7 +178,7 @@ Estas imágenes son renders del ensamblaje CAD completo, no fotografías del coc
 
 ### 4.4 Presupuesto
 
-Todo lo que compramos, con el precio que pagamos. En dólares, precio de compra, sin envío ni impuestos. Cada fila es una compra, no una pieza: los packs se indican en la especificación.
+Los componentes principales que compramos, con el precio que pagamos. En dólares, precio de compra, sin envío ni impuestos. Cada fila es una compra, no una pieza: los packs se indican en la especificación.
 
 | N.º | Componente | Cant. | Para qué | Modelo y especificación | Precio |
 |---|---|---:|---|---|---:|
@@ -195,13 +195,8 @@ Todo lo que compramos, con el precio que pagamos. En dólares, precio de compra,
 | 11 | <img src="docs/assets/bom/drv8871.png" width="90"><br>Puente H | 1 | Avance y retroceso | DRV8871, 3,6 A, PWM y sentido en dos pines | $9.00 |
 | 12 | <img src="docs/assets/bom/xl4015.png" width="90"><br>Convertidor reductor | 1 | Baja de 11,1 V a 5,1 V | XL4015, 5 A, no aislado | $11.00 |
 | 13 | <img src="docs/assets/bom/battery.png" width="90"><br>Batería | 1 | Fuente única | HOOVO 3S LiPo, 11,1 V, 2200 mAh, 50C, EC3, pack de 2 | $37.00 |
-| 14 | Portafusibles | 1 | Protección principal | En línea 12 V, cable de 18 AWG, fusible de 5 A, pack de 2 | $5.00 |
-| 15 | Filamento | 1 | Chasis, engranajes y soportes | PETG Rapid, 1,75 mm | $26.00 |
-| 16 | Ruedas | 4 | Tracción y dirección | Ø65 × 25 mm | Pendiente |
-| 17 | Insertos roscados | 1 | Unen tapas y soportes impresos | M3 de inserción térmica, latón, 100 piezas | $10.00 |
-| 18 | Tornillería | 1 | Ensamblaje | M3 cabeza avellanada y tuerca hexagonal, de 4 a 20 mm, 380 piezas | $7.00 |
 
-Por categoría:
+El presupuesto completo por categoría:
 
 | Categoría | Total |
 |---|---:|

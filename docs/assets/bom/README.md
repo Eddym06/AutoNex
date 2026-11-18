@@ -19,8 +19,9 @@ exactly.
 | `xl4015.png` | Buck converter | The XL4015 board |
 | `battery.png` | Battery | The 3S pack with the EC3 connector |
 
-The fuse, the filament, the wheels, the threaded inserts and the fasteners do not carry a
-photo in the table. Neither does the camera ribbon.
+The fuse, the filament, the wheels, the threaded inserts and the fasteners are not listed in
+the README table; they are in `BOOM.xlsx` and in the category totals. The camera ribbon has no
+photo either.
 
 Keep the background plain and the part centred. A photo around 800 px wide is enough;
 the tables scale it down to 90 px. Transparent PNG or white background both work.
