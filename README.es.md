@@ -185,7 +185,7 @@ Los componentes principales que compramos, con el precio que pagamos. En dólare
 | 1 | <img src="docs/assets/bom/lidar.png" width="90"><br>LiDAR 360° | 1 | Mapea paredes, pilares y la plaza | D500/D6, tiempo de vuelo, 12 m, 10 Hz, UART a 230400 baudios | $75.00 |
 | 2 | <img src="docs/assets/bom/camera.png" width="90"><br>Placa de visión | 1 | Detecta los pilares y su color | ESP32-S3-CAM de FORIOT, OV3660 u OV2640, PSRAM | $18.00 |
 | 3 | <img src="docs/assets/bom/fpc-adapter.png" width="90"><br>Adaptador de extensión de cámara | 1 | Une el flex de la cámara con la cinta larga | Placa adaptadora FPC de 24 a 24 pines, un zócalo ZIF por cara | $7.79 |
-| 4 | Cinta de cámara | 1 | Lleva la señal de la cámara al morro | FFC de 24 pines, 0,5 mm, 200 mm, pack de 20 | $6.69 |
+| 4 | <img src="docs/assets/bom/fpc-cable.png" width="90"><br>Cinta de cámara | 1 | Lleva la señal de la cámara al morro | FFC de 24 pines, 0,5 mm, 200 mm, pack de 20 | $6.69 |
 | 5 | <img src="docs/assets/bom/imu.png" width="90"><br>IMU | 1 | Rumbo y velocidad de giro | MPU-6050 en módulo GY-521, I²C en 0x68, pack de 3 | $10.00 |
 | 6 | <img src="docs/assets/bom/tof.png" width="90"><br>Sensor de tiempo de vuelo | 1 | Ve los letreros de 50 mm que el LiDAR no alcanza | VL53L0X, I²C, hasta 2 m, pack de 2 | $6.99 |
 | 7 | <img src="docs/assets/bom/p4.png" width="90"><br>Placa principal | 1 | Misión, localización, planificación y control | ESP32-P4 DevKit de Waveshare, 32 MB de PSRAM, dos núcleos | $27.00 |

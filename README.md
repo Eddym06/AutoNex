@@ -185,7 +185,7 @@ The main components we bought, with the price we paid. All figures in US dollars
 | 1 | <img src="docs/assets/bom/lidar.png" width="90"><br>360° LiDAR | 1 | Maps walls, pillars and the parking bay | D500/D6, time of flight, 12 m, 10 Hz, UART at 230400 baud | $75.00 |
 | 2 | <img src="docs/assets/bom/camera.png" width="90"><br>Vision board | 1 | Detects the pillars and their colour | ESP32-S3-CAM by FORIOT, OV3660 or OV2640, PSRAM | $18.00 |
 | 3 | <img src="docs/assets/bom/fpc-adapter.png" width="90"><br>Camera extension adapter | 1 | Joins the camera flex to the long ribbon | uxcell 24-pin to 24-pin FPC adapter board, one ZIF socket on each side | $7.79 |
-| 4 | Camera ribbon | 1 | Carries the camera signal to the nose | FFC 24-pin, 0.5 mm, 200 mm, pack of 20 | $6.69 |
+| 4 | <img src="docs/assets/bom/fpc-cable.png" width="90"><br>Camera ribbon | 1 | Carries the camera signal to the nose | FFC 24-pin, 0.5 mm, 200 mm, pack of 20 | $6.69 |
 | 5 | <img src="docs/assets/bom/imu.png" width="90"><br>IMU | 1 | Heading and turn rate | MPU-6050 on a GY-521 board, I²C at 0x68, pack of 3 | $10.00 |
 | 6 | <img src="docs/assets/bom/tof.png" width="90"><br>Time-of-flight sensor | 1 | Sees the 50 mm signs the LiDAR misses | VL53L0X, I²C, up to 2 m, pack of 2 | $6.99 |
 | 7 | <img src="docs/assets/bom/p4.png" width="90"><br>Main board | 1 | Mission, localisation, planning and control | ESP32-P4 DevKit by Waveshare, 32 MB PSRAM, two cores | $27.00 |

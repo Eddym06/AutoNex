@@ -9,6 +9,7 @@ exactly.
 | `lidar.png` | 360° LiDAR | The D500/D6 alone, connector visible |
 | `camera.png` | Vision board | The ESP32-S3-CAM board with the camera |
 | `fpc-adapter.png` | Camera extension adapter | The 24-pin adapter board with both ZIF sockets |
+| `fpc-cable.png` | Camera ribbon | The 24-pin FFC ribbon, flat |
 | `imu.png` | IMU | The GY-521 module |
 | `tof.png` | VL53L0X ToF | The module with the two lenses |
 | `p4.png` | Main board | The ESP32-P4 DevKit, top side |
@@ -20,8 +21,7 @@ exactly.
 | `battery.png` | Battery | The 3S pack with the EC3 connector |
 
 The fuse, the filament, the wheels, the threaded inserts and the fasteners are not listed in
-the README table; they are in `BOOM.xlsx` and in the category totals. The camera ribbon has no
-photo either.
+the README table; they are in `BOOM.xlsx` and in the category totals.
 
 Keep the background plain and the part centred. A photo around 800 px wide is enough;
 the tables scale it down to 90 px. Transparent PNG or white background both work.
