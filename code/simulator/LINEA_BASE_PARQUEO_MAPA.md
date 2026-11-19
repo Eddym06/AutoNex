@@ -9,8 +9,8 @@ es decidir qué necesita mejorar antes de añadir un modelo ML o controladores n
 Comandos ejecutados (pista sin letreros ni parqueo, 100 s simulados, sentidos opuestos):
 
 ```
-node simulator/tools/arena_check.js 100 1 --profile largo26
-node simulator/tools/arena_check.js 100 2 --profile largo26
+node code/simulator/tools/arena_check.js 100 1 --profile largo26
+node code/simulator/tools/arena_check.js 100 2 --profile largo26
 ```
 
 Se compara la pose de campo que expone el controlador con la pose verdadera del
@@ -33,7 +33,7 @@ se refiere a las muestras del experimento, no a todas las situaciones posibles.
 
 ## Parqueo: referencia de las ocho rondas
 
-Con `node simulator/tests/parkentry.js largo26 ronda 180 4`, sin letreros, cuatro
+Con `node code/simulator/tests/parkentry.js largo26 ronda 180 4`, sin letreros, cuatro
 semillas y dos sentidos, las ocho rondas terminaron con 62 puntos, parqueo completo
 y cero contactos. Los cambios de sentido de la entrada fueron **2, 2, 3, 4, 4, 4,
 4, 5**. El juez mide la verdad del simulador. La comprobación automática opcional
@@ -41,7 +41,7 @@ y cero contactos. Los cambios de sentido de la entrada fueron **2, 2, 3, 4, 4, 4
 
 ## CPU nativa: escenario sintético
 
-`powershell -File simulator/tools/profile_controller.ps1`: 150 barridos sintéticos
+`powershell -File code/simulator/tools/profile_controller.ps1`: 150 barridos sintéticos
 sin parqueo; p50/p95 del barrido 8,66/10,30 ms, mapa local 0,069/0,096 ms,
 planificador local 8,43/9,70 ms. Cuatro poses fijas de A* repetidas diez veces:
 p50/p95 agregados 31,35/60,98 ms. No son p95 de una ronda de parqueo ni tiempos del
@@ -76,7 +76,7 @@ sumarse. El localizador del cajón no se ejecutó en este escenario.
 
 ### Pose de campo al entregar cada barrido
 
-`node simulator/tools/measure_arena_sync.js 1 100` y `... 2 100`, perfil largo26,
+`node code/simulator/tools/measure_arena_sync.js 1 100` y `... 2 100`, perfil largo26,
 pista vacía. Se compara la pose estimada con la verdad **en el instante de entrega**
 del barrido, antes del siguiente paso físico. La captura del barrido terminó 10 ms
 antes de la entrega; esto no elimina todos los desfases. Se clasificó como giro una
@@ -98,7 +98,7 @@ un problema de sincronización.
 
 ### Pose relativa durante las ocho entradas de ronda completa
 
-`node simulator/tools/measure_parking.js 4 180`, perfil largo26, cuatro semillas por
+`node code/simulator/tools/measure_parking.js 4 180`, perfil largo26, cuatro semillas por
 sentido. Pose verdadera y estimada se comparan a la entrega del barrido; el barrido
 terminó antes y sus rayos corresponden a diferentes instantes. La maniobra se define
 para esta medida desde la primera orden de reversa. La holgura es la distancia mínima
@@ -125,7 +125,7 @@ puros del A* ni del P4. Las pruebas se ejecutaron con otras mediciones compartie
 
 ### Celdas ocupadas del mapa local: coche inmóvil
 
-`node simulator/tools/measure_local_map.js` ejecuta 50 barridos estáticos por sentido,
+`node code/simulator/tools/measure_local_map.js` ejecuta 50 barridos estáticos por sentido,
 con ruido y pérdidas simulados y sin objetos de colores extra. Cada centro de celda
 ocupada se compara con el sólido verdadero más cercano; un centro dentro del sólido
 cuenta distancia cero. La rejilla mide **2,5 cm por celda** y se reconstruye en cada
@@ -155,7 +155,7 @@ visión conserva una sola caja de parqueo magenta por cuadro y la memoria global
 letreros filtra rojo y verde: no demuestra memoria persistente de ambos topes.
 
 Para reproducir: `$env:MODE='entrada'; $env:DIR='ccw'; $env:SEED='1'; node
-simulator/tools/measure_parking.js 1 45` (cambiar `ccw` por `cw`). No mover el entorno
+code/simulator/tools/measure_parking.js 1 45` (cambiar `ccw` por `cw`). No mover el entorno
 ni cambiar el controlador durante una medición; reiniciar o borrar las variables de
 entorno para volver a correr las ocho rondas.
 
@@ -163,7 +163,7 @@ entorno para volver a correr las ocho rondas.
 
 ### Por qué se rechazan candidatos magenta
 
-`node simulator/tools/diagnose_parking_association.js` evaluó 40 poses inmóviles,
+`node code/simulator/tools/diagnose_parking_association.js` evaluó 40 poses inmóviles,
 ambos sentidos, sin letreros. En 18 poses hubo entradas magenta, con 198 muestras
 repetidas de barrido. En las 198, la ventana aproximada de ángulo y distancia
 incluyó al menos un retorno a menos de 2 cm de un tope verdadero; el retorno más
@@ -180,7 +180,7 @@ Se contrastó además el código C con superficies sintéticas e inyectando una 
 magenta en el mismo ángulo y distancia (sin generar una imagen de cámara):
 
 ```
-gcc -O2 -std=c11 -I "LIDAR System/main" "LIDAR System/main/local_obstacle_map.c" simulator/tools/diagnose_association_synthetic.c -o "$env:TEMP/autonex-assoc.exe" -lm
+gcc -O2 -std=c11 -I "code/LIDAR System/main" "code/LIDAR System/main/local_obstacle_map.c" code/simulator/tools/diagnose_association_synthetic.c -o "$env:TEMP/autonex-assoc.exe" -lm
 & "$env:TEMP/autonex-assoc.exe"
 ```
 
@@ -200,7 +200,7 @@ del tope de la de un pilar o una pared. Resultados en
 
 ### Mapa con movimiento: referencia temporal
 
-`node simulator/tools/measure_map_motion.js 30` recorrió 30 s simulados por sentido
+`node code/simulator/tools/measure_map_motion.js 30` recorrió 30 s simulados por sentido
 y número de letreros (0, 3 y 7), con perfil largo26 y una semilla por sentido. Cada
 segundo se muestreó el mapa local. El controlador compensa el barrido hacia un horizonte
 de 0,10 s después del fin de captura; la entrega ocurre unos 0,01 s después del fin.
@@ -242,7 +242,7 @@ búsqueda espacial en una rejilla de 2,5 cm, no a un error máximo de 2,5 cm.
 
 ## Prototipo aislado de asociación magenta: investigación posterior
 
-`node simulator/tools/prototype_parking_association.js` prueba una idea en JavaScript
+`node code/simulator/tools/prototype_parking_association.js` prueba una idea en JavaScript
 sin integrarla en el controlador. Para cada dirección usa siete posiciones longitudinales
 y cuatro distancias laterales: 56 poses por escenario antes de excluir poses inválidas.
 El coche permanece inmóvil, con sensores y cámara simulados y la semilla 1. Se excluyen
@@ -296,7 +296,7 @@ pista; no demuestran validación en hardware ni resuelven las tres repasadas.
 
 ## Prototipo de pared y pareja de topes: criterios inicial y estricto
 
-Se amplió `simulator/tools/prototype_parking_association.js` con un prototipo aislado
+Se amplió `code/simulator/tools/prototype_parking_association.js` con un prototipo aislado
 que busca líneas candidatas de pared, retornos que sobresalen hacia un lado y dos
 agrupaciones separadas aproximadamente por el largo esperado del cajón. La imagen
 magenta debe ser compatible con al menos una agrupación. El sistema prueba hipótesis
@@ -339,7 +339,7 @@ Para reproducir en PowerShell, por ejemplo:
 
 ```
 $env:PAIR_ONLY='1'; $env:PAIR_STRICT='1'; $env:BENCH_SEED='2'; $env:BENCH_YAW='6'
-node simulator/tools/prototype_parking_association.js
+node code/simulator/tools/prototype_parking_association.js
 ```
 
 Con `BENCH_MODE='fake_pair'` se ejecuta solo la escena indistinguible. Para obtener la
@@ -355,7 +355,7 @@ una referencia de mapa y manteniendo separado el localizador existente.
 
 ## Prototipo de memoria de observaciones entre vueltas
 
-`node simulator/tools/prototype_parking_memory.js [semilla] [segundos] [letreros]`
+`node code/simulator/tools/prototype_parking_memory.js [semilla] [segundos] [letreros]`
 prueba por fuera del firmware la idea de guardar observaciones individuales y parejas.
 Cuatro recorridos de 120 s simulados, perfil largo26, semillas 1/2 y 0/3 letreros,
 empezando en la pista sin haber salido del cajón. Se inspeccionó cada quinto barrido
@@ -430,12 +430,12 @@ que esta implementación aproximada, con estas entradas y umbrales, no es sufici
 puede empeorar los resultados. No se cambió el firmware.
 
 Para reproducir la variante en PowerShell: `$env:ALIGN_CAMERA='1'; node
-simulator/tools/prototype_parking_memory.js 2 120 3`. Borrar la variable para la
+code/simulator/tools/prototype_parking_memory.js 2 120 3`. Borrar la variable para la
 versión sin alinear. Datos en `mediciones/memoria_alineada_*_2026-11-09.jsonl`.
 
 ## Pasada lateral: detección magenta y reconstrucción LiDAR progresiva
 
-Experimento añadido `simulator/tools/measure_parking_sweep.js`. Se mueve el chasis
+Experimento añadido `code/simulator/tools/measure_parking_sweep.js`. Se mueve el chasis
 Ackermann con un mando de prueba recto de 12 cm/s; **no** se evalúa la navegación ni la
 maniobra de parqueo. Se espera una detección magenta entregada por la cola de cámara;
 a partir de ella se acumulan todos los retornos LiDAR válidos en una nube global usando
@@ -460,7 +460,7 @@ puntos y rayos se repiten entre barridos y no son muestras independientes.
 
 ### Doce pasadas sin obstáculos adicionales
 
-`node simulator/tools/measure_parking_sweep.js 2`: dos sentidos, semillas 1/2 y
+`node code/simulator/tools/measure_parking_sweep.js 2`: dos sentidos, semillas 1/2 y
 distancias laterales del eje a la pared 35/45/55 cm. La cámara activó las doce pasadas;
 en cada una se acumularon 130 barridos, sin contactos y sin barridos posteriores al
 aviso descartados por falta de pose. En cada caso, la referencia ideal vio 42 de 44
@@ -508,7 +508,7 @@ descartaron y no se usan como evidencia de una pasada válida.
   para tramos no observados. En los topes, los tramos recorren el perímetro del
   rectángulo: borde inferior, derecho, superior e izquierdo en coordenadas del
   rectángulo; en la pared recorren el segmento de izquierda a derecha.
-- `node simulator/tests/test_parking_sweep.js`: comprueba activación, ausencia de nube
+- `node code/simulator/tests/test_parking_sweep.js`: comprueba activación, ausencia de nube
   sin magenta, datos de ambos topes en escenario libre y reducción de visibilidad con
   oclusión, sin contactos en el escenario ocluido.
 
@@ -520,7 +520,7 @@ pose/marcas temporales antes de crear una memoria de parqueo confirmada.
 
 ## Segmentación offline de pared y topes desde una detección magenta
 
-Se desarrolló `simulator/tools/segment_parking_cloud.py`, un prototipo separado del
+Se desarrolló `code/simulator/tools/segment_parking_cloud.py`, un prototipo separado del
 firmware que lee los barridos y las poses estimadas almacenadas por
 `measure_parking_sweep.js`. Una sola caja magenta y la pose estimada de la cámara al
 capturarla delimitan una región aproximada. El prototipo acumula retornos en celdas de
@@ -564,15 +564,15 @@ para asegurar que una hipótesis sea verdadera.
 Ejemplo para guardar una hipótesis sin etiquetas verdaderas:
 
 ```
-python simulator/tools/segment_parking_cloud.py simulator/mediciones/barridos/barridos_ccw_semilla1_distancia45.json --output simulator/mediciones/hipotesis_parqueo_despejado_2026-11-09.json
+python code/simulator/tools/segment_parking_cloud.py code/simulator/mediciones/barridos/barridos_ccw_semilla1_distancia45.json --output code/simulator/mediciones/hipotesis_parqueo_despejado_2026-11-09.json
 ```
 
 `--lot-length`, `--limiter-width` y `--limiter-thickness` permiten variar supuestos.
 Las salidas de ejemplo para despejado, bloqueado y distractor están en `mediciones/`;
 `evaluacion_segmentacion_2026-11-09.jsonl` contiene las evaluaciones de los 32 casos.
-`node simulator/tests/test_segment_parking_cloud.js` comprueba guardado, evidencia,
+`node code/simulator/tests/test_segment_parking_cloud.js` comprueba guardado, evidencia,
 falta de detección, ambigüedad en dos escenas y una transformación del marco de
-coordenadas; `node simulator/tests/test_parking_sweep.js` comprueba activación y
+coordenadas; `node code/simulator/tests/test_parking_sweep.js` comprueba activación y
 visibilidad. Las pruebas son simuladas y el segmentador corre offline con NumPy; no se
 midió memoria/tiempo en P4, ni variaciones de pista reales, cámaras reales o giros.
 Antes de integrarlo hay que comparar cámara y LiDAR con marcas temporales fiables,
@@ -581,7 +581,7 @@ hipótesis de dimensiones. No se ha activado en firmware ni puesto una ruta al c
 
 ## Mapa progresivo y comparación experimental de rutas
 
-`simulator/tools/progressive_parking_cloud.py` acumula celdas de 1 cm a medida que
+`code/simulator/tools/progressive_parking_cloud.py` acumula celdas de 1 cm a medida que
 llegan los barridos y ejecuta el segmentador cada diez barridos. Los retornos se
 transforman con la pose estimada al final del barrido, igual que el ensayo anterior;
 no se compensa cada rayo ni se separan libres, ocupados y desconocidos. La memoria
@@ -694,7 +694,7 @@ seguridad ni afirmar que los avisos sean contactos reales. Muestra que hace falt
 calibrar la incertidumbre y los criterios de ocupación antes de usar la comprobación
 para bloquear o aceptar maniobras.
 
-`node simulator/tests/test_parking_cloud_collision.js` verifica la detección geométrica
+`node code/simulator/tests/test_parking_cloud_collision.js` verifica la detección geométrica
 de un retorno dentro de la huella y que una celda desconocida no inventa un retorno;
 no prueba que una zona desconocida sea segura. `test_parking_route_experiment.js`
 comprueba el flujo con un prefijo sin barridos futuros y omite hipótesis insuficientes

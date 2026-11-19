@@ -9,7 +9,7 @@ Después de la vuelta 1 (mapa construido) calcula, él solo, la trayectoria y el
 el planificador recibe el espacio libre (paredes, letreros con su color) y la física del vehículo, y **busca por optimización** el desplazamiento lateral
 de cada estación que minimiza el tiempo de vuelta.
 
-`LIDAR System/main/it_plan.c/.h` (C99, sin memoria dinámica, mismo estilo que `trace_map`):
+`code/LIDAR System/main/it_plan.c/.h` (C99, sin memoria dinámica, mismo estilo que `trace_map`):
 
 1. **Corredor libre por estación** (cada 5 cm sobre una línea central redondeada): dentro de las paredes, fuera de cada letrero y del lado que su color
    permite (rojo derecha, verde izquierda). Con varios tramos libres se elige uno por estación con programación dinámica sobre el anillo.
@@ -129,7 +129,7 @@ Barrido de `planner.speed_cm_s` con IT activa (16 rondas por valor, `largo26d`, 
 | 40 cm/s | 17,6 s | 10 de 16 | 11 (0,19 contactos de media) |
 | 55 cm/s | 14,0 s | 8 de 16 | 8 (una ronda en sentido contrario) |
 
-Se fijó 35 cm/s (punto medio de 30 y 40) y el 11 nov se bajó a **34 cm/s**: a 35 el plano del equipo (`plano_corregido.json`) acaba en `wrong-side` a los 19,7 s; a 31, 33 y 34 termina limpio (62 puntos, 0 contactos; 132,1 s con 34). El eslalon de `test_missions.js` (chasis diferencial histórico) roza letreros a 30, 33 y 36 cm/s y pasa a 32, 34 y 35: la fiabilidad no es monótona con la velocidad, y 34 es el valor que pasa los dos. Las cifras de abajo son de 35. Comprobación en 24 rondas con la configuración exacta: 15 perfectas con 35 frente a 14-15 con 23, 0 contactos, vuelta 1 de 29,6 a 19,4 s; con IT la ronda pasa de 98,6 s a 61,4 s. Un banco anterior del equipo (otro perfil de chasis) había dado 26 cm/s como límite de fiabilidad: **revalidar con el chasis real**. No se ha medido el error de posición de los letreros en el mapa a esta velocidad. Datos: `simulator/mediciones/vuelta1_v*.json` y `v35_*.json`.
+Se fijó 35 cm/s (punto medio de 30 y 40) y el 11 nov se bajó a **34 cm/s**: a 35 el plano del equipo (`plano_corregido.json`) acaba en `wrong-side` a los 19,7 s; a 31, 33 y 34 termina limpio (62 puntos, 0 contactos; 132,1 s con 34). El eslalon de `test_missions.js` (chasis diferencial histórico) roza letreros a 30, 33 y 36 cm/s y pasa a 32, 34 y 35: la fiabilidad no es monótona con la velocidad, y 34 es el valor que pasa los dos. Las cifras de abajo son de 35. Comprobación en 24 rondas con la configuración exacta: 15 perfectas con 35 frente a 14-15 con 23, 0 contactos, vuelta 1 de 29,6 a 19,4 s; con IT la ronda pasa de 98,6 s a 61,4 s. Un banco anterior del equipo (otro perfil de chasis) había dado 26 cm/s como límite de fiabilidad: **revalidar con el chasis real**. No se ha medido el error de posición de los letreros en el mapa a esta velocidad. Datos: `code/simulator/mediciones/vuelta1_v*.json` y `v35_*.json`.
 
 ## Lo que falta (no hecho)
 
@@ -143,10 +143,10 @@ Se fijó 35 cm/s (punto medio de 30 y 40) y el 11 nov se bajó a **34 cm/s**: a 
 ## Reproducir
 
 ```
-gcc -O2 -std=c11 -Wall -Wextra -Werror -I "LIDAR System/main" "LIDAR System/tests/test_it_plan.c" "LIDAR System/main/it_plan.c" -lm -o it_test && ./it_test
-node simulator/tests/test_robot_dynamics.js
-node simulator/tests/test_it_mission.js
-node simulator/tools/it_plan_check.js 40
-node simulator/tools/it_lab.js 12 --laps 4 --grip0 0.45 [--ctl 0.10] [--mu 0.55] [--noise 3] [--map-err 2.5] [--track-err 6]
-node simulator/tools/measure_mission.js 10 largo26d "it_enabled 1" salida.json --it --accel 350 [--mic]   # mision completa con IT (sin --it ni config: la linea base)
+gcc -O2 -std=c11 -Wall -Wextra -Werror -I "code/LIDAR System/main" "code/LIDAR System/tests/test_it_plan.c" "code/LIDAR System/main/it_plan.c" -lm -o it_test && ./it_test
+node code/simulator/tests/test_robot_dynamics.js
+node code/simulator/tests/test_it_mission.js
+node code/simulator/tools/it_plan_check.js 40
+node code/simulator/tools/it_lab.js 12 --laps 4 --grip0 0.45 [--ctl 0.10] [--mu 0.55] [--noise 3] [--map-err 2.5] [--track-err 6]
+node code/simulator/tools/measure_mission.js 10 largo26d "it_enabled 1" salida.json --it --accel 350 [--mic]   # mision completa con IT (sin --it ni config: la linea base)
 ```

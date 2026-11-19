@@ -126,9 +126,9 @@ AA 55 00 19 F9 2C C9 37 DB 48 D8 C4 01 3C 8D 01 CC 00 00 70 ...
 
 | Archivo | Uso |
 |---|---|
-| `LIDAR System/tools/lidar_viewer.html` | Visor en el PC con Web Serial (Chrome o Edge). Elige COM9 y 230400 baudios |
-| `LIDAR System/sketch_oct14a/sketch_oct14a.ino` | Firmware del ESP32: red WiFi "LIDAR" y radar web en http://192.168.4.1 |
-| `LIDAR System/tests/test_witmotion_d6.c` | Prueba del parser en PC con un paquete real |
+| `code/LIDAR System/tools/lidar_viewer.html` | Visor en el PC con Web Serial (Chrome o Edge). Elige COM9 y 230400 baudios |
+| `code/LIDAR System/sketch_oct14a/sketch_oct14a.ino` | Firmware del ESP32: red WiFi "LIDAR" y radar web en http://192.168.4.1 |
+| `code/LIDAR System/tests/test_witmotion_d6.c` | Prueba del parser en PC con un paquete real |
 
 Probar el parser en PC (MSYS2 / MinGW):
 
@@ -231,8 +231,8 @@ El valor esperado de `FileVersion` es `4.00` y el de la política es `1`.
 ## 5. Firmware ESP32 (sketch_oct14a)
 
 - Placa: ESP32 DevKit clásico (`esp32:esp32:esp32`). Core instalado: esp32:esp32 3.3.11.
-- Compilar con arduino-cli: `arduino-cli compile --fqbn esp32:esp32:esp32 "LIDAR System/sketch_oct14a"`.
-- Subir: `arduino-cli upload --fqbn esp32:esp32:esp32 --port COMx "LIDAR System/sketch_oct14a"`.
+- Compilar con arduino-cli: `arduino-cli compile --fqbn esp32:esp32:esp32 "code/LIDAR System/sketch_oct14a"`.
+- Subir: `arduino-cli upload --fqbn esp32:esp32:esp32 --port COMx "code/LIDAR System/sketch_oct14a"`.
 - Salida de datos al puerto serie del ESP32 (115200): contadores de paquetes
   OK, checksum, vueltas, puntos y descartados cada 2 s.
 - Red WiFi "LIDAR", contraseña `12345678`, página en http://192.168.4.1.

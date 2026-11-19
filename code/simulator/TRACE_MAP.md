@@ -1,7 +1,7 @@
 # trace_map: mapa persistente de la pista
 
-Código: `LIDAR System/main/trace_map.c/.h`. Pruebas: `LIDAR System/tests/test_trace_map.c` (campo sintético),
-`simulator/tests/test_trace_map.js` (misión simulada) y `simulator/tools/measure_trace_objects.js` (error contra la verdad).
+Código: `code/LIDAR System/main/trace_map.c/.h`. Pruebas: `code/LIDAR System/tests/test_trace_map.c` (campo sintético),
+`code/simulator/tests/test_trace_map.js` (misión simulada) y `code/simulator/tools/measure_trace_objects.js` (error contra la verdad).
 
 > Medido en simulador y en un campo sintético. **No está probado con el LiDAR real.** El mapa se apoya en la pose del localizador del
 > campo (`arena_localizer`, error de ajuste ≤ 3,5 cm) y no se actualiza sin pose válida.

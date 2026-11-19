@@ -402,7 +402,7 @@ Quantities, purchased-part numbers and fastener lengths are not stored in the CA
 
 | File | What it is |
 |---|---|
-| [`Motor Control/design 3d/DiscoEncoder_30ranuras.f3d`](../Motor%20Control/design%203d/) | Fusion 360 source of the 30-slot encoder disc; `.step` and `.stl` next to it |
+| [`code/Motor Control/design 3d/DiscoEncoder_30ranuras.f3d`](../code/Motor%20Control/design%203d/) | Fusion 360 source of the 30-slot encoder disc; `.step` and `.stl` next to it |
 | [`photos/`](../photos/) | CAD renders: `dimetric`, `top`, `bottom`, `front`, `rear`, `left`, `right` |
 
 **Source documents** (team archive, not all in this repository):

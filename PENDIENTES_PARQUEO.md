@@ -1,15 +1,15 @@
 # Pendientes del parqueo (estado al 9 nov 2026)
 
 Todo lo de este documento se midió **solo en simulación** (perfil `largo26`, cajón de 39 cm,
-herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
+herramienta `code/simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 
 ## 1. Qué quedó activo en el código
 
 | Cambio | Archivo | Para qué |
 | --- | --- | --- |
-| Coste suave de holgura en el A* (`PARK_CLEAR_PENALTY 1.0`, `PARK_CLEAR_EXTRA_CM 1.5`) | `LIDAR System/main/park_ackermann.c` | El A* prefiere caminos a más de 2,5 cm de los obstáculos. Los planes con ≥1,3 cm de holgura real se ejecutan enteros. |
+| Coste suave de holgura en el A* (`PARK_CLEAR_PENALTY 1.0`, `PARK_CLEAR_EXTRA_CM 1.5`) | `code/LIDAR System/main/park_ackermann.c` | El A* prefiere caminos a más de 2,5 cm de los obstáculos. Los planes con ≥1,3 cm de holgura real se ejecutan enteros. |
 | Meta de entrada con rumbo ≤ 4° (`PARK_GOAL_TH_IN_DEG`) | `park_ackermann.c` | El juez da "completo" con \|sen θ\|·batalla ≤ 2 cm (θ ≤ 6,2°); la meta aceptaba 10° y 3 de 24 rondas acababan "parcial". |
-| Chequeo de arco nunca más estricto que el plan | `LIDAR System/orchestrator/wro_controller.c` | Con el coche a <1 cm de un obstáculo el plan se hacía con margen 0 y el arco se rechazaba con 0,5: coche parado para siempre (ccw 12, 17). |
+| Chequeo de arco nunca más estricto que el plan | `code/LIDAR System/orchestrator/wro_controller.c` | Con el coche a <1 cm de un obstáculo el plan se hacía con margen 0 y el arco se rechazaba con 0,5: coche parado para siempre (ccw 12, 17). |
 | `PARK_LOST_MAX_SCANS 30` (antes 8) | `wro_controller.c` | Sigue unos barridos con odometría+giroscopio al perder el LiDAR antes de parar. No cambió ningún resultado medido. |
 
 ## 2. Código experimental, APAGADO (no borrar, hay trabajo útil)
@@ -24,7 +24,7 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 
 1. **Contactos con el tope en las correcciones** (~5 de 56 rondas completas: cw 16, cw 18, ccw 13 roce con la pared, y otros).
    El motor sigue ~0,15 s tras la orden y se pasa de la holgura de 1 cm. Frenar antes al final del arco baja los contactos pero sube las repasadas y no es estable.
-   **Esto lo ataca MIC** (`Motor Control/MIC/`): parar exactamente a la distancia pedida (error de 0,05 a 0,1 cm en avances cortos, simulado).
+   **Esto lo ataca MIC** (`code/Motor Control/MIC/`): parar exactamente a la distancia pedida (error de 0,05 a 0,1 cm en avances cortos, simulado).
 2. **Repasadas**: 2-5 en la ronda completa (media ~4), 2-10 con arranque en la pista (media 5).
    El mínimo (2) se obtiene cuando el plan inicial se ejecuta entero. Las rondas con plan de holgura real < 1 cm abortan y replanifican.
 3. **Fallos residuales**: 5 de 56 rondas (9 %) en semillas 1-32, antes 17 %.
@@ -93,17 +93,17 @@ herramienta `simulator/tests/parkentry.js`). Nada se probó en el chasis real.
 ## 6. Cómo medir
 
 ```
-node simulator/tests/parkentry.js largo26 ronda 180 4        # 8 rondas (4 semillas x 2 sentidos)
-DIR=cw SEED=4 node simulator/tests/parkentry.js largo26 ronda 180 1
-node simulator/tests/parkentry.js largo26 entrada 90 4       # arranque en la pista
-bash simulator/tools/bench/rebuild_wasm.sh                   # recompilar el WASM tras tocar el C
+node code/simulator/tests/parkentry.js largo26 ronda 180 4        # 8 rondas (4 semillas x 2 sentidos)
+DIR=cw SEED=4 node code/simulator/tests/parkentry.js largo26 ronda 180 1
+node code/simulator/tests/parkentry.js largo26 entrada 90 4       # arranque en la pista
+bash code/simulator/tools/bench/rebuild_wasm.sh                   # recompilar el WASM tras tocar el C
 ```
 
 Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en 9-20 la base falla 6 de 24. Validar siempre en semillas nuevas (21 en adelante).
 
 ## 7. MIC (Motor Intelligent Control)
 
-- Módulo en `Motor Control/MIC/` (probado en PC con un motor simulado). Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (apagado por defecto);
+- Módulo en `code/Motor Control/MIC/` (probado en PC con un motor simulado). Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (apagado por defecto);
   el firmware del P4 compila con el flag encendido y apagado (ESP-IDF 5.5.4). **No probado con el motor real.**
 - Falta: calibrar R, masa, fricción, diámetro de rueda y cuentas por vuelta (README de MIC, sección 5); que el controlador pida avances exactos
   (`mic_request_move`) y rutas en vez de solo velocidad. Desde el 16 nov todo asume el motor de 800 rpm (etiqueta; 844 rpm medidas sin carga).
@@ -115,7 +115,7 @@ Lección de método: las semillas 1-8 estaban sobreajustadas (1 fallo de 16); en
   Probado dos veces con MIC en el lazo (arco a arco, y fusionando rectas): peor que MIC solo en velocidad (suma de repasadas 113-134 frente a 86; sin fallos).
   El ejecutor de arcos está afinado para una planta lenta y mide por odometría/giroscopio; hay que rediseñarlo a nivel de tramo (no arco).
   MIC solo en velocidad: 0 fallos en 40 rondas, pero con repasadas irregulares (a veces 15-17).
-- **trace_map:** rejilla con espacio libre, objetos con color y posición, plaza detectada por geometría, guardado y consultas. Ver `simulator/TRACE_MAP.md`.
+- **trace_map:** rejilla con espacio libre, objetos con color y posición, plaza detectada por geometría, guardado y consultas. Ver `code/simulator/TRACE_MAP.md`.
   Falta probarlo con el LiDAR real. El parqueo **no** lo usa para localizar: medido en 24 rondas, la plaza del mapa da el mismo error de pose que
-  `park_localize` (0,64 frente a 0,66 cm de media), así que no aporta mejora. Ver `simulator/MEDICION_TRACE_VUELTAS.md`.
+  `park_localize` (0,64 frente a 0,66 cm de media), así que no aporta mejora. Ver `code/simulator/MEDICION_TRACE_VUELTAS.md`.
 

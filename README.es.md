@@ -506,7 +506,7 @@ Es una rejilla de 4 × 4 m con celdas de 2,5 cm en el marco del campo. Cada vuel
 
 Se escribe en una partición de flash al final de la ronda, no durante, porque escribir en flash detiene la CPU. El código de guardado está escrito pero no probado en el P4, y la precisión del mapa a 34 cm/s de mapeo no está medida. En simulación el error RMS es de 0,78 cm.
 
-El detalle técnico está en [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
+El detalle técnico está en [`code/simulator/TRACE_MAP.md`](code/simulator/TRACE_MAP.md).
 
 <div align="center"><img src="docs/assets/map.png" alt="Mapa construido tras la vuelta 1 junto a la verdad del simulador" width="780"></div>
 
@@ -612,9 +612,9 @@ Hay cosas que pueden funcionar en el simulador y fallar en el coche: el servo co
 ### 8.3 Cómo ejecutarlo
 
 ```bash
-python simulator/build_simulator.py          # genera simulator/build/simulador.html
+python code/simulator/build_simulator.py          # genera code/simulator/build/simulador.html
 # ábrelo, marca "trayectoria inteligente (IT)" y pulsa "Simular"
-node simulator/tests/test_it_mission.js      # ronda completa con IT: puntos, sin contactos, cesión
+node code/simulator/tests/test_it_mission.js      # ronda completa con IT: puntos, sin contactos, cesión
 ```
 
 <div align="center">
@@ -622,7 +622,7 @@ node simulator/tests/test_it_mission.js      # ronda completa con IT: puntos, si
 <br><sub>El simulador mientras conduce IT: línea planificada en verde, recorrido real en azul, vista de la cámara, mapa local y mapa persistente.</sub>
 </div>
 
-Hay más pruebas: geometría y sensores, contrato entre firmware y simulación, encoder de eje, entrada y salida del cajón, interfaz y misiones completas. Todas están listadas en [`simulator/README.md`](simulator/README.md).
+Hay más pruebas: geometría y sensores, contrato entre firmware y simulación, encoder de eje, entrada y salida del cajón, interfaz y misiones completas. Todas están listadas en [`code/simulator/README.md`](code/simulator/README.md).
 
 Un paso de simulación tarda 1,5 ms en el navegador. Se sostiene a 4× y a 8× no.
 
@@ -726,12 +726,13 @@ Lo que enseña este caso es que el fallo no estaba en la percepción ni en el co
 
 ```text
 AutoNex/
-├── LIDAR System/        # controlador de misión, planificadores, Trayectoria Inteligente (main/it_plan.c), firmware del P4
-├── Vision System/       # procesamiento de cámara en el ESP32-S3
-├── S3 Robot/            # aplicación del S3: panel web y enlace de cámara
-├── Motor Control/       # MIC (control del motor) y archivos de diseño del encoder
-├── shared/              # protocolos y configuración compartidos por los dos chips
-├── simulator/           # simulador WebAssembly, pruebas, mediciones e informes
+├── code/
+│   ├── LIDAR System/    # controlador de misión, planificadores, Trayectoria Inteligente (main/it_plan.c), firmware del P4
+│   ├── Vision System/   # procesamiento de cámara en el ESP32-S3
+│   ├── S3 Robot/        # aplicación del S3: panel web y enlace de cámara
+│   ├── Motor Control/   # MIC (control del motor) y archivos de diseño del encoder
+│   ├── shared/          # protocolos y configuración compartidos por los dos chips
+│   └── simulator/       # simulador WebAssembly, pruebas, mediciones e informes
 ├── docs/                # diseño, electrónica, bitácora y recursos del README
 ├── CAD_File/            # piezas y ensamblajes de SolidWorks
 ├── t-photos/            # fotos del equipo
@@ -752,7 +753,7 @@ Cada subsistema lo documenta el ingeniero que lo construyó.
 | [`ESTADO.md`](ESTADO.md) | Resultados verificados, configuración final y lo que falta |
 | [`ACKERMANN.md`](ACKERMANN.md) | Qué cambia el chasis Ackermann en el firmware |
 | [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md) | Parqueo: límites abiertos, experimentos y mediciones |
-| [`simulator/README.md`](simulator/README.md) | Simulador: cómo funciona y cómo medir con él |
+| [`code/simulator/README.md`](code/simulator/README.md) | Simulador: cómo funciona y cómo medir con él |
 | [`MEDIDAS_HARDWARE_P4.md`](MEDIDAS_HARDWARE_P4.md) | Medidas en el P4 real: barrido, planes, memoria, cámara y motor |
 | [`docs/LOGBOOK.pdf`](docs/LOGBOOK.pdf) | Bitácora de ingeniería, del 6 al 16 de noviembre de 2026 |
 
@@ -761,7 +762,7 @@ Cada subsistema lo documenta el ingeniero que lo construyó.
 | Si eres | Lee, en este orden |
 |---|---|
 | Jurado | Este README, [`ESTADO.md`](ESTADO.md), [`docs/LOGBOOK.pdf`](docs/LOGBOOK.pdf) y [`ARQUITECTURA.md`](ARQUITECTURA.md) |
-| Ingeniero de software | [`ARQUITECTURA.md`](ARQUITECTURA.md), `LIDAR System/` y [`simulator/README.md`](simulator/README.md) |
+| Ingeniero de software | [`ARQUITECTURA.md`](ARQUITECTURA.md), `code/LIDAR System/` y [`code/simulator/README.md`](code/simulator/README.md) |
 | Ingeniero mecánico | [`docs/DESIGN.md`](docs/DESIGN.md) y `CAD_File/` |
 | Ingeniero electrónico | [`docs/ELECTRONICS.md`](docs/ELECTRONICS.md) y [`ACKERMANN.md`](ACKERMANN.md) |
 | Alguien que solo quiere ver el coche | [`v-photos/`](v-photos/) y [`t-photos/`](t-photos/) |
@@ -775,25 +776,25 @@ Hace falta Python 3.10 o superior, Node 18 o superior y ESP-IDF 5.5 para el firm
 Simulador:
 
 ```bash
-python simulator/build_simulator.py          # genera simulator/build/simulador.html
-node simulator/tests/test_it_mission.js      # ronda completa con IT
+python code/simulator/build_simulator.py          # genera code/simulator/build/simulador.html
+node code/simulator/tests/test_it_mission.js      # ronda completa con IT
 ```
 
 Firmware del P4:
 
 ```bash
-cd "LIDAR System/p4_firmware"
+cd "code/LIDAR System/p4_firmware"
 idf.py set-target esp32p4
 idf.py build
 ```
 
 No habilites el motor de tracción antes de leer [`ACKERMANN.md`](ACKERMANN.md). El firmware original mezclaba las dos ruedas como si hubiera un diferencial eléctrico. Con el chasis Ackermann, `hw_motors_drive` usa un solo canal y las ganancias de dirección no son las de antes.
 
-Si cambias el C de `LIDAR System/main`, `Vision System/main` o `shared/`, hay que recompilar el WebAssembly:
+Si cambias el C de `code/LIDAR System/main`, `code/Vision System/main` o `code/shared/`, hay que recompilar el WebAssembly:
 
 ```powershell
-$env:WASI_SDK_PATH = "C:\ruta\wasi-sdk"   # o usa -Download para bajarlo a simulator\.toolchain
-.\simulator\wasm\build.ps1
+$env:WASI_SDK_PATH = "C:\ruta\wasi-sdk"   # o usa -Download para bajarlo a code\simulator\.toolchain
+.\code\simulator\wasm\build.ps1
 ```
 
 ---

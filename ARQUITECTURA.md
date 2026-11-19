@@ -30,7 +30,7 @@ ignora la guiñada y mueve sólo el canal izquierdo (`hw_motors.c:113-121`); IN3
 existen pero no se escriben y la mezcla diferencial `hw_motors_wheel_speeds` no se
 llama nunca (`hw_motors.c:105-111`).
 
-El simulador (`simulator/web/`) instancia el mismo `wro_core.wasm` y le entrega
+El simulador (`code/simulator/web/`) instancia el mismo `wro_core.wasm` y le entrega
 barridos, tablas de visión e IMU con ruido y latencia; no es un gemelo digital
 aparte: es el mismo C.
 
@@ -193,7 +193,7 @@ El simulador ejecuta el mismo controlador, pero el mundo avanza con `dt = 0,01 s
 `procDelayMs = 8` y `cmdDelayMs = 12`, y el chasis es un modelo de bicicleta con servo
 de primer orden (`steerRateDegS 420`, `steerTauS 0,045`), motor con `speedTauS 0,16`,
 `maxAccel 180`, `speedGain 0,94`, patinaje en ráfagas y colisión con deslizamiento
-(`simulator/web/robot.js:17-141`).
+(`code/simulator/web/robot.js:17-141`).
 
 Diferencias que pueden explicar que algo funcione en el simulador y no en el robot:
 
@@ -243,15 +243,15 @@ Diferencias que pueden explicar que algo funcione en el simulador y no en el rob
 
 ## 9. Cómo se verifica
 
-`Vision System/tools/simulate.ps1` compila y ejecuta: tests en C de visión, enlace,
+`code/Vision System/tools/simulate.ps1` compila y ejecuta: tests en C de visión, enlace,
 mapa, planificador, controlador, P4 y motores; el contrato ABI del WASM; el simulador
 (`test_sim_basics`, `test_contrato`, `test_parking_exit`, `test_parking_entry`,
 `test_ui_smoke`, `test_missions`); el depurador sobre un plano limpio; las secuencias
 de visión (129 comprobaciones) y el generador del HTML del simulador. `-Quick` se
 salta las rondas completas. Los números de parqueo se miden aparte con
-`simulator/tests/parkentry.js` (repasadas de entrada y salida, con traza por barrido).
+`code/simulator/tests/parkentry.js` (repasadas de entrada y salida, con traza por barrido).
 
-## 10. MIC: control central del motor (`Motor Control/MIC`)
+## 10. MIC: control central del motor (`code/Motor Control/MIC`)
 
 Un solo módulo gobierna la tracción; los niveles superiores piden velocidad, un avance exacto o una ruta con restricciones.
 
@@ -268,9 +268,9 @@ nivel 0   hw_motors (L298N, PWM)  <-  duty con signo + freno corto;   hw_encoder
 - **Estado**: probado contra un motor simulado (3 variantes de planta); en el simulador con `mic: true` el parqueo da 0 fallos en 40 rondas pero repasadas irregulares.
   Apagado en el firmware (`CONFIG_WRO_USE_MIC=n`). Supuestos a medir: resistencia, masa, fricción, diámetro efectivo de la rueda, cuentas por vuelta.
 
-## 11. trace_map: mapa persistente (`LIDAR System/main/trace_map.c`)
+## 11. trace_map: mapa persistente (`code/LIDAR System/main/trace_map.c`)
 
 Rejilla de 400 × 400 cm (celdas de 2,5 cm) en el marco del campo con espacio ocupado, **libre** y desconocido; los objetos se agrupan con identidad estable (pilar,
 barra, pared), con color y posición; la **plaza de parqueo** se reconoce por el par de topes. Se actualiza en `wro_controller_scan` cada barrido (0,13 ms en PC)
 y se refresca cada 10. No gobierna el vehículo: es la fuente de datos para el parqueo y el planificador (todavía no lo consultan). Detalle y mediciones en
-`simulator/TRACE_MAP.md`.
+`code/simulator/TRACE_MAP.md`.

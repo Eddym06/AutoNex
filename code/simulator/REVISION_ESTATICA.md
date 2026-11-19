@@ -56,9 +56,9 @@ chasis.
    pueden inferir de este simulador las paradas reales del P4.
 
 4. **El WASM puede ser antiguo sin impedir la simulación.** `web/core.js` carga
-   `wro_core.wasm`, que está versionado; `simulator/build_simulator.py` lo
+   `wro_core.wasm`, que está versionado; `code/simulator/build_simulator.py` lo
    incorpora sin reconstruirlo ni comprobar su procedencia. El aviso de
-   `Vision System/tools/simulate.ps1` compara fechas, no contenido, y no impide
+   `code/Vision System/tools/simulate.ps1` compara fechas, no contenido, y no impide
    continuar. El WASM incluido no fue reconstruido durante esta revisión.
    Se necesita reconstrucción reproducible o un manifiesto con hashes de fuentes
    y compilador antes de atribuir un resultado al código actual.

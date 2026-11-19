@@ -1,5 +1,5 @@
 ﻿param([Parameter(Mandatory = $true)][string]$Dir, [Parameter(ValueFromRemainingArguments = $true)][string[]]$IdfArgs)
-# Ejecuta idf.py (ESP-IDF 5.5) dentro de una carpeta de proyecto. Ej.: .\idf55.ps1 "S3 Robot" build ; .\idf55.ps1 "LIDAR System\p4_firmware" -p COM9 flash
+# Ejecuta idf.py (ESP-IDF 5.5) dentro de una carpeta de proyecto. Ej.: .\idf55.ps1 "code\S3 Robot" build ; .\idf55.ps1 "code\LIDAR System\p4_firmware" -p COM9 flash
 $ErrorActionPreference = 'Stop'
 # Detecta ESP-IDF 5.5.x: usa IDF_PATH/IDF_TOOLS_PATH si ya estan definidos; si no, busca en las rutas habituales.
 if (-not $env:IDF_PATH -or -not (Test-Path $env:IDF_PATH)) {

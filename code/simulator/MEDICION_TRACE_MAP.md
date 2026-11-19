@@ -1,6 +1,6 @@
 # Medición de trace_map contra la pista simulada
 
-Reproducir: `node simulator/tools/measure_trace_map.js simulator/mediciones/trace_map_ground_truth.json`.
+Reproducir: `node code/simulator/tools/measure_trace_map.js code/simulator/mediciones/trace_map_ground_truth.json`.
 Las geometrías verdaderas se usan solo después de la simulación para evaluar, no
 se entregan al controlador. Se probaron semillas 1 y 3 en los dos sentidos, con
 tres obstáculos y el perfil largo26. Son cuatro casos, no una prueba estadística

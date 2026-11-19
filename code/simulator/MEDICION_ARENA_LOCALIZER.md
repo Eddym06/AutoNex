@@ -1,7 +1,7 @@
 # arena_localizer: error contra la verdad y barrido de parámetros
 
 Solo simulador (perfil `largo26`, 3 letreros, 17 rondas útiles de 20 semillas: 3 acaban pronto por `wrong-side`, un fallo del paso de letreros).
-Reproducir: `node simulator/tools/diagnose_arena_error.js 10 salida.json "arena_gain 0.4"` (paralelo, con log por ronda, ~40 s).
+Reproducir: `node code/simulator/tools/diagnose_arena_error.js 10 salida.json "arena_gain 0.4"` (paralelo, con log por ronda, ~40 s).
 El error se mide en cada tick en `RUN` contra la pose verdadera, y con el mismo adelanto de latencia que el controlador aplica antes de alimentar el mapa
 (`v · latency_s`, 0,10 s).
 

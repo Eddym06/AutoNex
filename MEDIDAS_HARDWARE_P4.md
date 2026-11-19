@@ -54,18 +54,18 @@ En el firmware, el motor usa los canales "IN1/IN2" (adelante/atrás) y el pin EN
 Notas:
 - La etiqueta de 800 rpm es el valor nominal; sin carga a 12,0 V el motor da ≈ 844 rpm. **No** se debe a una batería cargada: la fuente es de 12,0 V. Es una tolerancia normal de este tipo de motores.
 - `AXLE_ENCODER_COUNTS_PER_REV=440` queda validado. Con ese valor las rpm medidas son coherentes con la etiqueta.
-- El repo se actualizó el 16 nov a **800 rpm** (etiqueta) en MIC (`WRO_MIC_RPM_NOLOAD=800`, `mic_cfg_jgb37_520_800rpm`), en el motor físico del simulador (`simulator/web/robot.js`) y en los documentos. Los perfiles de 600 y 1000 rpm se conservan. Las 844 rpm medidas quedan como dato; MIC sigue desactivado (`WRO_USE_MIC` apagado), por lo que no afecta al banco.
+- El repo se actualizó el 16 nov a **800 rpm** (etiqueta) en MIC (`WRO_MIC_RPM_NOLOAD=800`, `mic_cfg_jgb37_520_800rpm`), en el motor físico del simulador (`code/simulator/web/robot.js`) y en los documentos. Los perfiles de 600 y 1000 rpm se conservan. Las 844 rpm medidas quedan como dato; MIC sigue desactivado (`WRO_USE_MIC` apagado), por lo que no afecta al banco.
 
 ## 4. Cambios hechos en el firmware hoy
 
 | Archivo | Cambio |
 |---|---|
-| `LIDAR System/p4_firmware/sdkconfig.local` | Pines del motor, encoder e IMU/LiDAR; `WRO_ACKERMANN_HW_CONFIGURED=y`; `WRO_BENCH_WEB=y` |
+| `code/LIDAR System/p4_firmware/sdkconfig.local` | Pines del motor, encoder e IMU/LiDAR; `WRO_ACKERMANN_HW_CONFIGURED=y`; `WRO_BENCH_WEB=y` |
 | `main/Kconfig.projbuild` | Nuevos `WRO_MOTOR_EN_GPIO`, `WRO_BENCH_WEB`, `WRO_MOTOR_BENCH_TEST` |
 | `main/hw_motors.c`, `hw_motors.h` | ENB bajo al arrancar y alto al mover; PWM a 5 kHz; `hw_motors_raw()` (mando manual del banco); prueba de banco |
 | `main/bench_web.c`, `bench_web.h` | Telemetría `$T {json}` cada 100 ms por USB y órdenes `M <-100..100>` / `S`; el motor se para solo tras 600 ms sin orden |
 | `main/app_main.c`, `main/CMakeLists.txt` | Arranque del banco |
-| `LIDAR System/p4_firmware/banco_p4.html` | Página (Web Serial, Chrome o Edge) con botones ADELANTE, ATRÁS y PARAR, cuentas, velocidad, IMU, LiDAR y gráfica |
+| `code/LIDAR System/p4_firmware/banco_p4.html` | Página (Web Serial, Chrome o Edge) con botones ADELANTE, ATRÁS y PARAR, cuentas, velocidad, IMU, LiDAR y gráfica |
 
 - Para aplicar los pines hubo que regenerar `sdkconfig` (`sdkconfig.defaults` + `sdkconfig.local`); la copia anterior quedó en `sdkconfig.bak_antes_motor`.
 - Compilar y flashear: `idf.py -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.local" -p COM10 build flash`.
@@ -86,7 +86,7 @@ Notas:
 
 ## 6. Cámara del S3 (ESP32-S3 CAM, OV3660), 16 nov
 
-Medido con el S3 conectado por el CH340 (COM14), firmware `Vision System/` y un ají rojo y otro verde delante. **Sin luz controlada y con la cámara apoyada a mano.**
+Medido con el S3 conectado por el CH340 (COM14), firmware `code/Vision System/` y un ají rojo y otro verde delante. **Sin luz controlada y con la cámara apoyada a mano.**
 
 | Dato | Valor | Fuente |
 |---|---|---|
@@ -104,13 +104,13 @@ Conclusiones:
 - Obturador rodante: lectura de 21,4 ms a 2300 (14 ms a 1500). Con `focal_px` 118,6 y un giro de 90 grados por segundo el desfase de arriba a abajo es de ~4 px a 2300 y ~2,7 px a 1500 (de 160 de ancho). Para detectar bloques de color eso es despreciable.
 - El borrón de movimiento lo fija la exposición, no el obturador: con poca luz se queda en 21 ms. Con iluminación de pista normal (mucha más luz) la exposición baja sola.
 - El ají (brillante) se parte en 2 o 3 componentes y el número de objetos por cuadro oscila; los bloques mate de la pista deberían ir mejor, pero **no se probó con bloques reales**.
-- `Vision System/main/cam_lab.c` (opción `WRO_CAM_LAB`, apagada por defecto) es el laboratorio con el que se hicieron estas mediciones.
+- `code/Vision System/main/cam_lab.c` (opción `WRO_CAM_LAB`, apagada por defecto) es el laboratorio con el que se hicieron estas mediciones.
 
 ## 7. Simulador con el motor de 800 rpm (16 nov)
 
-**Una sola fuente de rpm:** `WRO.robot.MOTOR_RPM = 800` (`simulator/web/robot.js`). La usan el motor físico del simulador y el modelo de MIC del wasm (`core_set_motor_rpm`). Antes el motor físico asumía 1000 rpm.
+**Una sola fuente de rpm:** `WRO.robot.MOTOR_RPM = 800` (`code/simulator/web/robot.js`). La usan el motor físico del simulador y el modelo de MIC del wasm (`core_set_motor_rpm`). Antes el motor físico asumía 1000 rpm.
 
-**Límites atados al motor:** `sim.js` toma del modelo de MIC la velocidad máxima (`core.micVMax()`: 142 cm/s a 600 rpm, 189 a 800) y la aceleración (`core.micMaxAccel()` al 50 % de la velocidad máxima: 300 cm/s2). Con ellos fija `it.v_max_cm_s` e `it.a_motor_cm_s2` del planificador IT y el `maxAccel`/`maxSpeed` de la planta cinemática de los chasis `largo26` y `largo26d` (marcados `motorModel`). Antes eran 150 cm/s y 350 cm/s2 sueltos en varios archivos. Quien pase esos valores a mano los sustituye. Herramienta de medida: `node simulator/tools/lap_times.js 5,6,7 ccw,cw 3`.
+**Límites atados al motor:** `sim.js` toma del modelo de MIC la velocidad máxima (`core.micVMax()`: 142 cm/s a 600 rpm, 189 a 800) y la aceleración (`core.micMaxAccel()` al 50 % de la velocidad máxima: 300 cm/s2). Con ellos fija `it.v_max_cm_s` e `it.a_motor_cm_s2` del planificador IT y el `maxAccel`/`maxSpeed` de la planta cinemática de los chasis `largo26` y `largo26d` (marcados `motorModel`). Antes eran 150 cm/s y 350 cm/s2 sueltos en varios archivos. Quien pase esos valores a mano los sustituye. Herramienta de medida: `node code/simulator/tools/lap_times.js 5,6,7 ccw,cw 3`.
 
 A 90 % de la velocidad máxima la aceleración del motor cae a 140 cm/s2 (600 rpm) y 68 cm/s2 (800 rpm).
 
@@ -126,7 +126,7 @@ Medias de las 4 rondas factibles (semillas 5 ccw/cw, 6 cw, 7 cw; 3 letreros y pa
 
 Conclusión: pasar de 600 a 800 rpm acorta la ronda unos 2 s (3 %) y la vuelta 3 en 1,2 s, pero con 4 rondas caóticas eso no es una mejora comprobable. La velocidad que alcanza el IT sube de 142 a 154 a 171 cm/s, sin acortar la vuelta: la limitan el agarre y el seguimiento de la trayectoria. Las semillas 6 ccw y 7 ccw terminan en "wrong-side" en todas las variantes (no tiene que ver con el motor) y se excluyen.
 
-**Test de IT (`test_it_mission.js`):** con los límites atados, la ronda ccw 5 cedía el mando 2 veces en vez de 1. Medí el motivo (`it_drop_reason`): la primera cesión es el motivo 6, un pilar de color aún desconocido cerca de la trayectoria (el IT lo deja al controlador reactivo y sigue), no un fallo de seguimiento; la ronda acaba con 62 puntos y 0 contactos. En las otras 3 rondas solo hay la cesión prevista del final (motivo 0). El test ahora exige exactamente una cesión de fin previsto y solo admite antes el motivo 6; seguimiento perdido, arena inválida, arco o atasco siguen siendo fallo. No se cambió el código del IT. Los 9 tests del simulador pasan. Nota: el manifiesto del wasm incluye `Vision System/main`, así que hay que reconstruirlo (`simulator/wasm/build.ps1`) cada vez que cambie algo ahí.
+**Test de IT (`test_it_mission.js`):** con los límites atados, la ronda ccw 5 cedía el mando 2 veces en vez de 1. Medí el motivo (`it_drop_reason`): la primera cesión es el motivo 6, un pilar de color aún desconocido cerca de la trayectoria (el IT lo deja al controlador reactivo y sigue), no un fallo de seguimiento; la ronda acaba con 62 puntos y 0 contactos. En las otras 3 rondas solo hay la cesión prevista del final (motivo 0). El test ahora exige exactamente una cesión de fin previsto y solo admite antes el motivo 6; seguimiento perdido, arena inválida, arco o atasco siguen siendo fallo. No se cambió el código del IT. Los 9 tests del simulador pasan. Nota: el manifiesto del wasm incluye `code/Vision System/main`, así que hay que reconstruirlo (`code/simulator/wasm/build.ps1`) cada vez que cambie algo ahí.
 
 Sin atar al motor: `race.v_max_cm_s` (52 cm/s, tope de la línea de carrera sin IT, ni se alcanza: 34 cm/s), `speedTauS` y `speedGain` de la planta (respuesta del lazo cerrado de MIC) y los valores por defecto en C del firmware del P4 (150 y 350).
 
@@ -134,7 +134,7 @@ Prueba con movimiento (ají agitado a mano a ~20-30 cm, ráfagas de 4 cuadros, c
 
 ## 8. Rendimiento del P4 con el C real del robot (16 nov)
 
-Medido con `LIDAR System/p4_firmware/main/perf_bench.c` (opción `CONFIG_WRO_PERF_BENCH`, apagada por defecto; compilar con `sdkconfig.perf` en otro directorio de compilación):
+Medido con `code/LIDAR System/p4_firmware/main/perf_bench.c` (opción `CONFIG_WRO_PERF_BENCH`, apagada por defecto; compilar con `sdkconfig.perf` en otro directorio de compilación):
 ESP32-P4 a 360 MHz, ESP-IDF 5.5.4, PSRAM de 29 MB, optimización `-O2` (la de fábrica es `-Og` con aserciones: solo un 17 % más lenta). Datos sintéticos (la pista de `plano_it_ovalo.json`, 5 letreros; un LiDAR simulado de 400 puntos por vuelta). No mueve el motor. Memoria interna libre: 302 KB, PSRAM: 28,9 MB libres.
 
 | Qué | P4 (360 MHz) | PC (para comparar) | Presupuesto |
@@ -202,7 +202,7 @@ El 90 % del barrido era la rejilla de 343 rutas (7^3) del planificador reactivo:
 
 ## 12. Costes que el simulador aplica por defecto (16 nov)
 
-`simulator/web/sim.js` (constante `P4`) usa lo medido en la placa; `WRO_SIM_IDEAL=1` (o la opcion `p4: false`) lo desactiva.
+`code/simulator/web/sim.js` (constante `P4`) usa lo medido en la placa; `WRO_SIM_IDEAL=1` (o la opcion `p4: false`) lo desactiva.
 
 | Coste | Valor | Fuente |
 |---|---|---|

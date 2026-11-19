@@ -2,7 +2,7 @@
 
 > **Actualización para 12-móvil:** la descripción diferencial, el parqueo y las
 > cifras históricas que siguen no validan el chasis Ackermann. La adaptación
-> está en curso; consulta [ACKERMANN.md](../ACKERMANN.md).
+> está en curso; consulta [ACKERMANN.md](../../ACKERMANN.md).
 
 Código C portable (sin dependencias de hardware) que decide el movimiento: recibe la tabla de la cámara del S3, el barrido del **WitMotion D6** y el giroscopio, y devuelve velocidad y giro. El robot es **diferencial**: la orden lleva `speed_cm_s` y `yaw_rate_dps` (el «volante» del planificador es virtual: giro = velocidad × tan(volante) / batalla); un robot con servo usa `steer_deg`. El mapa local se rehace en cada barrido, centrado en el robot. **Los encoders ópticos de las ruedas alimentan una odometría y un localizador del campo** (ver «Odometría y mapa del campo»); sin encoders el firmware vuelve al método antiguo (velocidad ordenada × tiempo). Los apartados de abajo sobre «sin odometría» describen ese modo de respaldo.
 
@@ -23,7 +23,7 @@ Este mismo código corre en el simulador (compilado a WebAssembly), así que lo 
    - **Esquinas (robustas a las esquivas)**: el muro frontal solo cuenta como esquina con el morro a menos de 30° del carril (`corner_max_heading_deg`), el respaldo del giroscopio exige haber recorrido 110 cm desde la última (`corner_gyro_min_travel_cm`) y una esquina que no termina en 160 cm se deshace (`corner_abort_cm`). Antes, una esquiva abierta hacia la pared interior se tomaba por esquina, el rumbo del recorrido saltaba 90° y el resto de la ronda salía mal.
    - **Giro en el sitio para salir de atascos** (`pivot_enabled`, solo robots diferenciales): sin ruta hacia delante durante 2 s y con el morro girado de la pista, gira en el sitio hacia ella si el chasis cabe girando.
    - **Esquinas** (detalle): se detectan por el plano de la pared frontal y un lado que se abre; el sentido de la ronda se aprende en la primera esquina. Si el robot llega torcido por una esquiva y el muro no se ve como plano, el giroscopio la delata (`corner_gyro_deg`, 60°: no se gira tanto hacia el lado de la ronda en una recta).
-   - **Rumbo del recorrido**: se reancla contra las paredes solo con el morro a menos de `wall_align_heading_deg` (15°) del carril; torcido, las paredes se ven en diagonal y arrastraban el rumbo (era la causa de un atasco real: ver `simulator/tests/plano_atasco.json`).
+   - **Rumbo del recorrido**: se reancla contra las paredes solo con el morro a menos de `wall_align_heading_deg` (15°) del carril; torcido, las paredes se ven en diagonal y arrastraban el rumbo (era la causa de un atasco real: ver `code/simulator/tests/plano_atasco.json`).
    - **Letreros**: se siguen por dead-reckoning (giroscopio + velocidad ordenada × tiempo), anclados a los grupos compactos del LiDAR.
    - **Vuelta final**: si el último letrero de la segunda vuelta es rojo (`reverse_on_color`), da un giro en U al entrar en la recta de salida (con K-turn si no cabe).
    - **Final**: cuenta tres vueltas con la esquina, usa la pared interior como referencia y recorre `finish_extra_cm` más para parar dentro del tramo de salida.
@@ -75,7 +75,7 @@ Los valores por defecto están en `local_planner_config_default` y `wro_controll
 | `main/park_planner.c/.h` | Campo de costes de poses para entrar y salir del cajón |
 | `main/park_localize.c/.h` | Localización respecto al cajón con el LiDAR |
 | `main/park_ackermann.c/.h` | A\* de poses del chasis Ackermann: entrar y salir del cajón, con coste suave de holgura |
-| `main/trace_map.c/.h` | Mapa persistente: espacio libre, objetos con color y posición, plaza de parqueo (ver `simulator/TRACE_MAP.md`) |
+| `main/trace_map.c/.h` | Mapa persistente: espacio libre, objetos con color y posición, plaza de parqueo (ver `code/simulator/TRACE_MAP.md`) |
 | `main/trace_parking.c/.h` | Estimador antiguo de la plaza con una detección de cámara (diagnóstico; sustituido por la plaza de `trace_map`) |
 | `../Motor Control/MIC/` | MIC, control central del motor (ver su README); se enlaza en `p4_firmware` |
 | `orchestrator/p4_runtime.c/.h` | Bucle del P4 y tabla de funciones de hardware |
@@ -167,7 +167,7 @@ Dos correcciones de posicion hacen que la linea sea fiable: el error de la posic
 
 Con 7 letreros casi toda la pista cae en zona de letrero o de esquina, asi que la ganancia es pequena; crece con menos letreros. La preferencia lateral recorta mas el camino, pero el reactivo no siempre llega a la linea a tiempo tras una esquina y baja la fiabilidad (pasos por el lado equivocado y parqueos que no terminan), por eso queda como opcion. Con la linea activa tampoco se gana tiempo en este banco, asi que **toda la linea esta apagada por defecto** (`race_enabled 0`) hasta medir el chasis real o probar pistas con menos letreros. Los limites reales de velocidad de este chasis (patinaje, retardo del motor) no se conocen hasta medirlos sobre el chasis real.
 
-Herramientas: `node simulator/tools/race_check.js SEMILLA ccw|cw [--trace --lap 2] [--cfg "clave valor"]` (cuando se construye, velocidades por vuelta, tiempo activa) y `tests/test_race_line.c`. En el simulador la linea se dibuja coloreada por velocidad (casilla "linea de carrera") y hay una fila en el panel.
+Herramientas: `node code/simulator/tools/race_check.js SEMILLA ccw|cw [--trace --lap 2] [--cfg "clave valor"]` (cuando se construye, velocidades por vuelta, tiempo activa) y `tests/test_race_line.c`. En el simulador la linea se dibuja coloreada por velocidad (casilla "linea de carrera") y hay una fila en el panel.
 
 ## Pegado a la pared interior (opcional, vueltas 2 y 3)
 
@@ -176,7 +176,7 @@ Alternativa simple a la linea de carrera, sin optimizador: la primera vuelta va 
 - El atajo no esta en la recta sino en la esquina: el giro empieza a la misma distancia del muro, asi que llegar pegado a la pared interior hace que el robot empiece la recta siguiente ya avanzado (unos 20 cm por esquina). Por eso `hug_corner_clear_cm` es 0: llega pegado hasta el giro.
 - Cada letrero conocido a menos de `hug_detach_cm` (90) por delante, y hasta `hug_after_sign_cm` (20) despues de pasarlo, fija el rango lateral permitido segun su color (con 13 cm de centro a centro). Si hay varios, se cruzan los rangos; si no hay hueco coherente, centrado.
 - El cambio lateral tiene una pendiente maxima (`hug_rate` 0,6 cm por cm). Centrado tambien en la primera vuelta, tras una esquina (`hug_after_corner_cm` 10), en las ultimas esquinas (`hug_stop_before_end` 2, entrega limpia al parqueo), mientras gira o escapa, y `hug_unknown_hold_s` (1,5 s) tras ver un pilar que no esta en el mapa.
-- `hug_enabled` esta **apagado por defecto**. Activarlo: `hug_enabled 1`. Herramienta: `node simulator/tools/hug_check.js SEMILLA ccw|cw [--signs N] [--trace]`. En el simulador, el panel *Controlador* muestra la fila "Pegado a la pared interior".
+- `hug_enabled` esta **apagado por defecto**. Activarlo: `hug_enabled 1`. Herramienta: `node code/simulator/tools/hug_check.js SEMILLA ccw|cw [--signs N] [--trace]`. En el simulador, el panel *Controlador* muestra la fila "Pegado a la pared interior".
 - **Sin medir en el banco de 100 pistas** (se hara cuando se pida). En 4 pistas sueltas: sin infracciones y 1-2 s menos por vuelta, con el robot activo entre el 27 % y el 63 % del tiempo.
 
 ### Configuración final validada (2026-10-13)

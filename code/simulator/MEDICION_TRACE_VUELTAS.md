@@ -1,8 +1,8 @@
 # trace_map: precisión en la 1.ª vuelta y en la 3.ª, y comparación con el parqueo
 
 Solo simulador (perfil `largo26`, 3 letreros, cajón de 39 cm). **Nada medido con el LiDAR real.**
-Reproducir: `node simulator/tools/measure_trace_laps.js 10 3 simulator/mediciones/trace_map_laps.json` y
-`node simulator/tools/measure_parking_sources.js 21 32 simulator/mediciones/parking_sources.json`.
+Reproducir: `node code/simulator/tools/measure_trace_laps.js 10 3 code/simulator/mediciones/trace_map_laps.json` y
+`node code/simulator/tools/measure_parking_sources.js 21 32 code/simulator/mediciones/parking_sources.json`.
 
 ## 1. Vuelta 1 (construcción) frente a vuelta 3 (refinada)
 
@@ -101,4 +101,4 @@ Lectura sin adornos:
   salvo vigilar que `latency_s` esté bien calibrada en el chasis real (ver `MEDICION_ARENA_LOCALIZER.md`).
 - Ponderar el centro del letrero por retornos lo empeoró (1,2 cm frente a 0,7): el LiDAR solo ve una cara y esa cara concentra los retornos.
   Por eso el centro se corrige con la huella completa (diagnose_sign_center.js).
-- Tiempo de las mediciones: 31 s en paralelo (22 núcleos) frente a ~10 min en serie, con una línea de log por ronda (simulator/tools/par.js).
+- Tiempo de las mediciones: 31 s en paralelo (22 núcleos) frente a ~10 min en serie, con una línea de log por ronda (code/simulator/tools/par.js).

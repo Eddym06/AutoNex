@@ -8,7 +8,7 @@ deben sumar.
 
 ## Medición en el navegador (WASM versionado)
 
-Chrome, `simulator/build/simulador.html`, pista aleatoria de la interfaz y robot por
+Chrome, `code/simulator/build/simulador.html`, pista aleatoria de la interfaz y robot por
 defecto. Un paso de simulación (física del carrito, LiDAR y —uno de cada 30— un cuadro
 de cámara con visión y trama del enlace) cuesta **1,5 ms de CPU**, con el controlador C
 dominando el total: 10 barridos/s a ~10 ms cada uno suman la mayor parte del paso.
@@ -86,14 +86,14 @@ fidelidad equivalente y sus diferencias no se deben sumar.
 
 ## Repetir los microbenchmarks
 
-`node simulator/tools/profile_components.js` mide componentes JavaScript sin
-arrancar una ronda. `simulator/tools/profile_controller.c` es el programa de la
+`node code/simulator/tools/profile_components.js` mide componentes JavaScript sin
+arrancar una ronda. `code/simulator/tools/profile_controller.c` es el programa de la
 prueba nativa en Windows: se compila con GCC junto al controlador, planificador,
 localizador, odometría, mapa y protocolos. Ninguna de estas pruebas usa GPU.
 
 ## Perfil por etapas y prueba de presupuesto (9 de noviembre de 2026)
 
-En Windows, ejecutar `powershell -File simulator/tools/profile_controller.ps1` con
+En Windows, ejecutar `powershell -File code/simulator/tools/profile_controller.ps1` con
 GCC disponible. El ejecutable se guarda en la carpeta temporal. El enlazador
 instrumenta las llamadas del controlador sin cambiar el firmware. Se registran
 p50, p95 y máximo por llamada; el barrido sintético repetido no representa una
@@ -113,6 +113,6 @@ Para detectar regresiones en una máquina de referencia se pueden fijar límites
 explícitos en milisegundos con `AUTONEX_SCAN_P95_MS` y
 `AUTONEX_PLANNER_P95_MS`. El comando falla si se supera alguno; sin esas
 variables informa sin imponer un umbral dependiente del equipo. Ejemplo en
-PowerShell: `$env:AUTONEX_SCAN_P95_MS=15; ./simulator/tools/profile_controller.ps1`.
+PowerShell: `$env:AUTONEX_SCAN_P95_MS=15; ./code/simulator/tools/profile_controller.ps1`.
 Para una comparación útil hay que usar el mismo equipo, compilador, carga y
 escenario. Faltan escenarios reales de entrada/salida instrumentados y medir en P4.

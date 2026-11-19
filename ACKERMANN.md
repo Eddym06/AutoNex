@@ -4,7 +4,7 @@ Estado (11 nov 2026): **en desarrollo**. El firmware del P4 compila (ESP-IDF 5.5
 completa con este chasis, pero **nada está probado en el coche real**. No se debe usar para mover el robot hasta completar
 y comprobar las tareas pendientes.
 
-Se ha elegido un [perfil provisional de simulación](simulator/PERFIL_PROVISIONAL.md)
+Se ha elegido un [perfil provisional de simulación](code/simulator/PERFIL_PROVISIONAL.md)
 de 22 × 14 cm y batalla 14 cm. Son suposiciones editables, no medidas del robot.
 
 ## Hardware indicado por el equipo
@@ -45,7 +45,7 @@ de 22 × 14 cm y batalla 14 cm. Son suposiciones editables, no medidas del robot
 - El simulador selecciona el modelo bicicleta y desactiva esas mismas opciones.
   Su geometría y su modelo de encoder aún son provisionales. El WASM versionado
   y los resultados históricos no validan esta adaptación.
-- Parámetros del servo y pines en `LIDAR System/p4_firmware/main/Kconfig.projbuild`.
+- Parámetros del servo y pines en `code/LIDAR System/p4_firmware/main/Kconfig.projbuild`.
   Los `sdkconfig` previos pueden conservar valores del vehículo anterior: revisar
   todos antes de usarlos. El bloqueo nuevo permanece desactivado por defecto.
 

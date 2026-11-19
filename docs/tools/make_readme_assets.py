@@ -1,6 +1,6 @@
 """Genera los graficos y las animaciones del README a partir de datos REALES del simulador.
 
-    node simulator/tools/export_readme_data.js 5 ccw          # ronda de ejemplo (con y sin IT)
+    node code/simulator/tools/export_readme_data.js 5 ccw     # ronda de ejemplo (con y sin IT)
     python docs/tools/make_readme_assets.py                   # escribe docs/assets/*.png y *.svg
 
 Nada esta dibujado a mano: la trayectoria, la velocidad, el mapa y los tiempos salen de la simulacion con el mismo firmware C que va en el robot.
@@ -23,7 +23,7 @@ from matplotlib.patches import Rectangle, Circle, Polygon
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "docs" / "assets"
 OUT.mkdir(parents=True, exist_ok=True)
-MED = ROOT / "simulator" / "mediciones"
+MED = ROOT / "code" / "simulator" / "mediciones"
 
 NAVY, TEAL, ORANGE, RED, GREEN, BLUE, GREY = "#0B1F33", "#12A37F", "#F59E0B", "#E5484D", "#2FB344", "#2D7FF9", "#8A94A0"
 plt.rcParams.update({"font.family": "DejaVu Sans", "axes.edgecolor": "#C9D1D9", "axes.labelcolor": NAVY, "text.color": NAVY,

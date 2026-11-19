@@ -15,23 +15,23 @@ jobs:
         with:
           python-version: '3.12'
       - name: Verify checked-in WASM manifest
-        run: python simulator/wasm/manifest.py
+        run: python code/simulator/wasm/manifest.py
       - name: Build WASM from sources
         shell: pwsh
-        run: ./simulator/wasm/build.ps1 -Download
+        run: ./code/simulator/wasm/build.ps1 -Download
       - name: Verify rebuilt manifest and assemble HTML
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          python simulator/wasm/manifest.py
-          python simulator/build_simulator.py
+          python code/simulator/wasm/manifest.py
+          python code/simulator/build_simulator.py
       - name: Run targeted simulator tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          node simulator/tests/test_sim_basics.js
-          node simulator/tests/test_axle_encoder.js
-          node simulator/tests/test_ui_smoke.js
-          node simulator/tests/test_parking_exit.js
+          node code/simulator/tests/test_sim_basics.js
+          node code/simulator/tests/test_axle_encoder.js
+          node code/simulator/tests/test_ui_smoke.js
+          node code/simulator/tests/test_parking_exit.js

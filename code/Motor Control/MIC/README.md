@@ -113,7 +113,7 @@ gcc -O2 -std=c11 -Wall -Wextra -I. mic.c test_mic.c -o test_mic -lm && ./test_mi
 
 ## 8. Integración en el firmware del P4 (hecha, apagada por defecto)
 
-- `LIDAR System/p4_firmware/main/hw_motors.c`: con `CONFIG_WRO_USE_MIC=y`, un temporizador de 1 kHz ejecuta `mic_update()` con las cuentas del
+- `code/LIDAR System/p4_firmware/main/hw_motors.c`: con `CONFIG_WRO_USE_MIC=y`, un temporizador de 1 kHz ejecuta `mic_update()` con las cuentas del
   encoder (`hw_encoders_counts()`, PCNT x4) y aplica el ciclo que devuelve. `hw_motors_drive(v)` solo cambia la orden de velocidad;
   `hw_motors_stop()` corta y se mantiene cortado hasta la siguiente orden válida; sin encoder listo el motor no se mueve.
 - Kconfig: `WRO_USE_MIC` (n), `WRO_MIC_GEAR_REDUCTION` (10), `WRO_MIC_RPM_NOLOAD` (800), `WRO_MIC_ENC_PPR` (11),

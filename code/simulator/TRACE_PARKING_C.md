@@ -53,7 +53,7 @@ primer candidato en torno a los 40 barridos posteriores a la detección.
 
 ## Misión autónoma completa
 
-`node simulator/tools/measure_trace_parking_online.js simulator/mediciones/trace_parking_online.json`
+`node code/simulator/tools/measure_trace_parking_online.js code/simulator/mediciones/trace_parking_online.json`
 evalúa la integración real del controlador. Se ejecutaron seis rondas: semillas
 1 y 2 sin obstáculos y semilla 3 con tres obstáculos, cada una en ambos sentidos.
 Las seis terminaron y produjeron un candidato; el peor error por extremo entre

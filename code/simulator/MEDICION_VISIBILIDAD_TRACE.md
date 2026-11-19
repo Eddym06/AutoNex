@@ -1,6 +1,6 @@
 # Visibilidad de trace_map por rayo
 
-Reproducir: `node simulator/tools/measure_trace_visibility.js simulator/mediciones/trace_map_visibility.json`.
+Reproducir: `node code/simulator/tools/measure_trace_visibility.js code/simulator/mediciones/trace_map_visibility.json`.
 El evaluador intercepta las mediciones del simulador y reconstruye, con la pose
 verdadera de cada rayo y el jitter angular ya usado por el propio sensor, el
 primer sólido que intersecta. No consume números aleatorios adicionales ni

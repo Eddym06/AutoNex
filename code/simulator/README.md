@@ -15,7 +15,7 @@ Simula una ronda completa de la pista WRO 2024 con sensores realistas y **ejecut
 ## Uso
 
 ```powershell
-python simulator\build_simulator.py      # genera simulator\build\simulador.html (un solo archivo)
+python code\simulator\build_simulator.py      # genera code\simulator\build\simulador.html (un solo archivo)
 ```
 
 Abre `simulador.html` en el navegador después de reconstruir el WASM. La salida
@@ -58,28 +58,28 @@ salida no tenía solución. El controlador recibe además el largo real del caj�
 ## Pruebas
 
 ```powershell
-node simulator\tests\test_sim_basics.js     # geometría, sensores, dinámica, juez, avisos de plano
-node simulator\tests\test_contrato.js       # ABI firmware↔simulación, frecuencia de cámara, cajón a medida
-node simulator\tests\test_axle_encoder.js   # encoder de eje y reducción externa
-node simulator\tests\test_parking_exit.js   # salida del cajón, 6 combinaciones sentido/semilla
-node simulator\tests\test_parking_entry.js  # entrada al cajón: repasadas contadas y acotadas
-node simulator\tests\test_ui_smoke.js       # la interfaz arranca
-node simulator\tests\test_missions.js       # rondas completas (minutos)
-python simulator\sequence_simulation.py     # secuencias de visión (129 comprobaciones) -> build\sequence-simulation\report.html
+node code\simulator\tests\test_sim_basics.js     # geometría, sensores, dinámica, juez, avisos de plano
+node code\simulator\tests\test_contrato.js       # ABI firmware↔simulación, frecuencia de cámara, cajón a medida
+node code\simulator\tests\test_axle_encoder.js   # encoder de eje y reducción externa
+node code\simulator\tests\test_parking_exit.js   # salida del cajón, 6 combinaciones sentido/semilla
+node code\simulator\tests\test_parking_entry.js  # entrada al cajón: repasadas contadas y acotadas
+node code\simulator\tests\test_ui_smoke.js       # la interfaz arranca
+node code\simulator\tests\test_missions.js       # rondas completas (minutos)
+python code\simulator\sequence_simulation.py     # secuencias de visión (129 comprobaciones) -> build\sequence-simulation\report.html
 ```
 
-`Vision System\tools\simulate.ps1` ejecuta las pruebas en C y todas las de arriba
+`code\Vision System\tools\simulate.ps1` ejecuta las pruebas en C y todas las de arriba
 en orden (`-Quick` se salta las rondas completas).
 
-Herramientas de depuración en `simulator/tests/` (`batch.js`, `scenario.js`, `inspect.js`, `planat.js`, `mapdump.js`…): ejecutan lotes de diseños aleatorios o muestran el mapa/plan en un instante dado.
+Herramientas de depuración en `code/simulator/tests/` (`batch.js`, `scenario.js`, `inspect.js`, `planat.js`, `mapdump.js`…): ejecutan lotes de diseños aleatorios o muestran el mapa/plan en un instante dado.
 
 ## Recompilar el firmware a WebAssembly
 
-El simulador carga `web/wro_core.wasm`, versionado en el repositorio. Si cambias el C de `LIDAR System/main`, `Vision System/main` o `shared/`, recompílalo:
+El simulador carga `web/wro_core.wasm`, versionado en el repositorio. Si cambias el C de `code/LIDAR System/main`, `code/Vision System/main` o `code/shared/`, recompílalo:
 
 ```powershell
-$env:WASI_SDK_PATH = "C:\ruta\wasi-sdk"   # o usa -Download para bajarlo a simulator\.toolchain
-.\simulator\wasm\build.ps1                # o: Vision System\tools\simulate.ps1 -Wasm
+$env:WASI_SDK_PATH = "C:\ruta\wasi-sdk"   # o usa -Download para bajarlo a code\simulator\.toolchain
+.\code\simulator\wasm\build.ps1                # o: code\Vision System\tools\simulate.ps1 -Wasm
 ```
 
 `simulate.ps1` avisa si el `.wasm` es más antiguo que el C. La interfaz entre JS y C está en `wasm/core_api.c`.
@@ -144,7 +144,7 @@ Todo *full* y sin contactos en los ocho casos. Probar más fuerte (sin holgura a
 arco) daba 2 repasadas en un caso pero el juez lo veía **parqueo parcial**: la media holgura es
 el punto. Queda bajar el 5–6 de los casos "cw": el A* cambia de 1 a 2 repasadas con 1 cm de
 diferencia en la pose de arranque (es su sensibilidad, no un error de cuenta); se mide con
-`simulator/tests/parkentry.js`.
+`code/simulator/tests/parkentry.js`.
 
 Para la entrada hay una **maniobra dedicada de tres tramos** (`park_ackermann_entry_maneuver`):
 *colocarse con un arco de avance → entrar girando con un arco largo de reversa → enderezar*.
@@ -162,10 +162,10 @@ engancha la esquina trasera con el tope a los 6,5 cm.
 ## Depurar un plano: `tools/depurar.py`
 
 ```powershell
-python simulator\tools\depurar.py plano.json                 # ronda estricta: se detiene en la primera infracción
-python simulator\tools\depurar.py plano.json --indulgente    # anota todas las infracciones y sigue, para ver todos los fallos
-python simulator\tools\depurar.py plano.json --permitir parqueo   # da por bueno un hallazgo ya documentado (se sigue imprimiendo)
-python simulator\tools\depurar.py plano.json --json info.json --ctrl "planner.speed_cm_s 15"
+python code\simulator\tools\depurar.py plano.json                 # ronda estricta: se detiene en la primera infracción
+python code\simulator\tools\depurar.py plano.json --indulgente    # anota todas las infracciones y sigue, para ver todos los fallos
+python code\simulator\tools\depurar.py plano.json --permitir parqueo   # da por bueno un hallazgo ya documentado (se sigue imprimiendo)
+python code\simulator\tools\depurar.py plano.json --json info.json --ctrl "planner.speed_cm_s 15"
 ```
 
 Ejecuta el plano en **el mismo simulador** (firmware C en WebAssembly, sensores, robot, juez; con el cuadro de configuración por defecto como la interfaz, y el chasis que declare el plano) y escribe un informe: resultado, fases, y para cada hallazgo (infracciones, paradas, bucles de reversa, contactos, tramos lentos, salida/parqueo que no terminan, avisos del plano) el instante, la posición, la sección, lo que decide el firmware, los letreros reales cerca y el **mapa del planificador** en ese instante, con el comando exacto para mirarlo más (`tools/debug_trace.js snap plano.json T`). Pensado para que cualquier persona o modelo localice el problema sin leer trazas enormes. Devuelve código de salida 1 si encuentra infracciones, paradas, bucles, o una salida del cajón o un parqueo que no terminan (`--permitir <tipo>` los degrada a avisos, para un caso ya documentado).
@@ -177,17 +177,17 @@ Los **avisos del plano** (`field.checkLayout`, también visibles en la interfaz 
 Desde la interfaz, **Plano ⇄ JSON** exporta el diseño. Para ejecutarlo sin navegador y ver qué decide el robot:
 
 ```powershell
-node simulator\tests\layout.js plano.json                 # ronda completa y veredicto del juez
-node simulator\tests\layout.js plano.json 20 40 1         # traza del segundo 20 al 40
-node simulator\tests\ctrltrace.js plano.json 10 30 1      # rumbo del giroscopio, rumbo del recorrido, paredes, esquinas
-node simulator\tests\dumpat.js plano.json 26 45           # mapa local del planificador en ese instante
+node code\simulator\tests\layout.js plano.json                 # ronda completa y veredicto del juez
+node code\simulator\tests\layout.js plano.json 20 40 1         # traza del segundo 20 al 40
+node code\simulator\tests\ctrltrace.js plano.json 10 30 1      # rumbo del giroscopio, rumbo del recorrido, paredes, esquinas
+node code\simulator\tests\dumpat.js plano.json 26 45           # mapa local del planificador en ese instante
 ```
 
-`simulator/tests/plano_atasco.json` es un caso real reportado (se quedaba yendo y viniendo): la causa era que, tras esquivar pegado a la pared, el rumbo del recorrido se reanclaba con las paredes vistas en diagonal y la esquina no se contaba. Está corregido; ver *Limitaciones físicas* abajo para lo que queda de ese plano.
+`code/simulator/tests/plano_atasco.json` es un caso real reportado (se quedaba yendo y viniendo): la causa era que, tras esquivar pegado a la pared, el rumbo del recorrido se reanclaba con las paredes vistas en diagonal y la esquina no se contaba. Está corregido; ver *Limitaciones físicas* abajo para lo que queda de ese plano.
 
 ## Linea de carrera
 
-Con `race_enabled 1` (apagada por defecto) el robot calcula tras la primera vuelta una linea de carrera: el mapa la dibuja coloreada por la velocidad que pide (casilla *linea de carrera*) y el panel *Controlador* tiene una fila con su estado. `node simulator/tools/race_check.js SEMILLA ccw|cw [--cfg ..] [--trace --lap 2]` muestra cuando se construye, que letreros conoce frente a los reales, y velocidad media por vuelta. El banco de 100 pistas (`tools/bench/big.sh`) admite `WEB=carpeta` (copia congelada de `simulator/web`), `OUT=carpeta`, `FROM`/`TO` y `SIGNS`.
+Con `race_enabled 1` (apagada por defecto) el robot calcula tras la primera vuelta una linea de carrera: el mapa la dibuja coloreada por la velocidad que pide (casilla *linea de carrera*) y el panel *Controlador* tiene una fila con su estado. `node code/simulator/tools/race_check.js SEMILLA ccw|cw [--cfg ..] [--trace --lap 2]` muestra cuando se construye, que letreros conoce frente a los reales, y velocidad media por vuelta. El banco de 100 pistas (`tools/bench/big.sh`) admite `WEB=carpeta` (copia congelada de `code/simulator/web`), `OUT=carpeta`, `FROM`/`TO` y `SIGNS`.
 
 ## Cómo es la pista y qué se ve
 
@@ -216,8 +216,8 @@ En la interfaz, el panel *Controlador* muestra la **odometría** (camino, veloci
 Por línea de comandos:
 
 ```powershell
-node simulator\tools\odom_check.js 100 3        # error de la odometria sola (segundos, semilla)
-node simulator\tools\arena_check.js 100 3       # error de la pose del localizador del campo
+node code\simulator\tools\odom_check.js 100 3        # error de la odometria sola (segundos, semilla)
+node code\simulator\tools\arena_check.js 100 3       # error de la pose del localizador del campo
 ```
 
 ## Motor físico y MIC en el simulador
@@ -230,23 +230,23 @@ arco recto se pida como avance exacto (`move_cm`); hoy empeora el parqueo (ver `
 ## Mapa persistente (trace_map)
 
 `core.traceObjects()` (letreros y topes con id, tipo, color, posición, tamaño), `core.traceSpot()` (plaza de parqueo) y `core.traceMap()` (rejilla, espacio libre `miss`, celdas borradas).
-Se mide contra la verdad con `node simulator/tools/measure_trace_objects.js [semillas] [segundos] [letreros]`; la prueba es `tests/test_trace_map.js`. Ver `TRACE_MAP.md`.
+Se mide contra la verdad con `node code/simulator/tools/measure_trace_objects.js [semillas] [segundos] [letreros]`; la prueba es `tests/test_trace_map.js`. Ver `TRACE_MAP.md`.
 
 ## Medir el parqueo
 
 ```powershell
-node simulator\tests\parkentry.js largo26 ronda 180 4        # 8 rondas (4 semillas x 2 sentidos)
-node simulator\tests\parkentry.js largo26 entrada 90 4       # arranque en la pista, sin salida previa
-$env:DIR='cw'; $env:SEED='4'; node simulator\tests\parkentry.js largo26 ronda 180 1   # una ronda
-$env:MIC='1'; node simulator\tests\parkentry.js largo26 ronda 180 4                   # con el motor físico y MIC
+node code\simulator\tests\parkentry.js largo26 ronda 180 4        # 8 rondas (4 semillas x 2 sentidos)
+node code\simulator\tests\parkentry.js largo26 entrada 90 4       # arranque en la pista, sin salida previa
+$env:DIR='cw'; $env:SEED='4'; node code\simulator\tests\parkentry.js largo26 ronda 180 1   # una ronda
+$env:MIC='1'; node code\simulator\tests\parkentry.js largo26 ronda 180 4                   # con el motor físico y MIC
 ```
 
-Valida siempre con semillas nuevas (21 en adelante): las 1-8 están sobreajustadas. Recompilar el WASM tras tocar el C: `bash simulator/tools/bench/rebuild_wasm.sh` o `simulator\wasm\build.ps1`.
+Valida siempre con semillas nuevas (21 en adelante): las 1-8 están sobreajustadas. Recompilar el WASM tras tocar el C: `bash code/simulator/tools/bench/rebuild_wasm.sh` o `code\simulator\wasm\build.ps1`.
 ## Cómo se genera `build/simulador.html`
 
-`simulator/build_simulator.py` toma `web/index.template.html`, mete dentro (en línea) todos los `.js` de `web/` y el firmware `wro_core.wasm` en base64, y escribe **un solo archivo** `build/simulador.html` que funciona sin servidor ni red. Sobrescribe el anterior cada vez. Pone en el título una marca de compilación (`fecha · fw hash`); el hash es el del `.wasm`, así que cambia solo si cambia el firmware. `Vision System/tools/simulate.ps1` lo ejecuta como último paso (después de pasar todas las pruebas); también puede lanzarse a mano con `python simulator\build_simulator.py`.
+`code/simulator/build_simulator.py` toma `web/index.template.html`, mete dentro (en línea) todos los `.js` de `web/` y el firmware `wro_core.wasm` en base64, y escribe **un solo archivo** `build/simulador.html` que funciona sin servidor ni red. Sobrescribe el anterior cada vez. Pone en el título una marca de compilación (`fecha · fw hash`); el hash es el del `.wasm`, así que cambia solo si cambia el firmware. `code/Vision System/tools/simulate.ps1` lo ejecuta como último paso (después de pasar todas las pruebas); también puede lanzarse a mano con `python code\simulator\build_simulator.py`.
 
-El `.wasm` en sí **no** lo genera ese paso: se compila con `simulator\wasm\build.ps1` (o `simulate.ps1 -Wasm`) a partir del C de `LIDAR System/main` y `Vision System/main`. Cambiar el firmware exige recompilar el wasm y después regenerar el html.
+El `.wasm` en sí **no** lo genera ese paso: se compila con `code\simulator\wasm\build.ps1` (o `simulate.ps1 -Wasm`) a partir del C de `code/LIDAR System/main` y `code/Vision System/main`. Cambiar el firmware exige recompilar el wasm y después regenerar el html.
 # Estado de la adaptación
 
 El perfil activo es Ackermann con tracción trasera y encoder de eje, con medidas

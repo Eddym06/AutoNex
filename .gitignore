@@ -1,30 +1,30 @@
-Vision System/build/
-simulator/build/
-simulator/.toolchain/
-LIDAR System/build/
-Vision System/managed_components/
-Vision System/sdkconfig
-Vision System/sdkconfig.old
-Vision System/tests/*.exe
+code/Vision System/build/
+code/simulator/build/
+code/simulator/.toolchain/
+code/LIDAR System/build/
+code/Vision System/managed_components/
+code/Vision System/sdkconfig
+code/Vision System/sdkconfig.old
+code/Vision System/tests/*.exe
 __pycache__/
 *.pyc
-LIDAR System/p4_firmware/build/
-LIDAR System/p4_firmware/sdkconfig
-LIDAR System/p4_firmware/sdkconfig.old
-LIDAR System/p4_firmware/managed_components/
-LIDAR System/p4_firmware/dependencies.lock
-LIDAR System/p4_firmware/build_p4/
-LIDAR System/p4_firmware/build_p55/
+code/LIDAR System/p4_firmware/build/
+code/LIDAR System/p4_firmware/sdkconfig
+code/LIDAR System/p4_firmware/sdkconfig.old
+code/LIDAR System/p4_firmware/managed_components/
+code/LIDAR System/p4_firmware/dependencies.lock
+code/LIDAR System/p4_firmware/build_p4/
+code/LIDAR System/p4_firmware/build_p55/
 .tgrep/
-LIDAR System/p4_firmware/build_usb/
-LIDAR System/p4_firmware/sdkconfig.usb
-LIDAR System/p4_firmware/sdkconfig.usb.old
-S3 Robot/build_dbg/
-S3 Robot/sdkconfig.dbg.out
-S3 Robot/sdkconfig.dbg.out.old
-LIDAR System/diag_motores/build/
-LIDAR System/diag_motores/sdkconfig
+code/LIDAR System/p4_firmware/build_usb/
+code/LIDAR System/p4_firmware/sdkconfig.usb
+code/LIDAR System/p4_firmware/sdkconfig.usb.old
+code/S3 Robot/build_dbg/
+code/S3 Robot/sdkconfig.dbg.out
+code/S3 Robot/sdkconfig.dbg.out.old
+code/LIDAR System/diag_motores/build/
+code/LIDAR System/diag_motores/sdkconfig
 
 .claude/
-LIDAR System/p4_firmware/build_perf/
-LIDAR System/p4_firmware/build_normal/
+code/LIDAR System/p4_firmware/build_perf/
+code/LIDAR System/p4_firmware/build_normal/

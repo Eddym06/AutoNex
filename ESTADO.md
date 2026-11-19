@@ -6,10 +6,10 @@
 >   semillas 9-32 hay 5 fallos de 56 (9 %, antes 17 %). La meta de entrada pide rumbo ≤ 4° (el juez da *completo* hasta 6,2°), el A\* tiene un coste suave de
 >   holgura y el chequeo de arco nunca es más estricto que el plan. Causa de las repasadas de más: el plan va con ~1 cm de holgura real y el error de
 >   ejecución más el de pose es del mismo orden. Detalle, experimentos descartados y límites abiertos en [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md).
-> - **MIC (Motor Intelligent Control):** módulo central de tracción en [`Motor Control/MIC/`](Motor%20Control/MIC/README.md): modelo del JGB37-520, observador,
+> - **MIC (Motor Intelligent Control):** módulo central de tracción en [`code/Motor Control/MIC/`](code/Motor%20Control/MIC/README.md): modelo del JGB37-520, observador,
 >   planificador con anticipación, frenado progresivo y agresivo. Integrado en `hw_motors.c` tras `CONFIG_WRO_USE_MIC` (**apagado**) y en el simulador (`mic: true`).
->   Probado solo con un motor simulado. Procedimiento de calibración en [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md).
-> - **trace_map:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md).
+>   Probado solo con un motor simulado. Procedimiento de calibración en [`CALIBRACION.md`](code/Motor%20Control/MIC/CALIBRACION.md).
+> - **trace_map:** mapa persistente con espacio libre, objetos (color, posición) y plaza de parqueo detectada por geometría. Ver [`code/simulator/TRACE_MAP.md`](code/simulator/TRACE_MAP.md).
 > - **Aviso de hardware:** el lazo abierto de `hw_motors.c` usa `WRO_MOTOR_MAX_CM_S = 40`; con el motor de 800 rpm el 100 % de ciclo son ~210 cm/s. No activar
 >   los motores sin MIC o sin recalibrar ese valor. **Motor (16 nov):** el real es de 800 rpm (etiqueta; 844 medidas sin carga a 12,0 V, ver `MEDIDAS_HARDWARE_P4.md`) y es lo que asume el repo (MIC, Kconfig, simulador).
 > - Nada de esto está probado en el coche real.
@@ -18,8 +18,8 @@
 > - **16 nov: medido en el P4 real** (ver `MEDIDAS_HARDWARE_P4.md`, seccion 8): el C del robot es ~40 veces mas lento que en el PC. Un barrido del controlador son 160 ms (presupuesto 100), el A* del parqueo tarda 12-27 s por plan, el plan del IT 18 s (una rebanada de 300 evaluaciones, 393 ms) y la pila de 6 KB de `app_main` se desborda. El simulador no modela el tiempo de calculo. Pendiente: pila a 12 KB, planes en una tarea aparte del segundo nucleo, A* con 1 variante.
 > - **16 nov: IT frente al optimo, con el motor de 800 rpm (vmax 188,7 cm/s, aceleracion 300 -> 68 cm/s2 al 90 %).** Con el mapa real del robot el plan de IT sale en 9,23 s (replica Python: 9,235) y el mismo modelo permite ~8,0 s: la busqueda local del C se queda en un minimo (los pilares del mapa tienen hasta 2,8 cm de error y estrechan los pasillos). El control optimo (CasADi) da ~6,3 s con huella estatica o margen medido: esa brecha son las reglas (margen 14*(v/100)^2 y huella), no la busqueda. Anadido `it_plan_refine_begin` (refinado en segundo plano con recocido tras el primer plan, `it_refine_evals`, `it_refine_step_evals`): plan 9,23 -> 8,5 s y IT 3,3 % mas rapido por distancia, pero en 48 rondas completas el total no mejora (88,7 s frente a 86,9) y una ronda pierde puntos: queda APAGADO (`it_refine_evals 0`). Sin medir en el P4.
 > - **11 nov (noche, 4): seguidor de IT.** Causa de la ronda `ccw 13` que siempre fallaba: un letrero verde no entro en el mapa de la vuelta 1 y IT lo atropellaba a 150 cm/s (la guardia de sorpresas solo valia en rectas, pedia 4 barridos = 60 cm y miraba 75 cm). Ahora `it_unknown_ahead` (wro_controller.c) busca puntos del LiDAR que no son pared, bloque ni obstaculo del plan dentro de la huella de las proximas estaciones (en curva tambien): baja a 45 cm/s al ver 3+ puntos y cede el mando en el segundo barrido; no se engancha mientras siga delante; la guardia de arco recto mira 20+0,75v cm y cede a los 2 barridos. 48 rondas, 5 letreros: 48 de 48 con 62 puntos (antes 31 de 32 en 32 rondas). Con la proteccion, `it.track_err_cm` 6-10 hace IT 10-17 % mas rapido por distancia (`tools/it_laps.js`), pero en 48 rondas completas pierde puntos en el parqueo (44-47 en 1-5 rondas) y una ronda no acaba (ccw 15 con 10: IT nunca cede): valor por defecto sin cambios (14). Abierto: por que IT no cede el mando en ese caso.
-> - **11 nov (noche, 3): investigacion del IT con una replica en Python** (`simulator/tools/it_py/`, reproduce el C: 7,810 s frente a 7,809 s). Hallazgos: (1) la busqueda del C ya esta en el optimo de sus reglas (recocido, evolucion diferencial y control optimo con CasADi/IPOPT dan 7,6-7,8 s). (2) Lo que fija el tiempo son las reglas: margen de error de seguimiento 14*(v/100)^2 (el error real medido es ~4 veces menor) y la holgura de la huella con ese mismo margen (cuesta ~1,4 s por vuelta). Con margen medido y huella el optimo continuo es 6,4-6,6 s. (3) Pero NO se traduce en rondas: con `it.track_err_cm` 5-11, o `IT_GAP_ERR_SCALE_SQ` 2-4, el plan baja a 6,5 s y las rondas (32, 5 letreros) no ganan tiempo (74 -> 78-84 s) y aparecen contactos y rondas sin acabar: el limite esta en el seguidor (`it_track`), no en el plan. Valores por defecto sin cambios. (4) Arreglado: IT ya no se cae con mas letreros (reintento con mas volante, pilar sin color como obstaculo con cesion al reactivo): 24 de 24 con plan, antes 21.
-> - **11 nov (noche, 2): aproximacion al parqueo e IT con mas letreros.** (1) `park_cruise_step`: la aproximacion ya no apunta a la pose de la salida (metia el morro en el cajon); ahora va paralela a 30-36 cm de la pared hasta u=20 cm y gira el morro de forma progresiva a 20 grados antes de la reversa (`PARK_APPROACH_*`, `PARK_APPROACH_MODE 0` = la antigua). 16 rondas: 18,8 s y 5,9 repasadas -> 16,6 s y 3,6; barrido de u, inclinacion y distancia a la pared en 24 rondas: 20 cm y 20 grados siguen siendo lo mejor (14 grados da un contacto). Aun no llega a 2 pasadas. (2) IT: un plan invalido por volante (why=1) se reintenta con mas volante (`IT_STEER_RETRIES`) y un pilar sin color ya no cancela el plan (color 3, el reactivo manda a <60 cm): con 5 letreros 24 de 24 rondas con plan (antes 21) y 79,8 -> 75,7 s. La trayectoria 'ovalada' de la linea corta pegada al muro interior NO se logro: el planificador rechaza esa curvatura. Herramientas nuevas: `simulator/tools/user_case.js`, `park_batch.js`, `it_diag.js`, `it_user_plan.js`.
+> - **11 nov (noche, 3): investigacion del IT con una replica en Python** (`code/simulator/tools/it_py/`, reproduce el C: 7,810 s frente a 7,809 s). Hallazgos: (1) la busqueda del C ya esta en el optimo de sus reglas (recocido, evolucion diferencial y control optimo con CasADi/IPOPT dan 7,6-7,8 s). (2) Lo que fija el tiempo son las reglas: margen de error de seguimiento 14*(v/100)^2 (el error real medido es ~4 veces menor) y la holgura de la huella con ese mismo margen (cuesta ~1,4 s por vuelta). Con margen medido y huella el optimo continuo es 6,4-6,6 s. (3) Pero NO se traduce en rondas: con `it.track_err_cm` 5-11, o `IT_GAP_ERR_SCALE_SQ` 2-4, el plan baja a 6,5 s y las rondas (32, 5 letreros) no ganan tiempo (74 -> 78-84 s) y aparecen contactos y rondas sin acabar: el limite esta en el seguidor (`it_track`), no en el plan. Valores por defecto sin cambios. (4) Arreglado: IT ya no se cae con mas letreros (reintento con mas volante, pilar sin color como obstaculo con cesion al reactivo): 24 de 24 con plan, antes 21.
+> - **11 nov (noche, 2): aproximacion al parqueo e IT con mas letreros.** (1) `park_cruise_step`: la aproximacion ya no apunta a la pose de la salida (metia el morro en el cajon); ahora va paralela a 30-36 cm de la pared hasta u=20 cm y gira el morro de forma progresiva a 20 grados antes de la reversa (`PARK_APPROACH_*`, `PARK_APPROACH_MODE 0` = la antigua). 16 rondas: 18,8 s y 5,9 repasadas -> 16,6 s y 3,6; barrido de u, inclinacion y distancia a la pared en 24 rondas: 20 cm y 20 grados siguen siendo lo mejor (14 grados da un contacto). Aun no llega a 2 pasadas. (2) IT: un plan invalido por volante (why=1) se reintenta con mas volante (`IT_STEER_RETRIES`) y un pilar sin color ya no cancela el plan (color 3, el reactivo manda a <60 cm): con 5 letreros 24 de 24 rondas con plan (antes 21) y 79,8 -> 75,7 s. La trayectoria 'ovalada' de la linea corta pegada al muro interior NO se logro: el planificador rechaza esa curvatura. Herramientas nuevas: `code/simulator/tools/user_case.js`, `park_batch.js`, `it_diag.js`, `it_user_plan.js`.
 > - **11 nov (revisión del simulador).** El simulador abría con IT, cajón y arranque en el cajón APAGADOS: ahora los tres vienen marcados. Cambios: (1) el sorteo `feasible` reponía mal los
 >   letreros (3 de 6 era lo normal): ahora prueba otros asientos y coloca ~5,5 de 6 (el aviso explica por qué faltan); `refill: false` conserva el sorteo anterior. (2) La pose estimada se dibuja
 >   adelantada por el retraso del barrido (antes iba detrás: la pose es la del instante del barrido, que llega ~procDelay después). (3) El parqueo para en cuanto la pose estimada cumple la meta
@@ -73,9 +73,9 @@ Lo que impide pasar al robot real es el hardware y los drivers del P4 (sección 
 
 | Prueba | Resultado |
 | --- | --- |
-| `Vision System/tools/simulate.ps1` (C nativo, simulador, rondas, depurador, visión) | Verde el 7 nov 2026 con el WASM reconstruido; regenera `simulator/build/simulador.html` |
-| `simulator/tests/test_missions.js` | Verde, incluida la misión de 62 puntos (salir del cajón, 3 vueltas, aparcar) en los dos sentidos con el chasis de 17 × 13 cm |
-| `simulator/tests/plano_errores.json` (plano del equipo) | 62 puntos, parqueo completo, 24/24 secciones, 0 contactos, 177 s |
+| `code/Vision System/tools/simulate.ps1` (C nativo, simulador, rondas, depurador, visión) | Verde el 7 nov 2026 con el WASM reconstruido; regenera `code/simulator/build/simulador.html` |
+| `code/simulator/tests/test_missions.js` | Verde, incluida la misión de 62 puntos (salir del cajón, 3 vueltas, aparcar) en los dos sentidos con el chasis de 17 × 13 cm |
+| `code/simulator/tests/plano_errores.json` (plano del equipo) | 62 puntos, parqueo completo, 24/24 secciones, 0 contactos, 177 s |
 | Banco de 100 pistas, semillas 21–70 (ajuste) | 99 perfectas, 0 contactos |
 | Banco de 100 pistas, semillas 71–120 (validación) | 95 perfectas, 0 contactos |
 | Velocidad | 23 cm/s (mediana 143 s, máximo 159 s de 180 s) |
@@ -86,18 +86,18 @@ Todo es **solo simulación**. Con el robot real solo se probó la cámara.
 
 ## 3. Qué se hizo (esta etapa)
 
-- **Odometría** (`LIDAR System/main/odometry.c`): ángulos de rueda + rumbo del giroscopio → posición. Detecta patinaje, rechaza saltos imposibles, se reinicia tras un hueco de muestras (`max_gap_s` 0,5 s) y tiene autocalibración (`odom_calibrate_distance/track/balance`). Valores por defecto: rueda 5,5 cm, vía 11,5 cm, escala 1 por lado, signo +1.
+- **Odometría** (`code/LIDAR System/main/odometry.c`): ángulos de rueda + rumbo del giroscopio → posición. Detecta patinaje, rechaza saltos imposibles, se reinicia tras un hueco de muestras (`max_gap_s` 0,5 s) y tiene autocalibración (`odom_calibrate_distance/track/balance`). Valores por defecto: rueda 5,5 cm, vía 11,5 cm, escala 1 por lado, signo +1.
 - **Localizador del campo** (`arena_localizer.c`): casa el LiDAR con 8 segmentos de pared (cuadrado exterior y bloque interior) por Gauss-Newton con pesos Huber. Adquiere la pose en la sección de salida. Error medio 2,3 cm, máximo 3,5 cm.
 - **Memoria de letreros en coordenadas del campo** (`arena_signs_enabled`): reinyecta letreros ya vistos anclados a un pilar compacto del LiDAR.
 - **Compuerta de esquinas** (`arena_gates_corners`): una esquina solo empieza en una zona de esquina según la pose del campo. Arregló el sentido contrario del plano del equipo.
 - **Planificador**: escala de desviación del corredor 5 cm, margen extra primero, squeeze de huella, frenado de un ciclo antes de invertir.
 - **Simulador**: modelo de encoders (±1,5 % de diámetro, patinaje, 1°, 50 Hz, 15 ms, pérdidas) con generadores aleatorios propios; panel de odometría y pose con error contra la verdad; pose estimada dibujada (contorno amarillo = LiDAR corregido, cruz magenta = solo encoders).
-- **Herramientas**: `depurar.py` (ahora también falla con salida/parqueo sin terminar), `odom_check.js`, `arena_check.js`, banco de 100 pistas en `simulator/tools/bench/`.
+- **Herramientas**: `depurar.py` (ahora también falla con salida/parqueo sin terminar), `odom_check.js`, `arena_check.js`, banco de 100 pistas en `code/simulator/tools/bench/`.
 - **Pruebas nuevas**: `test_odometry.c`, `test_arena_localizer.c`, ampliación de `test_ui_smoke.js`.
 
 ## 3b. Linea de carrera (vueltas 2 y 3): hecha, apagada por defecto
 
-Implementada en C (`LIDAR System/main/race_line.c` + integracion en `wro_controller.c` y el corredor del planificador) y en el simulador (linea dibujada coloreada por velocidad, fila de telemetria, `simulator/tools/race_check.js`). Calcula, tras la primera vuelta, la trayectoria y el perfil de velocidad con los letreros conocidos; el LiDAR sigue mandando. Detalle y parametros en `LIDAR System/README.md`, seccion "Linea de carrera".
+Implementada en C (`code/LIDAR System/main/race_line.c` + integracion en `wro_controller.c` y el corredor del planificador) y en el simulador (linea dibujada coloreada por velocidad, fila de telemetria, `code/simulator/tools/race_check.js`). Calcula, tras la primera vuelta, la trayectoria y el perfil de velocidad con los letreros conocidos; el LiDAR sigue mandando. Detalle y parametros en `code/LIDAR System/README.md`, seccion "Linea de carrera".
 
 **Resultado honesto (100 pistas, 7 letreros):** sin linea 99 perfectas y mediana 142 s; con la linea activa 97 y 141 s; con preferencia lateral 90 y 139 s. No gana tiempo apreciable con tantos letreros (casi toda la pista es zona de letrero o esquina) y baja la fiabilidad (mas parqueos que no terminan, algun paso por el lado equivocado), asi que `race_enabled` queda en **0**. Para activarla: `race_enabled 1` (y `race_lateral_enabled 1` para la preferencia lateral, mas ganancia y mas riesgo).
 
@@ -105,7 +105,7 @@ Implementada en C (`LIDAR System/main/race_line.c` + integracion en `wro_control
 
 ## 4. Configuración final y decisiones
 
-Detalle y tabla en `LIDAR System/README.md`, sección «Configuración final validada». Resumen:
+Detalle y tabla en `code/LIDAR System/README.md`, sección «Configuración final validada». Resumen:
 
 - **Activo**: `arena_signs_enabled`, `arena_gates_corners`, `planner.plan_path_scale_cm` 5, `plan_w_path` 15, `footprint_shrink_cm` 1,0, velocidad 23.
 - **Apagado a propósito** (dejaron peor las pistas aleatorias): `sidestep_enabled` (desplazamiento de lado), `peek_enabled` (girar hacia pilares sin color; bajaba de 95 a 89), `lap_memory_enabled` (memoria por sección, sustituida por la del campo), `tight_clear_cm` (frenada por holgura; costaba ~18 s y rompía el parqueo).
@@ -114,15 +114,15 @@ Detalle y tabla en `LIDAR System/README.md`, sección «Configuración final val
 
 ## 5. LO QUE FALTA: hardware y drivers del P4
 
-La lógica ya está hecha y probada en simulación. Falta conectar cada entrada y salida del P4 al hardware. Son las funciones que el equipo rellena en `p4_hal_t` (`LIDAR System/orchestrator/p4_runtime.h`):
+La lógica ya está hecha y probada en simulación. Falta conectar cada entrada y salida del P4 al hardware. Son las funciones que el equipo rellena en `p4_hal_t` (`code/LIDAR System/orchestrator/p4_runtime.h`):
 
 | Función | Hardware | Estado |
 | --- | --- | --- |
 | `drive` | Puente H L298N: PWM de 1 kHz en IN1–IN4 (sin pin de enable) | Pendiente |
-| `poll_scan` | LiDAR WitMotion D6 por UART a 230400 8N1. El decodificador está en `LIDAR System/sketch_oct14a` (Arduino); hay que portarlo a C | Pendiente; falta el GPIO RX |
+| `poll_scan` | LiDAR WitMotion D6 por UART a 230400 8N1. El decodificador está en `code/LIDAR System/sketch_oct14a` (Arduino); hay que portarlo a C | Pendiente; falta el GPIO RX |
 | `poll_gyro` | IMU (INT1 47, SDA 53, SCL 48) | Pendiente; falta el modelo del chip |
 | `read_camera` | ESP32-S3 CAM por USB (el P4 es el host; puente CH340 de la placa del S3, 921600 baudios) | Hecho en código (`hw_camera.c`, `Vision System`); sin probar con el S3 enchufado al P4 |
-| encoders | Encoders ópticos en GPIO 27 y 45 (`Motor Control/Encoder/esp32p4`) | Pendiente de cablear: un canal por rueda, el sentido lo da el control |
+| encoders | Encoders ópticos en GPIO 27 y 45 (`code/Motor Control/Encoder/esp32p4`) | Pendiente de cablear: un canal por rueda, el sentido lo da el control |
 | `start_pressed` | Botón de arranque | Pendiente; falta el GPIO |
 
 Tareas, en orden:
@@ -142,7 +142,7 @@ Tareas, en orden:
 - Dos cambios de lado seguidos más rápidos de lo que permite el radio de giro no tienen trayectoria; son un problema del plano (`field.checkLayout` los avisa). El aviso de "entrada de la recta" ya mide desde el extremo por donde se entra en las cuatro rectas y en los dos sentidos.
 - La salida del cajón cuesta ~9,5 s de los 180 de ronda con el volante a 40° (con 30° llegaba a 55 s en el peor caso; con el frenado por arco que había antes, 21–24 s). El parqueo de entrada, ~15–17 s.
 - **La entrada al cajón necesita varias pasadas, no una (hoy 4–8).** Con 1,5 × L = 39 cm para un coche de 26 cm (holgura 13 cm) el hueco es "apretado", como aparcar entre dos coches. El plan de la maniobra **sí** es el correcto: `park_ackermann_entry_maneuver` busca tres tramos (colocarse → entrar girando → enderezar) y sale con **2 cambios de sentido** (`AAAA…RRRR…A`). Las pasadas que quedan de más son la **alineación final dentro del cajón**, donde no caben arcos largos y trabaja el A* de 3,5 cm. Historial: 10 con la penalización original, 8 con 12, **4–8** con la maniobra. Probado y descartado: S de dos arcos desde el carril (no cabe: la esquina trasera engancha el tope a los 6,5 cm), presupuesto de repasadas (empeoraba por alternar), y maniobra desde dentro del cajón (rompía la ronda: 180 s con parqueo parcial).
-- **Entrada simétrica a la salida: implantada y medida.** El argumento de simetría es correcto —un camino libre al revés es libre— y el planificador aislado da **1 repasada** desde la pose donde acaba la salida, así que la entrada del controlador ahora arranca ahí: `PARK_EXIT` recuerda su pose final, un crucero lleva el coche por el carril a 2 cm más adelante y 1,5 más lejos de la pared, y desde ahí hace **un solo plan**. Para que el plan se ejecute entero (antes se abortaba a 10° de morro y la corrección costaba una repasada más) los arcos de la entrada se cortan por **rumbo del giroscopio**, se vigila el avance a ciegas y **se le da el volante al servo con el coche quieto** antes de mover (1 barrido si el cambio es pequeño, 2 si es una inversión completa: el servo tarda ~0,2 s en pasar de un tope al otro y, sin eso, el primer arco de cada cambio giraba menos que el modelo). La salida y la demostración desde la pista conservan el ejecutor de siempre: la salida sigue en **1 repasada y 8,1–8,6 s**. Medido en ronda completa (largo26, 4 semillas por sentido): repasadas **3, 3, 4, 4, 5, 4, 4, 4** (antes de todo esto, 8, 4, 4, 3 en las dos primeras), **62 puntos y parqueo completo en las 8**, sin contactos, entrada en 12–18 s. Se mide con `simulator/tests/parkentry.js`.
+- **Entrada simétrica a la salida: implantada y medida.** El argumento de simetría es correcto —un camino libre al revés es libre— y el planificador aislado da **1 repasada** desde la pose donde acaba la salida, así que la entrada del controlador ahora arranca ahí: `PARK_EXIT` recuerda su pose final, un crucero lleva el coche por el carril a 2 cm más adelante y 1,5 más lejos de la pared, y desde ahí hace **un solo plan**. Para que el plan se ejecute entero (antes se abortaba a 10° de morro y la corrección costaba una repasada más) los arcos de la entrada se cortan por **rumbo del giroscopio**, se vigila el avance a ciegas y **se le da el volante al servo con el coche quieto** antes de mover (1 barrido si el cambio es pequeño, 2 si es una inversión completa: el servo tarda ~0,2 s en pasar de un tope al otro y, sin eso, el primer arco de cada cambio giraba menos que el modelo). La salida y la demostración desde la pista conservan el ejecutor de siempre: la salida sigue en **1 repasada y 8,1–8,6 s**. Medido en ronda completa (largo26, 4 semillas por sentido): repasadas **3, 3, 4, 4, 5, 4, 4, 4** (antes de todo esto, 8, 4, 4, 3 en las dos primeras), **62 puntos y parqueo completo en las 8**, sin contactos, entrada en 12–18 s. Se mide con `code/simulator/tests/parkentry.js`.
 - **Lo que falta para que la entrada sea 3 SIEMPRE (probado, no supuesto).** Tres vías cerradas: (1) la cuenta del A* **no es un parámetro**: desde poses a 1 cm de distancia da 1 o 2 repasadas, y subir el castigo por cambio de sentido de 12 a 60 cm lo deja en 2, 3, 5, 7 o 10 según el caso (empeora); (2) la **S de dos arcos calculada** (cambio de carril, el aparcamiento en paralelo clásico) no cabe: con la rejilla exacta, la esquina del chasis pasa 0,9 cm por encima del tope delantero con la holgura de planeo de 1 cm —rozando—, y por detrás engancha el tope trasero; (3) la **maniobra de tres tramos** (`park_ackermann_entry_maneuver`) **no se acepta nunca**: el patrón de volante estaba invertido (con el sentido alternado, el volante tiene que ir *igual* para que los giros alternen: el giro es `dir * largo * tan(volante)/batalla`), y aun corrigiéndolo no encuentra solución desde el carril ni desde la pose de la salida. Siguiente vía realista: **modelar el retardo del servo (~0,2 s) en el A*** para que el plan de 1 repasada se ejecute sin corrección, o ejecutar la salida al revés arco a arco con un ajuste final explícito.
 - El parqueo de la misión diferencial depende de que el cajón esté dibujado para ese chasis: los planos declaran su perfil (`robot` en el JSON) y la simulación corre ese chasis; si un plano no lo declara, el cajón y la pose de arranque se ajustan al robot simulado.
 - Misión completa del chasis Ackermann (salir del cajón, 3 vueltas, aparcar): 62 puntos en 4 de 4 casos, terminando a los 141–155 s de 180, con y sin letreros.
@@ -154,24 +154,24 @@ Tareas, en orden:
 
 ```powershell
 cd "Vision System"; .\tools\simulate.ps1            # pase completo y regenera simulador.html
-python simulator\tools\depurar.py simulator\tests\plano_errores.json --sin-mapas
-node simulator\tools\odom_check.js 100 3            # error de la odometría sola
-node simulator\tools\arena_check.js 100 3           # error de la pose del localizador
+python code\simulator\tools\depurar.py code\simulator\tests\plano_errores.json --sin-mapas
+node code\simulator\tools\odom_check.js 100 3            # error de la odometría sola
+node code\simulator\tools\arena_check.js 100 3           # error de la pose del localizador
 ```
 
-- Recompilar el firmware a WebAssembly: `simulator\wasm\build.ps1` (necesita wasi-sdk) y luego `python simulator\build_simulator.py`.
-- Banco de 100 pistas: `simulator/tools/bench/` (`big.sh`, `ab2.js`, `cmpbig.py`, `cmptime.py`, `rebuild_wasm.sh`). Los scripts ya usan rutas relativas (probado: `node simulator/tools/bench/ab2.js t 21:ccw` da 55 puntos); `big.sh TAG "cfg1;cfg2"` escribe los resultados `b_TAG_*.txt` junto al script. `rebuild_wasm.sh` usa `WASI_SDK_PATH` o `simulator/.toolchain`. El banco corre en paralelo (unos 22 procesos de Node) y tarda decenas de minutos.
+- Recompilar el firmware a WebAssembly: `code\simulator\wasm\build.ps1` (necesita wasi-sdk) y luego `python code\simulator\build_simulator.py`.
+- Banco de 100 pistas: `code/simulator/tools/bench/` (`big.sh`, `ab2.js`, `cmpbig.py`, `cmptime.py`, `rebuild_wasm.sh`). Los scripts ya usan rutas relativas (probado: `node code/simulator/tools/bench/ab2.js t 21:ccw` da 55 puntos); `big.sh TAG "cfg1;cfg2"` escribe los resultados `b_TAG_*.txt` junto al script. `rebuild_wasm.sh` usa `WASI_SDK_PATH` o `code/simulator/.toolchain`. El banco corre en paralelo (unos 22 procesos de Node) y tarda decenas de minutos.
 
 ## 8. Mapa de documentación
 
 - [`README.md`](README.md): visión general, arquitectura, resultados.
-- [`LIDAR System/README.md`](LIDAR%20System/README.md): planificador, controlador, odometría, localizador, parqueo, configuración final.
-- [`simulator/README.md`](simulator/README.md): simulador, encoders, herramientas, cómo se genera `simulador.html`.
-- [`Vision System/README.md`](Vision%20System/README.md): detector de visión y protocolo.
+- [`code/LIDAR System/README.md`](code/LIDAR%20System/README.md): planificador, controlador, odometría, localizador, parqueo, configuración final.
+- [`code/simulator/README.md`](code/simulator/README.md): simulador, encoders, herramientas, cómo se genera `simulador.html`.
+- [`code/Vision System/README.md`](code/Vision%20System/README.md): detector de visión y protocolo.
 - [`PENDIENTES_PARQUEO.md`](PENDIENTES_PARQUEO.md): estado del parqueo, flags experimentales, límites abiertos, preguntas y cómo medir.
-- [`Motor Control/MIC/README.md`](Motor%20Control/MIC/README.md) y [`CALIBRACION.md`](Motor%20Control/MIC/CALIBRACION.md): control de tracción y su calibración.
-- [`simulator/TRACE_MAP.md`](simulator/TRACE_MAP.md): mapa persistente (rejilla, objetos, plaza, guardado).
-- [`simulator/LINEA_BASE_PARQUEO_MAPA.md`](simulator/LINEA_BASE_PARQUEO_MAPA.md): mediciones de la línea base del parqueo y del mapa (9 nov).
+- [`code/Motor Control/MIC/README.md`](code/Motor%20Control/MIC/README.md) y [`CALIBRACION.md`](code/Motor%20Control/MIC/CALIBRACION.md): control de tracción y su calibración.
+- [`code/simulator/TRACE_MAP.md`](code/simulator/TRACE_MAP.md): mapa persistente (rejilla, objetos, plaza, guardado).
+- [`code/simulator/LINEA_BASE_PARQUEO_MAPA.md`](code/simulator/LINEA_BASE_PARQUEO_MAPA.md): mediciones de la línea base del parqueo y del mapa (9 nov).
 
 ## 9. Panel web, enlace P4-S3 y mapa (rama integracion-panel)
 
@@ -185,7 +185,7 @@ El signo del giroscopio no se cambia solo con el robot armado.
 - Pagina: 300 x 300 celdas de 2 cm = 6 x 6 m (antes 4 cm = 12 x 12 m), unas 22 500 celdas ocupadas del campo (150 x 150) de 90 000. 90 KB por nivel en el navegador.
 - Enlace: ~406 puntos por vuelta (limite 512), trama de estado ~1,8 KB a 8 Hz = ~15 KB/s de los 92 KB/s de la UART a 921600.
 
-**Pendiente (necesita el robot / la mano):** girar el robot a mano para comprobar rumbo y signo del giroscopio; flashear el S3 (`S3 Robot`, ya compila con IDF 5.5.4) con su red WiFi en `S3 Robot/main/wifi_secrets.h`; motores y encoders al final.
+**Pendiente (necesita el robot / la mano):** girar el robot a mano para comprobar rumbo y signo del giroscopio; flashear el S3 (`S3 Robot`, ya compila con IDF 5.5.4) con su red WiFi en `code/S3 Robot/main/wifi_secrets.h`; motores y encoders al final.
 ## 10. Nota de lectura sobre el chasis Ackermann
 
 Las secciones 1-6 conservan resultados del chasis diferencial. Para el chasis actual (Ackermann, motor trasero de 800 rpm, servo MG90S) manda la
@@ -213,4 +213,4 @@ las medidas del chasis real (dimensiones, servo, encoder, velocidad frente a PWM
 ## 16 nov (noche) - El simulador usa por defecto los costes del P4
 - `sim.js` constante `P4`: retardo de la orden segun la fase (84,5 ms con el planificador reactivo, 37 ms en PARK_EXIT/PARKING), IT en tarea aparte con 287 evaluaciones por barrido, A* del parqueo en tarea aparte a 11.000 nodos/s con 0,55 s la maniobra de entrada. `WRO_SIM_IDEAL=1` o `p4: false` lo quita. Interruptores de depuracion: `WRO_P4_SCANMS`, `WRO_P4_IT=0`, `WRO_P4_PARK=0`.
 - 48 rondas con 5 letreros: ideal 89,1 s y 61,69 puntos; P4 89,3 s (vueltas 22,1 y 10,4 s) y 61,38 puntos (2 `limiter`: ccw 8, cw 1). Aislado: el retardo de 85 ms en todo el parqueo daba 9 `limiter` (el parqueo es sensible a la latencia de la orden); A* y worker solos no pierden puntos (+2,3 s).
-- Nueva herramienta `simulator/tools/capture_park_scan.js` (barrido de PARKING a cabecera C) y `perf_park_scan.h` para medir `park_localize_track` en el P4.
+- Nueva herramienta `code/simulator/tools/capture_park_scan.js` (barrido de PARKING a cabecera C) y `perf_park_scan.h` para medir `park_localize_track` en el P4.

@@ -56,8 +56,8 @@ pulsos y dientes reales y actualizar `motorOutputCountsPerRev`, `motorGearTeeth`
 El perfil físico base está en `web/robot.js` y los montajes de sensores en
 `web/sensors.js`. El simulador comunica esos valores al planificador al iniciar.
 Los valores de partida correspondientes del P4 están en
-`LIDAR System/main/local_obstacle_map.h` y en
-`LIDAR System/p4_firmware/main/Kconfig.projbuild`. Estos archivos son fuentes
+`code/LIDAR System/main/local_obstacle_map.h` y en
+`code/LIDAR System/p4_firmware/main/Kconfig.projbuild`. Estos archivos son fuentes
 distintas y deben mantenerse sincronizados; la calibración y los GPIO físicos
 siguen bloqueados hasta verificarse.
 
