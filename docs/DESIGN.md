@@ -17,7 +17,7 @@
 - The car is **designed, not validated**. There is no numerical comparison between v1 and v2 because v2 has not run and neither version was measured.
 - The next milestone is a **measurement pass**: mass, CG, wheelbase, track width, wheel diameter, road-wheel angles, turning radius, gear ratio, servo and LiDAR models. Those values then go into the firmware configuration.
 
-![AutoNex v2, dimetric CAD view](../photos/dimetric.jpg)
+![AutoNex v2, dimetric CAD view](assets/vehicle/dimetric.jpg)
 *AutoNex v2 in SolidWorks. The rear axle carries the motor, the gear train and the differential; the front axle carries the steering.*
 
 **Status tags used in this document**
@@ -111,10 +111,10 @@
 
 The v2 chassis is a **260 × 120 × 45.65 mm** printed structure. The base is **4 mm** thick and the motor cradle has **3 mm** walls. The main chassis is a printed structure, not a folded sheet: the base carries the battery, the electronics and the LiDAR plate; the rear carries the motor cradle and the differential housing; the front carries the steering servo and the wheel holders.
 
-![Top view of the v2 chassis](../photos/top.jpg)
+![Top view of the v2 chassis](../v-photos/top.jpg)
 *Top view: differential and crown at the rear, motor in the centre, servo arm and steering bar at the front.*
 
-![Bottom view of the v2 chassis](../photos/bottom.jpg)
+![Bottom view of the v2 chassis](../v-photos/bottom.jpg)
 *Bottom view: the differential housing window at the rear and the rectangular opening in the base.*
 
 - **Rear:** JGB37-520 motor, `gear3` pinion, `gear 4` crown, differential, Ø9.8 mm axle, 10 × 15 × 4 bearings, rear wheels.
@@ -403,7 +403,8 @@ Quantities, purchased-part numbers and fastener lengths are not stored in the CA
 | File | What it is |
 |---|---|
 | [`code/Motor Control/design 3d/DiscoEncoder_30ranuras.f3d`](../code/Motor%20Control/design%203d/) | Fusion 360 source of the 30-slot encoder disc; `.step` and `.stl` next to it |
-| [`photos/`](../photos/) | CAD renders: `dimetric`, `top`, `bottom`, `front`, `rear`, `left`, `right` |
+| [`v-photos/`](../v-photos/) | Six views of the assembled car: `front`, `back`, `top`, `bottom`, `left`, `right` |
+| [`docs/assets/vehicle/`](assets/vehicle/) | Dimetric render of the v2 CAD |
 
 **Source documents** (team archive, not all in this repository):
 
